@@ -26,11 +26,14 @@
   </tr>
 </table>
 
-**Our mission: make building enterprise-level software unbelievably easy, starting with a Raspberry Pi.**
+**The OS that builds itself.**
 
-ANGI OS aims to turn a tiny, affordable computer into a powerful workspace where multiple AI agents work together to build sophisticated applications. The goal is to orchestrate lightweight, low-cost models so each task uses only the intelligence and resources it needs—keeping hardware requirements, running costs, and setup effort to a minimum.
+Use your coding agent to install ANGI on a Raspberry Pi, then change, rebuild, and test the OS on the hardware you own.
 
-From first boot to your first application, we want to make ambitious software development accessible to anyone, at a fraction of the cost of a traditional setup.
+Start with the Pi 5: inspect status and services over SSH, change a harmless system
+text file, rebuild the image, and verify the result on your own hardware. Follow the
+[reproducible source demo](docs/source-demo.md). This is a procedure to validate,
+not a claim that the full demo has passed. Pi 4 and Zero 2 W remain experimental.
 
 ## What is ANGI?
 
@@ -79,7 +82,7 @@ You paste **one prompt** into that chat. The agent runs the whole install and gu
 1. **Paste the prompt (on your computer).** The agent builds ANGI and writes it onto an SD card that is in a card reader on your computer. The card is formatted there, never in the Pi.
 2. **Wait while it builds.** The first build takes about 1 to 3 hours. The agent stays with it, keeps checking its progress, tells you how it is going and waits until the build has finished.
 3. **Move the card** when the agent tells you to: into the Pi, then connect it with Ethernet or USB-C.
-4. **Paste the second prompt the agent gives you.** When the build and the card are finished, the agent hands you a short second prompt for a new chat. It connects to the Pi, **joins it to your Wi-Fi** (the most important step), and gets the whole system ready.
+4. **Continue in the same chat.** The agent verifies the Pi’s identity, connects over SSH, guides account and Wi-Fi setup, and reports any incomplete checks.
 
 For Pi 4 / 400, the primary workflow writes `sdcard.img` with your SSH public key. On first boot, the agent connects over USB-C and opens the ANGI TUI for account and Wi-Fi setup. See the [Pi 4 / 400 provisioning guide](docs/pi4-provisioning.md).
 
@@ -89,7 +92,7 @@ For Pi 4 / 400, the primary workflow writes `sdcard.img` with your SSH public ke
 
 ANGI is in early development. This guide is tested on **Arch Linux + NetworkManager**, with an agent that can run terminal commands (Codex, Claude Code, Cursor, OpenCode, Hermes or any other harness or IDE).
 
-| Your computer | What the agent prepares | How you connect (before the second prompt) |
+| Your computer | What the agent prepares | How you connect (for first boot) |
 | --- | --- | --- |
 | **Raspberry Pi 5** | A microSD card | Ethernet or USB-C |
 | **Raspberry Pi 4 / 400** | A microSD card | Ethernet or USB-C |
@@ -128,8 +131,8 @@ INSTALL ANGI: build it and put it on an SD card, on this computer. I will tell y
 Explain each step in one short, plain sentence. Do the terminal work yourself and
 guide me through it: before each step say what you are about to do and what I will
 see, tell me exactly when I need to do something physical, and wait for me. Ask me
-only for passwords, approvals, or something physical. Write the built sdcard.img
-straight onto my SD card or USB drive.
+only for missing information, approvals, or something physical. Passwords belong
+in a local hidden prompt, never in chat or logs. Keep private keys on this computer.
 
 THE PLAN (tell me this in your first message, in plain words)
   1) You check this computer and build ANGI. This is the long part: about 1 to 3 hours
@@ -138,11 +141,14 @@ THE PLAN (tell me this in your first message, in plain words)
   2) You stay with the build the whole time, keep checking its progress, and tell me
      how it is going. I can leave it running.
   3) When the build has finished, you write it to my SD card or USB drive (I confirm the erase).
-  4) Give me the second prompt to paste into a new chat.
+  4) Guide boot and setup in this same chat.
 
 Repository: https://github.com/danaia/ANGI.git
-Clone the repository's current default branch in a fresh checkout, or use an existing
-clean checkout at the current upstream commit. Record the commit with git rev-parse HEAD.
+Use a fresh isolated checkout; preserve any existing checkout and uncommitted work.
+Fetch and check out exactly 02d035cf0d5e92ce35899b16761d4b67316c9b8b (themes source baseline).
+Verify git rev-parse HEAD equals that commit. Do not substitute the default branch.
+If the ref cannot be fetched, is wrong, or lacks the selected target's registry,
+defconfig, firmware, scripts or setup guide, STOP before building or touching media.
 From that checkout, read .agents/skills/angi-install-media/SKILL.md and run the target
 checks below before starting a build.
 
@@ -162,25 +168,40 @@ unverified and ask if I want to proceed. Use only the selected board and the
 removable drive I approve.
 
 STEP 1 - CHECK THIS COMPUTER
-Check the host operating system, free disk space (need 20 GB), memory, and that
+Check the host OS and architecture, free disk space (at least 20 GB, more if the
+build requires it), memory, dependency requirements in scripts/build.sh, and that
 my microSD card (or SD card or USB drive) is attached to THIS computer, in a card reader. The repository build and card writer use Linux. On macOS or Windows,
 use a Linux environment that can access the physical card reader, or a separate
-Linux computer. Confirm that access before proceeding. Check the build dependencies
+Linux computer. Stop on an unsupported host or without confirmed physical reader
+access; do not pretend a container or VM can see the card. Confirm access before proceeding. Check the build dependencies
 and use the Linux distribution's package manager to install missing tools with approval.
 Use the host's network settings for the direct link in part 2.
 
 STEP 2 - GET AND BUILD ANGI
-Run python3 scripts/ssh_provisioning.py as my normal user to select or generate
-the workstation's Ed25519 key pair. Record the matching private key's path for
-part 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,
-make build and make check-image, each with BOARD=<my board>. Fix errors and
-resume. Use the image built from this checkout for the selected board.
-Go on only when the image passes the check. Verify sdcard.img.sha256 in
-the selected build's images directory. On Pi 5 and Zero 2 W, ensure the
-workstation has dropbearkey. Run python3 scripts/provision-sd.py --images IMAGE_DIR
---output-dir PRIVATE_PARENT, using a private directory outside the checkout.
-This creates an image with a fresh Pi host key and matching known_hosts file.
-Record the private install directory for part 2.
+Select or create the workstation Ed25519 key with python3 scripts/ssh_provisioning.py.
+Export SSH_PUBLIC_KEY as the returned public-key path for every build command;
+record its matching private-key path. Never overwrite an existing key.
+As my normal user run make configure, make dependencies, make build and make
+check-image, each with BOARD=<my board>. Monitor progress and stop on failure.
+Resolve IMAGE_DIR from python3 scripts/detect-board.py --field <my board> output,
+appending /images. Do not search for a convenient image or reuse another board's output.
+Require exactly IMAGE_DIR/sdcard.img, board.txt equal to <my board>, and its matching
+sdcard.img.sha256. Run sha256sum -c sdcard.img.sha256 from IMAGE_DIR after check-image.
+Missing or ambiguous artifacts, wrong board stamps or bad checksums mean STOP.
+Do not regenerate a checksum to make a mismatching image pass.
+For rpi4: Use the validated build sdcard.img directly. Do not run provision-sd.py:
+it does not support rpi4. The Pi creates its host key on first boot. Before SSH,
+verify that key through the Pi's local console or an independent trusted per-device
+record. If neither is available, STOP and explain the missing trust step.
+Never use ssh-keyscan output alone as proof of identity.
+For rpi5 or rpizero2w: For this board, ensure dropbearkey is available, then run
+python3 scripts/provision-sd.py --images IMAGE_DIR --output-dir PRIVATE_PARENT
+--public-key PUBLIC_KEY, with a private directory outside the checkout.
+Use the returned private directory, run provision-sd.py --verify PRIVATE_DIR
+--board the selected board ID and sha256sum -c sdcard.img.sha256 there. Use only its sdcard.img
+and prepared known_hosts for flashing and first SSH. Stop if either check fails.
+Record the resolved absolute image path, board, source commit, checksum and trust-file
+path together. Keep this image private because it permits access using my key.
 
 WATCH THE BUILD. THIS IS REQUIRED.
 - Before you start make build, say: "The build takes a long time, about <your
@@ -190,7 +211,8 @@ WATCH THE BUILD. THIS IS REQUIRED.
   silently.
 - Each time you check, tell me in one or two short lines: which stage it is on, whether
   it is still moving, and about how much time is left.
-- If it stops, errors or looks stuck, tell me, find the cause and fix it, and resume.
+- If it stops, errors or looks stuck, stop progression and report the cause.
+  Resume only after resolving it and rerunning the failed checks.
 - Do not assume it worked. Wait until the build has actually finished and
   make check-image has passed, then tell me clearly: "The build is complete." Do not
   start step 3 before that.
@@ -200,13 +222,17 @@ The SD card or USB drive must be attached to THIS computer. Never ask me to put 
 computer for this step. If it is not attached here, stop and ask me to attach it.
 1. Run scripts/flash-sd.sh --list and show me the SD card or USB drive: path, size, model,
    serial, and what is on it. If there are several or I might not recognize it,
-   ask me which. Never use a disk that holds this computer's system.
+   stop and ask me which. Never use a disk that holds this computer's system.
+   Resolve aliases to the exact whole device and record its capacity and serial.
+   If identity is missing or ambiguous, STOP; do not guess.
 2. Say clearly that EVERYTHING on it will be erased. Wait for me to type the
    approval in the form "erase DEVICE", using the exact whole-device path reported
    by the Linux card writer. Anything else means no.
-3. Then run scripts/flash-sd.sh --board <my board> --image IMAGE --device PATH --confirm-erase PATH.
-   For Pi 5 and Zero 2 W, use the private sdcard.img and add --personalized. Otherwise use the
-   sdcard.img from the build that passed the check.
+3. Re-list and confirm that path, capacity, model, serial and mounts still match
+   the approved device immediately before writing. If anything changed, STOP and
+   request fresh approval. No approval means no write, including retries.
+   Then run scripts/flash-sd.sh --board <my board> --image IMAGE --device PATH --confirm-erase PATH.
+   Use --personalized only for the private Pi 5 or Zero 2 W image.
    It wipes the old partitions, writes the image, checks every byte, and ejects.
    Wait for the command to finish successfully before saying the SD card or USB drive is ready.
    If it refuses, verification fails, or ejection fails, tell me. Do not try
@@ -224,10 +250,10 @@ Then give me these steps as a short numbered list, one physical action per line:
 Remind me to have my Wi-Fi network name, its password and my two-letter country
 code ready, because the second part joins ANGI to Wi-Fi, which is the most important
 step.
-Read docs/install-prompts/part2-BOARD.txt from the checkout, using my board ID.
-Show the full prompt in a code block and append the checkout path, private key path,
-and any prepared known_hosts path. Tell me to paste it into a new chat and stop
-after handing it over.
+Continue in this chat after I insert the card and power on the target.
+Read docs/install-prompts/part2-BOARD.txt using my selected board ID. Carry forward
+the checkout, key and trust-file paths. Stop on boot, network or SSH failure;
+never disable strict host-key checking or trust an unverified scanned key.
 ```
 <!-- prompt1:end -->
 
@@ -263,11 +289,11 @@ Before:  Computer ── card reader ── SD card
 After:   Computer ── Ethernet or USB-C ── Pi [SD card]
 ```
 
-### Step 6: Paste the second prompt into a new chat (join Wi-Fi and get the system ready)
+### Step 6: Continue in the same chat (join Wi-Fi and get the system ready)
 
-> **ANGI must be on Wi-Fi.** The cable only carries the setup; Wi-Fi is how ANGI reaches the web. Have your **Wi-Fi network name, password and two-letter country code** ready. The second prompt does not finish until `agx wifi check` shows ANGI can reach the web. You type the password privately, with the screen echo off, never into the chat. (The Pi Zero 2 W supports 2.4 GHz networks only.)
+> **ANGI must be on Wi-Fi.** The cable only carries the setup; Wi-Fi is how ANGI reaches the web. Have your **Wi-Fi network name, password and two-letter country code** ready. Setup does not finish until `agx wifi check` shows ANGI can reach the web. You type the password privately, with the screen echo off, never into the chat. (The Pi Zero 2 W supports 2.4 GHz networks only.)
 
-Your agent prints this second prompt for you at the end of step 5, so you do not need to copy it from here. The text for each computer is in [docs/install-prompts/](docs/install-prompts/) (`part2-rpi5.txt`, `part2-rpi4.txt` and so on).
+Your agent continues using the checkout and verified identity from step 5. The first-boot instructions for each computer are in [docs/install-prompts/](docs/install-prompts/) (`part2-rpi5.txt`, `part2-rpi4.txt` and so on).
 
 Within about two minutes the Pi shows up on your computer. Your agent connects, joins it to Wi-Fi with you and confirms it is online, then sets up your account and checks every service. If it does not show up:
 

@@ -15,15 +15,18 @@ adapter by MAC 02:79:00:00:00:01. Configure only that link, with no gateway or
 default route. On Linux with NetworkManager, reuse angi-zero-usb if it exists.
 Use the private image's per-card known_hosts file. See docs/pi-zero-2w.md.
 Check the route and source address before connecting. If the Pi fails to appear,
-check the cable, power, activity LED and card seating with me.
+stop after a bounded two-minute wait and check cable, power and card seating with me.
+Do not change transports or network configuration without my approval. No boot or
+SSH success means setup is incomplete; never continue as though it worked.
 
 STEP 2 - VERIFY SSH AND OPEN THE TUI
 Use root@PI_ADDRESS with the private key matching the public key used in part 1.
 If part 1 prepared a known_hosts file, use it as UserKnownHostsFile and enable
-StrictHostKeyChecking from the first connection. Otherwise, verify the Pi's
+StrictHostKeyChecking=yes and IdentitiesOnly=yes from the first connection. Otherwise, verify the Pi's
 fingerprint through its local console or an independent trusted source before
 connecting. If the key differs from the verified key, stop and resolve the
-device identity with me.
+device identity with me. Never disable strict checking, accept an unverified key,
+or delete trusted entries to bypass a mismatch. A scanned key alone is not proof.
 Read /proc/device-tree/model and run agx status --json over that trusted connection.
 Confirm the hardware matches Pi Zero 2 W, then open a workstation terminal with
 ssh -t ... agx tui.

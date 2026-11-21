@@ -84,6 +84,15 @@ class SourceGates(unittest.TestCase):
         self.assertIn("--device", result.stderr)
         self.assertNotIn("Source commit", result.stdout)
 
+    def test_ambiguous_device_list_stops_before_build(self):
+        result = subprocess.run([sys.executable, ROOT / "scripts/install-source.py", "prepare",
+                                 "--board", "rpi5", "--output-dir", "/tmp",
+                                 "--device", "/dev/reader1", "--device", "/dev/reader2"],
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Select exactly one device", result.stderr)
+        self.assertNotIn("Source commit", result.stdout)
+
     def test_failed_image_check_stops_before_provisioning(self):
         steps = []
 

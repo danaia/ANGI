@@ -6,11 +6,13 @@ import hmac
 import json
 from pathlib import Path
 import re
+import secrets
 import shutil
 import struct
 import subprocess
 import sys
 import tempfile
+import uuid
 
 from detect_board_registry import BY_ID
 from iso_media import sha256_file, partition_chunks
@@ -86,6 +88,50 @@ def pack_root(image, rootfs, board):
                 raise ValueError("The packaged root filesystem did not match its source")
 
 
+def personalize_boot_reference(image, board, host, staging):
+    """Give this install a root partition identity distinct from other copies."""
+    if board.endswith("-desktop"):
+        boot, root = partitions(image)
+        offset = boot["start"] * 512
+        filename = "EFI/BOOT/grub.cfg"
+        current = root["uuid"].lower()
+        replacement = str(uuid.uuid4())
+    elif signature := BY_ID[board].get("disk_signature"):
+        with image.open("rb") as disk:
+            disk.seek(454)
+            offset = int.from_bytes(disk.read(4), "little") * 512
+        filename = "cmdline.txt"
+        current = signature + "-02"
+        replacement = secrets.token_hex(4) + "-02"
+    else:
+        return
+
+    fat = f"{image}@@{offset}"
+    original = subprocess.check_output([host / "bin/mtype", "-i", fat, f"::{filename}"], text=True)
+    if not board.endswith("-desktop") and "root=/dev/mmcblk0p2" in original.split():
+        # Earlier Pi SD artifacts used their fixed onboard partition path.
+        return
+    root_argument = "root=PARTUUID=" + current
+    if root_argument not in original.split():
+        raise ValueError("The boot configuration points at a different root partition")
+    rendered = original.replace(root_argument, "root=PARTUUID=" + replacement)
+    config = staging / Path(filename).name
+    config.write_text(rendered)
+    subprocess.run([host / "bin/mcopy", "-o", "-i", fat, config, f"::{filename}"], check=True)
+    packed = subprocess.check_output([host / "bin/mtype", "-i", fat, f"::{filename}"], text=True)
+    if packed != rendered:
+        raise ValueError("The packed boot configuration did not match the personalized one")
+    if board.endswith("-desktop"):
+        subprocess.run(["sfdisk", "--part-uuid", image, "2", replacement], check=True,
+                       stdout=subprocess.DEVNULL)
+        if partitions(image)[1]["uuid"].lower() != replacement:
+            raise ValueError("The personalized GPT root partition UUID did not match")
+    else:
+        with image.open("r+b") as disk:
+            disk.seek(440)
+            disk.write(int(replacement[:-3], 16).to_bytes(4, "little"))
+
+
 def provision(images, output_parent, public_key, dropbearkey):
     board = board_for(images)
     name = BY_ID[board]["image"]
@@ -106,6 +152,7 @@ def provision(images, output_parent, public_key, dropbearkey):
         image = staging / name
         shutil.copyfile(source_image, image)
         pack_root(image, staging / "rootfs", board)
+        personalize_boot_reference(image, board, images.parent / "host", staging)
         trust = staging / "known_hosts"
         trust.write_bytes(host_names(board) + b" " + host_key)
         (staging / "board.txt").write_text(f"{board}\n")

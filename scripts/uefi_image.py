@@ -30,6 +30,7 @@ def partitions(image):
 def check_uefi(images, board):
     kernel, loader, pe_arch, elf_arch = TARGETS[board["arch"]]
     image = images / board["image"]
+    subprocess.run(["sfdisk", "--verify", image], stdout=subprocess.DEVNULL, check=True)
     boot, root = partitions(image)
     host = images.parent / "host"
     target = images.parent / "target"
@@ -59,6 +60,15 @@ def check_uefi(images, board):
     if efi[pe_offset:pe_offset + 6] != b"PE\0\0" + struct.pack("<H", pe_arch):
         raise ValueError("EFI loader is for a different architecture")
     with (images / kernel).open("rb") as binary:
+        header = binary.read(1024)
+        if board["arch"] == "aarch64":
+            kernel_matches = header[56:60] == b"ARM\x64"
+        else:
+            kernel_matches = (len(header) > 0x236 and header[0x202:0x206] == b"HdrS"
+                              and bool(header[0x236] & 1))
+        if not kernel_matches:
+            raise ValueError("Linux kernel header is for a different architecture")
+        binary.seek(0)
         digest = hashlib.file_digest(binary, "sha256").digest()
     if hashlib.sha256(read_boot(kernel)).digest() != digest:
         raise ValueError("Packed kernel differs from the build")

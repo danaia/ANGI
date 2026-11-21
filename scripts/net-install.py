@@ -31,8 +31,9 @@ def dedicated(interface, configured=False):
         raise ValueError("Choose a dedicated physical or guest Ethernet adapter")
     if Path("/sys/class/net", interface, "wireless").exists():
         raise ValueError("Choose a wired Ethernet adapter")
-    if ip_json("route", "show", "default", "dev", interface):
-        raise ValueError("The selected adapter carries the default route")
+    for family in ("-4", "-6"):
+        if ip_json(family, "route", "show", "default", "dev", interface):
+            raise ValueError("The selected adapter carries a default route")
     link, = ip_json("address", "show", "dev", interface)
     addresses = [(item["local"], item["prefixlen"]) for item in link["addr_info"]
                  if item["scope"] == "global"]
@@ -111,6 +112,10 @@ def main():
         verify_payload(args.board, args.bundle)
         args.boot_dir.mkdir(mode=0o755)
         make_bootstrap(args.board, args.public_key, args.boot_dir)
+        # This directory contains the public bootstrap only. TFTP needs read access.
+        args.boot_dir.chmod(0o755)
+        for artifact in args.boot_dir.iterdir():
+            artifact.chmod(0o644)
     elif action == "serve":
         dedicated(args.interface, configured=True)
         marker = "config.txt" if args.board.startswith("rpi") else "bootstrap.efi"
@@ -121,7 +126,7 @@ def main():
         command("dnsmasq", "--no-daemon", "--conf-file=/dev/null", "--port=0", "--bind-interfaces",
                 "--except-interface=lo", f"--interface={args.interface}", f"--listen-address={HOST}",
                 f"--dhcp-range={CLIENT},{CLIENT},255.255.255.0,2m",
-                "--dhcp-option=3", "--dhcp-option=6", "--enable-tftp",
+                "--dhcp-option=3", "--dhcp-option=6", "--leasefile-ro", "--enable-tftp",
                 f"--tftp-root={args.boot_dir.resolve()}", *options)
     elif action == "pin":
         require_route(args.interface)

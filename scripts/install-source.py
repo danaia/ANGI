@@ -89,13 +89,17 @@ def main():
     parser.add_argument("action", choices=("preflight", "prepare"))
     parser.add_argument("--board", required=True, choices=BY_ID)
     transport = parser.add_mutually_exclusive_group(required=True)
-    transport.add_argument("--device", help="whole removable device visible to Linux")
-    transport.add_argument("--interface", help="spare Ethernet interface for network boot")
+    transport.add_argument("--device", action="append", help="whole removable device visible to Linux")
+    transport.add_argument("--interface", action="append", help="spare Ethernet interface for network boot")
     parser.add_argument("--output-dir", type=Path, required=True, help="private parent outside the checkout")
     args = parser.parse_args()
+    selected = args.device or args.interface
+    if len(selected) != 1:
+        parser.error("Select exactly one device or interface before preparing the installation")
     operation = preflight if args.action == "preflight" else prepare
     try:
-        operation(args.board, args.device, args.interface, args.output_dir.resolve())
+        operation(args.board, selected[0] if args.device else None,
+                  selected[0] if args.interface else None, args.output_dir.resolve())
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         sys.exit(f"Source install stopped: {error}")
 

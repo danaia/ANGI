@@ -73,7 +73,7 @@ if [[ "$ACTION" == configure || ! -f "$OUTPUT/.config" ]]; then
             {
                 sed '/^BR2_TOOLCHAIN_EXTERNAL/d' "$ROOT/buildroot/configs/$DEFCONFIG"
                 printf '%s\n' BR2_TOOLCHAIN_BUILDROOT=y BR2_TOOLCHAIN_BUILDROOT_GLIBC=y \
-                    BR2_INSTALL_LIBSTDCPP=y
+                    BR2_TOOLCHAIN_BUILDROOT_CXX=y BR2_KERNEL_HEADERS_6_12=y
             } > "$host_config"
             brmake defconfig BR2_DEFCONFIG="$host_config"
             ;;

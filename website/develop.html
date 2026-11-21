@@ -34,8 +34,8 @@
 <header class="hero page-hero">
   <div class="wrap hero-grid">
     <div>
-      <h1><span class="grad">Two ways to build.</span><br><span>Both live.</span></h1>
-      <p class="sub">ANGI ships with the <b>bare minimum</b>. The rest is yours to craft, on ANGI itself or from the computer next to it. Over USB-C or Ethernet, your changes land on the running system without a reflash or a reboot.</p>
+      <h1><span class="grad">Minimal by Design</span><br></h1>
+      <p class="sub">ANGI ships with the <a class="base-link" href="#bare-minimum" aria-haspopup="dialog" aria-controls="bare-minimum">bare minimum</a>. The rest is yours to craft, on ANGI itself or from the computer next to it. Over USB-C or Ethernet, your changes land on the running system without a reflash or a reboot.</p>
     </div>
     <figure class="kit panel" aria-label="ANGI ships with a kernel, a Rust init, networking with SSH, and your agents. Everything else is yours to build.">
       <figcaption>Ships with</figcaption>
@@ -52,6 +52,36 @@
     </figure>
   </div>
 </header>
+
+<dialog class="base-dialog" id="bare-minimum" aria-labelledby="bare-minimum-title">
+  <div class="base-dialog-content">
+    <div class="base-dialog-header">
+      <h2 id="bare-minimum-title">What “bare minimum” means</h2>
+      <form method="dialog"><button type="submit" autofocus>Close</button></form>
+    </div>
+    <p>ANGI uses Buildroot to assemble its own Linux system from source. Each hardware target has a build configuration that specifies which components go on disk.</p>
+
+    <div class="base-dialog-group">
+      <h3>What ships</h3>
+      <dl>
+        <dt>Shared foundation</dt>
+        <dd>The Linux kernel, BusyBox for the shell and core tools, Dropbear for SSH, and ANGI’s Rust startup, service supervisor, networking, and terminal dashboard.</dd>
+        <dt>Pi Zero 2 W</dt>
+        <dd>A headless build with a software desktop you can open over VNC through SSH.</dd>
+        <dt>Pi 4 and Pi 5</dt>
+        <dd>The graphical desktop, WebKit browser, and on-device coding agents are selected in these builds.</dd>
+        <dt>ARM and x86-64 UEFI</dt>
+        <dd>The experimental PC builds start with the terminal dashboard, SSH, and networking.</dd>
+      </dl>
+    </div>
+
+    <div class="base-dialog-group">
+      <h3>What you can control</h3>
+      <p>You can inspect running services and logs from the dashboard or through commands your agent can read. Change the build configuration to decide what ships, or edit an ANGI component in the same repository.</p>
+      <p>Deploy a desktop change over SSH and reload it in place. If the new desktop fails to stay up, ANGI restores the previous release. For changes to the kernel or boot configuration, build and verify new boot media.</p>
+    </div>
+  </div>
+</dialog>
 
 <section class="tight" aria-label="Choose how you build">
   <div class="wrap">

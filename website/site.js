@@ -67,6 +67,25 @@
     guide: $('#guide'), tabs: $('#tabs'), images, esc, icon, bindCopy,
   });
 
+  const baseLink = $('.base-link');
+  const baseDialog = $('#bare-minimum');
+  if (baseLink && baseDialog) {
+    const openFromHash = () => {
+      if (location.hash === baseLink.hash && !baseDialog.open) baseDialog.showModal();
+    };
+    baseLink.addEventListener('click', (event) => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      baseDialog.showModal();
+    });
+    baseDialog.addEventListener('click', (event) => {
+      if (event.target === baseDialog) baseDialog.close();
+    });
+    baseDialog.addEventListener('close', () => baseLink.focus());
+    addEventListener('hashchange', openFromHash);
+    openFromHash();
+  }
+
   /* copy buttons */
   function bindCopy(root) {
     $$('[data-copy]', root).forEach((b) => {

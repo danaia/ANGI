@@ -2,8 +2,8 @@ INSTALL ANGI: build it and put it on an SD card, on this computer. {{WHAT}}
 Explain each step in one short, plain sentence. Do the terminal work yourself and
 guide me through it: before each step say what you are about to do and what I will
 see, tell me exactly when I need to do something physical, and wait for me. Ask me
-only for passwords, approvals, or something physical. Write the built sdcard.img
-straight onto my {{MEDIA}}.
+only for missing information, approvals, or something physical. Passwords belong
+in a local hidden prompt, never in chat or logs. Keep private keys on this computer.
 
 THE PLAN (tell me this in your first message, in plain words)
   1) You check this computer and build ANGI. This is the long part: about 1 to 3 hours
@@ -15,32 +15,40 @@ THE PLAN (tell me this in your first message, in plain words)
   4) {{PLAN_HANDOFF}}
 
 Repository: https://github.com/danaia/ANGI.git
-Clone the repository's current default branch in a fresh checkout, or use an existing
-clean checkout at the current upstream commit. Record the commit with git rev-parse HEAD.
+Use a fresh isolated checkout; preserve any existing checkout and uncommitted work.
+Fetch and check out exactly 02d035cf0d5e92ce35899b16761d4b67316c9b8b (themes source baseline).
+Verify git rev-parse HEAD equals that commit. Do not substitute the default branch.
+If the ref cannot be fetched, is wrong, or lacks the selected target's registry,
+defconfig, firmware, scripts or setup guide, STOP before building or touching media.
 From that checkout, read .agents/skills/angi-install-media/SKILL.md and run the target
 checks below before starting a build.
 
 {{STEP0}}
 STEP 1 - CHECK THIS COMPUTER
-Check the host operating system, free disk space (need 20 GB), memory, and that
+Check the host OS and architecture, free disk space (at least 20 GB, more if the
+build requires it), memory, dependency requirements in scripts/build.sh, and that
 {{ATTACHED}}. The repository build and card writer use Linux. On macOS or Windows,
 use a Linux environment that can access the physical card reader, or a separate
-Linux computer. Confirm that access before proceeding. Check the build dependencies
+Linux computer. Stop on an unsupported host or without confirmed physical reader
+access; do not pretend a container or VM can see the card. Confirm access before proceeding. Check the build dependencies
 and use the Linux distribution's package manager to install missing tools with approval.
 Use the host's network settings for the direct link in part 2.
 
 STEP 2 - GET AND BUILD ANGI
-Run python3 scripts/ssh_provisioning.py as my normal user to select or generate
-the workstation's Ed25519 key pair. Record the matching private key's path for
-part 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,
-make build and make check-image, each with BOARD={{BOARD}}. Fix errors and
-resume. Use the image built from this checkout for the selected board.
-Go on only when the image passes the check. Verify sdcard.img.sha256 in
-the selected build's images directory. On Pi 5 and Zero 2 W, ensure the
-workstation has dropbearkey. Run python3 scripts/provision-sd.py --images IMAGE_DIR
---output-dir PRIVATE_PARENT, using a private directory outside the checkout.
-This creates an image with a fresh Pi host key and matching known_hosts file.
-Record the private install directory for part 2.
+Select or create the workstation Ed25519 key with python3 scripts/ssh_provisioning.py.
+Export SSH_PUBLIC_KEY as the returned public-key path for every build command;
+record its matching private-key path. Never overwrite an existing key.
+As my normal user run make configure, make dependencies, make build and make
+check-image, each with BOARD={{BOARD}}. Monitor progress and stop on failure.
+Resolve IMAGE_DIR from python3 scripts/detect-board.py --field {{BOARD}} output,
+appending /images. Do not search for a convenient image or reuse another board's output.
+Require exactly IMAGE_DIR/sdcard.img, board.txt equal to {{BOARD}}, and its matching
+sdcard.img.sha256. Run sha256sum -c sdcard.img.sha256 from IMAGE_DIR after check-image.
+Missing or ambiguous artifacts, wrong board stamps or bad checksums mean STOP.
+Do not regenerate a checksum to make a mismatching image pass.
+{{PROVISION}}
+Record the resolved absolute image path, board, source commit, checksum and trust-file
+path together. Keep this image private because it permits access using my key.
 
 WATCH THE BUILD. THIS IS REQUIRED.
 - Before you start make build, say: "The build takes a long time, about <your
@@ -50,7 +58,8 @@ WATCH THE BUILD. THIS IS REQUIRED.
   silently.
 - Each time you check, tell me in one or two short lines: which stage it is on, whether
   it is still moving, and about how much time is left.
-- If it stops, errors or looks stuck, tell me, find the cause and fix it, and resume.
+- If it stops, errors or looks stuck, stop progression and report the cause.
+  Resume only after resolving it and rerunning the failed checks.
 - Do not assume it worked. Wait until the build has actually finished and
   make check-image has passed, then tell me clearly: "The build is complete." Do not
   start step 3 before that.
@@ -60,13 +69,17 @@ The {{MEDIA}} must be attached to THIS computer. Never ask me to put it in the t
 computer for this step. If it is not attached here, stop and ask me to attach it.
 1. Run scripts/flash-sd.sh --list and show me the {{MEDIA}}: path, size, model,
    serial, and what is on it. If there are several or I might not recognize it,
-   ask me which. Never use a disk that holds this computer's system.
+   stop and ask me which. Never use a disk that holds this computer's system.
+   Resolve aliases to the exact whole device and record its capacity and serial.
+   If identity is missing or ambiguous, STOP; do not guess.
 2. Say clearly that EVERYTHING on it will be erased. Wait for me to type the
    approval in the form "erase DEVICE", using the exact whole-device path reported
    by the Linux card writer. Anything else means no.
-3. Then run scripts/flash-sd.sh --board {{BOARD}} --image IMAGE --device PATH --confirm-erase PATH.
-   For Pi 5 and Zero 2 W, use the private sdcard.img and add --personalized. Otherwise use the
-   sdcard.img from the build that passed the check.
+3. Re-list and confirm that path, capacity, model, serial and mounts still match
+   the approved device immediately before writing. If anything changed, STOP and
+   request fresh approval. No approval means no write, including retries.
+   Then run scripts/flash-sd.sh --board {{BOARD}} --image IMAGE --device PATH --confirm-erase PATH.
+   {{FLASH}}
    It wipes the old partitions, writes the image, checks every byte, and ejects.
    Wait for the command to finish successfully before saying the {{MEDIA}} is ready.
    If it refuses, verification fails, or ejection fails, tell me. Do not try

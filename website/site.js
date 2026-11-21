@@ -135,7 +135,7 @@
     const pi = img.kind === 'pi';
     const status = window.ANGI_BUILD_STATUS[img.id];
     const planned = status === 'planned';
-    const notice = planned ? 'Build support is planned. The prompt checks the current repository for updates.'
+    const notice = planned ? 'Build support is planned. This prompt stops without building or writing media.'
       : status === 'experimental' ? 'Experimental target. The agent will ask before building.' : '';
     guide.setAttribute('aria-labelledby', 'tab-' + img.id);
     guide.innerHTML = `

@@ -43,7 +43,11 @@ Some feature/service files remain large and are candidates for later focused pas
 `scripts/sync-install-prompt.py` renders the README and website source-build
 prompts and first-boot handoffs from `docs/install-prompts/` and the board
 registry in `scripts/boards.json`. The website selects the generated prompt
-by board ID.
+by board ID. The generated JavaScript stores one source template and explicit
+board profiles, and appends the same-chat first-boot instructions. The source
+ref is pinned in `1-card.tmpl`; update it only after verifying all advertised
+targets exist at that commit. Run `python3 scripts/test-install-prompts.py`
+after regeneration.
 
 The Zero 2 W defconfig selects the GUI's `headless` feature and the existing
 software VNC platform. Its board overlay owns the gadget address, Wi-Fi module

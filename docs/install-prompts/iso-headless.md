@@ -7,6 +7,7 @@ For the primary build-and-write workflow, see the [Pi 4 / 400 provisioning guide
 ```text
 Install ANGI headless on my Raspberry Pi 4 or 400 using the generic release ISO.
 Use the ANGI checkout at https://github.com/danaia/ANGI.git for the install scripts.
+Read .agents/skills/angi-install-media/SKILL.md before selecting or writing the image.
 Do the terminal work on this Linux computer and explain each step in one short sentence.
 Tell me when I need to do something physical and wait for me.
 

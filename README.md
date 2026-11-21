@@ -143,6 +143,8 @@ THE PLAN (tell me this in your first message, in plain words)
      once the build and the SD card or USB drive are both finished. I do not have it yet.
 
 Repository: https://github.com/danaia/ANGI.git
+Read .agents/skills/angi-install-media/SKILL.md from the repository before selecting
+the target or starting a build. Follow it through image validation and media write.
 
 STEP 0 - ASK WHAT ANGI IS GOING ON
 If I have not already said, ask me this and wait for the answer:

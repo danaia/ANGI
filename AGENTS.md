@@ -30,6 +30,10 @@ Use the Agent Angi OS and Project tooltip pattern throughout the ANGI desktop. R
 
 The user grants Codex standing administrator authorization on the established ANGI development Pi 5. For requested changes, use the documented root SSH connection to install live component and operating-system updates, refresh the authenticated desktop or reboot when needed, and verify the running version and requested behavior. Carry deployment through verification without asking again for permission to perform those steps. Preserve user data and the previous release for rollback. An erase or reflash requires separate explicit authorization.
 
+## ANGI installation media
+
+Read the shared [ANGI installation media skill](.agents/skills/angi-install-media/SKILL.md) before selecting a hardware target, preparing an SD card or USB drive, or choosing a development SDK for an ANGI device.
+
 ## Pi access and control (Claude and Codex)
 
 For Pi access, remote commands, file transfer, desktop control, deployment or recovery, read and follow [.agents/skills/angi-pi-ethernet/SKILL.md](.agents/skills/angi-pi-ethernet/SKILL.md) and [docs/pi-ethernet.md](docs/pi-ethernet.md) before connecting. These are the shared procedure for both agents; Claude discovers the same skill through `.claude/skills/angi-pi-ethernet`.

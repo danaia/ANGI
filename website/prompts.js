@@ -20,6 +20,8 @@ In PHASE 2 I move it into the ${img.short} and you finish setup. Say this in you
   const phase1 = `PHASE 1 - WRITE THE ${media.toUpperCase()} ON THIS COMPUTER
 
 1. CHECK THIS COMPUTER
+Read .agents/skills/angi-install-media/SKILL.md from ${repo} before selecting an
+image or writing a drive. The selected hardware target is ${img.id}.
 Detect the operating system (Linux, macOS or Windows) and check for 4 GB of free space.
 Ask me to put my ${media} into ${pi ? 'a card reader on' : 'a USB port of'} THIS computer${pi ? ', with the ' + img.short + ' powered off' : ''}.
 Wait until it is attached before you continue.

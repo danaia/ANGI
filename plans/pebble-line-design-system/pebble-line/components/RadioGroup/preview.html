@@ -1,0 +1,14 @@
+<!-- @dsCard group="Inputs" height=160 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>RadioGroup — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.RadioGroup, { label: 'Category', defaultValue: 'Mouse', options: ['Mouse', 'Keyboard', 'LCD', 'Speakers', 'PC Ready', 'Stands'] })
+  );
+</script>
+</body>
+</html>

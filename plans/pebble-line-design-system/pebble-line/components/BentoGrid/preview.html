@@ -1,0 +1,18 @@
+<!-- @dsCard group="Containers" height=520 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>BentoGrid — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.BentoGrid, { columns: 3, rowHeight: 120, style: { width: 760 } },
+      h(P.BentoCell, { cols: 1 }, h(P.StatTile, { label: 'Bank', value: '$ 670', icon: 'dollar' })),
+      h(P.BentoCell, { cols: 1 }, h(P.StatTile, { label: 'Wallet', value: '$ 90', delta: '+12% this week', trend: 'up' })),
+      h(P.BentoCell, { cols: 1, rows: 2 }, h(P.Card, { variant: 'hero', title: 'Lorem ipsum', actions: h(P.Button, { variant: 'primary' }, 'Learn More') }, 'Bento cells span columns and rows; content fills the cell.')),
+      h(P.BentoCell, { cols: 2 }, h(P.Card, { title: 'Weekly goal' }, h(P.Progress, { value: 72, label: 'Saved', showValue: true }))))
+  );
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!-- @dsCard group="Overlays" height=300 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Menu — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.Menu, { 'aria-label': 'Order actions', items: [
+      { label: 'Edit', icon: 'edit', shortcut: '⌘E' },
+      { label: 'Duplicate', icon: 'doc' },
+      { label: 'Schedule', icon: 'calendar' },
+      { separator: true },
+      { label: 'Delete', icon: 'trash', danger: true }] })
+  );
+</script>
+</body>
+</html>

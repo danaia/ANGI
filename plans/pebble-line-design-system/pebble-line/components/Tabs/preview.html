@@ -1,0 +1,17 @@
+<!-- @dsCard group="Navigation" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Tabs — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.Tabs, { 'aria-label': 'Account', items: [
+      { id: 'overview', label: 'Overview', content: 'Balances, recent activity and goals at a glance.' },
+      { id: 'cards', label: 'Cards', content: 'Your saved cards.' },
+      { id: 'settings', label: 'Settings', content: 'Profile and security.' }] })
+  );
+</script>
+</body>
+</html>

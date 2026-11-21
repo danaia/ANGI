@@ -1,0 +1,38 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "title": "Desktop · dark",
+      "expand": "fill",
+      "is_interactive": true
+    },
+    {
+      "file": "Light.dc.html",
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "title": "Desktop · light",
+      "expand": "fill",
+      "is_interactive": true
+    }
+  ],
+  "annotations": [
+    {
+      "id": "heading",
+      "x": 0,
+      "y": -300,
+      "w": 240,
+      "maxW": 2960,
+      "text": "angi desktop in Pebble Line",
+      "kind": "title1"
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

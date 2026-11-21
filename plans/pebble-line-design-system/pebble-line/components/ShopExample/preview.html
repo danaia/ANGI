@@ -1,0 +1,22 @@
+<!-- @dsCard group="Patterns" height=560 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ShopExample — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h('div', { style: { display: 'grid', gridTemplateColumns: '300px 300px 72px', gap: 32, alignItems: 'start' } },
+      h(P.Card, { title: 'Price Range' },
+        h(P.RangeSlider, { min: 0, max: 1000, step: 10, defaultValue: [20, 320], format: function (v) { return '$' + v; } }),
+        h('div', { style: { marginTop: 20 } }, h(P.Button, { size: 'sm' }, 'Apply'))),
+      h(P.Card, { title: 'Cart Summary' },
+        h(P.Card, { variant: 'muted' }, h(P.SummaryList, { rows: [{ label: 'Subtotal', value: '$320' }, { label: 'Total', value: '$320', total: true }] })),
+        h('div', { style: { marginTop: 24 } }, h(P.Button, { icon: 'cart' }, 'Checkout'))),
+      h(P.NavRail, { defaultValue: 'cart', items: [{ id: 'user', label: 'Profile', icon: 'user' }, { id: 'docs', label: 'Orders', icon: 'doc' }, { id: 'cart', label: 'Cart', icon: 'cart' }, { id: 'stats', label: 'Reports', icon: 'chart' }] }),
+      h('div', { style: { gridColumn: '1 / span 3' } }, h(P.Card, null, h(P.RadioGroup, { label: 'Category', defaultValue: 'Mouse', options: ['Mouse', 'Keyboard', 'LCD', 'Speakers', 'PC Ready', 'Stands'] }))))
+  );
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!-- @dsCard group="Data display" height=360 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Table — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.Table, { caption: 'Recent orders', columns: [
+      { key: 'item', label: 'Item' }, { key: 'status', label: 'Status', render: function (r) { return h(P.Badge, { tone: r.tone, dot: true }, r.status); } }, { key: 'total', label: 'Total', align: 'right' }],
+      rows: [
+      { item: 'Wireless mouse', status: 'Shipped', tone: 'success', total: '$40' },
+      { item: 'Mechanical keyboard', status: 'Processing', tone: 'warning', total: '$180' },
+      { item: '27" LCD', status: 'Cancelled', tone: 'danger', total: '$320' }], style: { width: 600 } })
+  );
+</script>
+</body>
+</html>

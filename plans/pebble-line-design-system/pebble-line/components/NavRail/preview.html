@@ -1,0 +1,18 @@
+<!-- @dsCard group="Navigation" height=330 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>NavRail — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.NavRail, { defaultValue: 'user', items: [
+      { id: 'user', label: 'Profile', icon: 'user' },
+      { id: 'docs', label: 'Orders', icon: 'doc' },
+      { id: 'cart', label: 'Cart', icon: 'cart' },
+      { id: 'stats', label: 'Reports', icon: 'chart' }] })
+  );
+</script>
+</body>
+</html>

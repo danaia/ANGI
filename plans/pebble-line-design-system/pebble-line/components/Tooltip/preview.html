@@ -1,0 +1,16 @@
+<!-- @dsCard group="Overlays" height=170 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Tooltip — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h('div', { style: { display: 'flex', gap: 24, paddingTop: 40, paddingLeft: 56 } },
+      h(P.Tooltip, { content: 'Saved to favourites', open: true }, h(P.IconButton, { icon: 'heart', label: 'Like' })),
+      h(P.Tooltip, { content: 'Hover or focus me' }, h(P.Button, null, 'Hover')))
+  );
+</script>
+</body>
+</html>

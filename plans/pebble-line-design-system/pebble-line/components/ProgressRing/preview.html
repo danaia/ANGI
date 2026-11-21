@@ -1,0 +1,14 @@
+<!-- @dsCard group="Feedback" height=170 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ProgressRing — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null, h(P.ProgressRing, { value: 72, label: 'Goal' }), h(P.ProgressRing, { value: 30, size: 72, thickness: 6, label: 'Storage' }))
+  );
+</script>
+</body>
+</html>

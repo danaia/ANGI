@@ -1,0 +1,17 @@
+<!-- @dsCard group="Containers" height=340 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Card — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.Card, { title: 'Price Range', style: { width: 260 } }, 'Outline: the default container.'),
+      h(P.Card, { variant: 'muted', style: { width: 220 } }, h('div', { className: 'pl-card-title' }, 'Muted'), h('div', { className: 'pl-card-body' }, 'Flat fill, no stroke — summaries, wells.')),
+      h(P.Card, { variant: 'accent', eyebrow: 'Balance', title: '$ 670', style: { width: 220 } }, 'The one filled tile on a page.'))
+  );
+</script>
+</body>
+</html>

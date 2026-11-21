@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "layout": "files",
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-21T14:02:40Z"
+  },
+  "title": "Pebble Line",
+  "namespace": "PebbleLine",
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18"
+    },
+    {
+      "name": "react-dom",
+      "version": "18"
+    }
+  ],
+  "sections": {},
+  "groups": [],
+  "assetGroups": {},
+  "blobs": {},
+  "docs": {
+    "sections": []
+  },
+  "lastChange": {
+    "by": "Dana",
+    "at": "2026-11-21T14:02:40Z",
+    "via": "Claude (chat)",
+    "note": "Created Pebble Line, the flat light/dark sibling of Pebble"
+  }
+}

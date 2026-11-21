@@ -1,0 +1,16 @@
+<!-- @dsCard group="Feedback" height=200 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Toast — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.Toast, { tone: 'success', action: 'Undo' }, 'Added to cart'),
+      h(P.Toast, { tone: 'danger', onClose: function () {} }, 'Could not save'))
+  );
+</script>
+</body>
+</html>

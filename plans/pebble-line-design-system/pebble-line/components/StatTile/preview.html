@@ -1,0 +1,17 @@
+<!-- @dsCard group="Data display" height=240 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StatTile — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.StatTile, { label: 'Bank', value: '$ 670', icon: 'dollar', style: { width: 240 } }),
+      h(P.StatTile, { label: 'Wallet', value: '$ 90', delta: '−4% this week', trend: 'down' }),
+      h(P.StatTile, { label: 'Orders', value: '128', delta: '+18', trend: 'up', variant: 'accent' }))
+  );
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!-- @dsCard group="Inputs" height=96 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Switch — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.Switch, { label: 'Notifications', defaultChecked: true }),
+      h(P.Switch, { label: 'Dark room mode' }),
+      h(P.Switch, { label: 'Locked', disabled: true }))
+  );
+</script>
+</body>
+</html>

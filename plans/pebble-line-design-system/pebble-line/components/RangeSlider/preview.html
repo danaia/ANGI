@@ -1,0 +1,14 @@
+<!-- @dsCard group="Inputs" height=180 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>RangeSlider — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.RangeSlider, { label: 'Price Range', min: 0, max: 1000, step: 10, defaultValue: [20, 320], format: function (v) { return '$' + v; } })
+  );
+</script>
+</body>
+</html>

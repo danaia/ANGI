@@ -1,0 +1,14 @@
+<!-- @dsCard group="Navigation" height=110 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Pagination — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.Pagination, { pageCount: 12, defaultPage: 5 })
+  );
+</script>
+</body>
+</html>

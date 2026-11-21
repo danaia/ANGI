@@ -1,0 +1,50 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pebble Line</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--background); color: var(--ink); font-family: var(--font-sans); overflow: hidden; }
+  .cover { position: relative; height: 288px; overflow: hidden; }
+  .art { position: absolute; top: 0; left: 480px; width: 480px; height: 288px; overflow: hidden; }
+  .art svg { display: block; width: 480px; height: 288px; }
+  .accent { fill: var(--accent); }
+  .muted { fill: var(--surface-muted); }
+  .card { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
+  .hair { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+  .hair.on-accent { stroke: var(--on-accent); }
+  .words { position: absolute; left: var(--space-10); bottom: var(--space-8); max-width: 440px; }
+  .name { margin: 0; font-size: 92px; line-height: .95; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
+  .tag { margin: var(--space-3) 0 0 4px; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      accent 160×296 slab bled off the top (the one fill) · surface card 112×200 pill outlined in line-strong · surface-muted disc ⌀144 · accent 128×40 pill — flat, no shadows
+  arrangement the same slab-with-satellites as Pebble, so the two read as siblings; bottoms on one line space-8 above the edge, space-4 gutters
+  pattern     hairlines, from "faint strokes … edges are 1px strokes": four concentric 1px outlines in the disc and three inside the slab, nothing filled
+  scales      sides in space-2 multiples; gutters space-4; ring step space-4; slab corners radius-xl; pills rx = half the short side; stroke-hair 1px
+-->
+<rect class="accent" x="24" y="-40" width="160" height="296" rx="40"/>
+<rect class="hair on-accent" x="48" y="168" width="112" height="64" rx="32"/>
+<rect class="hair on-accent" x="64" y="184" width="80" height="32" rx="16"/>
+<rect class="card" x="200.5" y="56.5" width="111" height="199" rx="55.5"/>
+<circle class="muted" cx="392" cy="112" r="72"/>
+<circle class="hair" cx="392" cy="112" r="56"/>
+<circle class="hair" cx="392" cy="112" r="40"/>
+<circle class="hair" cx="392" cy="112" r="24"/>
+<rect class="accent" x="336" y="216" width="128" height="40" rx="20"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">Pebble<br>Line</h1>
+<p class="tag">Flat surfaces, hairline strokes, one accent.</p>
+</div>
+</div>
+</body>
+</html>

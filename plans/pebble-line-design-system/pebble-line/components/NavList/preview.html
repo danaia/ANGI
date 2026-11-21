@@ -1,0 +1,19 @@
+<!-- @dsCard group="Navigation" height=330 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>NavList — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.NavList, { defaultValue: 'home', items: [
+      { id: 'home', label: 'Home', icon: 'home' },
+      { id: 'orders', label: 'Orders', icon: 'doc', badge: 3 },
+      { id: 'cart', label: 'Cart', icon: 'cart' },
+      { id: 'reports', label: 'Reports', icon: 'chart' },
+      { id: 'settings', label: 'Settings', icon: 'settings' }] })
+  );
+</script>
+</body>
+</html>

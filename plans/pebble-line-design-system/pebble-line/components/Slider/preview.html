@@ -1,0 +1,14 @@
+<!-- @dsCard group="Inputs" height=120 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Slider — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.Slider, { label: 'Volume', defaultValue: 64, format: function (v) { return v + '%'; } })
+  );
+</script>
+</body>
+</html>

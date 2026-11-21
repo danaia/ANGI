@@ -1,0 +1,22 @@
+<!-- @dsCard group="Actions" height=190 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.Button, { variant: 'primary' }, 'Learn More'),
+      h(P.Button, null, 'Login'),
+      h(P.Button, { icon: 'cart' }, 'Checkout'),
+      h(P.Button, { variant: 'ghost' }, 'Cancel'),
+      h(P.Button, { variant: 'danger', icon: 'trash' }, 'Delete'),
+      h(P.Button, { size: 'sm' }, 'Apply'),
+      h(P.Button, { size: 'lg', variant: 'primary' }, 'Get started'),
+      h(P.Button, { disabled: true }, 'Disabled'))
+  );
+</script>
+</body>
+</html>

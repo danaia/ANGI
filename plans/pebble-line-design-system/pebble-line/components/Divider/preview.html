@@ -1,0 +1,19 @@
+<!-- @dsCard group="Containers" height=180 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Divider — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h('div', { style: { width: 340 } },
+      h('div', { style: { fontSize: 22, lineHeight: '30px', fontWeight: 500 } }, 'FLAT LINE'),
+      h(P.Divider, { variant: 'rule' }),
+      h('div', { style: { fontSize: 11, letterSpacing: '.04em', color: 'var(--ink-muted)' } }, 'THIS IS EDITABLE TEMPLATE'),
+      h(P.Divider, null),
+      h('div', { style: { fontSize: 14, color: 'var(--ink-muted)' } }, 'Hairline between groups.'))
+  );
+</script>
+</body>
+</html>

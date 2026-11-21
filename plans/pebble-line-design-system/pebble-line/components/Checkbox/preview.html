@@ -1,0 +1,17 @@
+<!-- @dsCard group="Inputs" height=96 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Checkbox — preview</title></head>
+<body>
+<div id="root" class="pl-demo"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.Checkbox, { label: 'Remember me', defaultChecked: true }),
+      h(P.Checkbox, { label: 'Email me updates' }),
+      h(P.Checkbox, { label: 'Unavailable', disabled: true }))
+  );
+</script>
+</body>
+</html>

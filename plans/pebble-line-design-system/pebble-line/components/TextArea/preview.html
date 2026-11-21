@@ -1,0 +1,14 @@
+<!-- @dsCard group="Inputs" height=260 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>TextArea — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.TextArea, { label: 'Notes', placeholder: 'Anything we should know?', hint: 'Optional' })
+  );
+</script>
+</body>
+</html>

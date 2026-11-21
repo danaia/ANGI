@@ -1,0 +1,14 @@
+<!-- @dsCard group="Inputs" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Select — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(P.Select, { label: 'Category', placeholder: 'Choose one', options: ['Mouse', 'Keyboard', 'LCD', 'Speakers'] })
+  );
+</script>
+</body>
+</html>

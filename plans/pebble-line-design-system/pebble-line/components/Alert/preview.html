@@ -1,0 +1,18 @@
+<!-- @dsCard group="Feedback" height=540 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Alert — preview</title></head>
+<body>
+<div id="root" class="pl-demo pl-demo--col"></div>
+<script>
+  var P = window.PebbleLine, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(React.Fragment, null,
+      h(P.Alert, { title: 'Heads up', onClose: function () {} }, 'Prices update every morning at 9.'),
+      h(P.Alert, { tone: 'success', title: 'Payment received' }, '$320 was added to your wallet.'),
+      h(P.Alert, { tone: 'warning', title: 'Low balance' }, 'Your wallet has $10 left.'),
+      h(P.Alert, { tone: 'danger', title: 'Card declined' }, 'Try another card or contact your bank.'))
+  );
+</script>
+</body>
+</html>

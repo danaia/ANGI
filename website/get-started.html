@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Get started — ANGI</title>
-<meta name="description" content="Install ANGI in a few steps: download the image for your system, write it, plug in, and finish setup in your browser.">
+<meta name="description" content="Install ANGI in a few steps: build from source for your system, write the boot media, and finish setup.">
 <meta name="theme-color" content="#ebebeb">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23ebebeb'/%3E%3Ccircle cx='50' cy='50' r='24' fill='%236e6e6e'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,7 +36,7 @@
 <header class="hero page-hero">
   <div class="wrap">
     <h1><span class="grad">One prompt.</span><br><span>Your agent installs ANGI.</span></h1>
-    <p class="sub">Pick your system and copy its prompt into your coding agent. It downloads the image, writes your card, and tells you when to move the card and plug in USB-C.</p>
+    <p class="sub">Pick your system and copy its prompt into your coding agent. It builds ANGI for your hardware, writes the boot media, and guides you through first boot.</p>
   </div>
 </header>
 
@@ -57,11 +57,11 @@
       <h2 id="stuck-title"><span class="grad">Quick fixes.</span></h2>
     </div>
     <div class="faqs panel reveal">
-      <details class="faq"><summary>My agent cannot run the prompt</summary><p>Use an agent that can run commands on your computer, such as Claude Code, Codex, Cursor's agent mode or OpenCode. A chat in a browser tab cannot download files or write a card.</p></details>
+      <details class="faq"><summary>My agent cannot run the prompt</summary><p>Use an agent that can run commands on your computer, such as Claude Code, Codex, Cursor's agent mode or OpenCode. The agent needs access to a Linux build environment and the drive you plan to write.</p></details>
       <details class="faq"><summary>The agent cannot find my card</summary><p>Take the card out and put it back in, then ask the agent to look again. Tell it the card's size and your card reader's model if it still cannot tell which disk it is.</p></details>
-      <details class="faq"><summary>The setup page does not open</summary><p>Wait a minute after plugging in, then reload <a href="http://10.77.0.2">http://10.77.0.2</a>. Make sure the cable carries data, and that the Pi end is in the right port. Some computers take a moment to bring up the new network adapter.</p></details>
+      <details class="faq"><summary>The agent cannot connect to my Pi</summary><p>Give the Pi time to boot, then check power and use a cable that carries data. Your agent can check the route and verify the Pi’s identity.</p></details>
       <details class="faq"><summary>The Pi keeps restarting</summary><p>Your computer's USB port may not supply enough power. Try another port, a powered USB hub, or a shorter, better cable.</p></details>
-      <details class="faq"><summary>My Wi-Fi network is not listed</summary><p>Check the country you chose, then scan again. For a hidden network, type its name and tick <b>Hidden network</b>. The Pi Zero 2 W only sees 2.4 GHz networks.</p></details>
+      <details class="faq"><summary>My Wi-Fi network is not listed</summary><p>Check the country you chose, then scan again in the ANGI terminal dashboard. Use manual entry for a hidden network.</p></details>
       <details class="faq"><summary>I want to set it up again</summary><p>Paste the prompt again. Your agent rewrites the card, which erases it and starts fresh.</p></details>
     </div>
   </div>

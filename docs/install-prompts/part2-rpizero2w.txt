@@ -9,8 +9,9 @@ there is one; otherwise clone it).
 
 STEP 0 - TARGET
 I am installing ANGI on: Pi Zero 2 W (BOARD=rpizero2w). Do not ask me which one.
-Run scripts/detect-board.py --require rpizero2w. If it reports that there is no image for it,
-stop and tell me so in plain words.
+Run python3 scripts/detect-board.py --require rpizero2w. If it reports no build, stop
+and tell me. If it reports an experimental build, explain what remains unverified
+and ask whether I want to proceed.
 
 STEP 1 - SET UP THE LINK
 The Pi Zero 2 W has no Ethernet jack. I use a USB-C data cable.

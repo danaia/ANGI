@@ -4,8 +4,9 @@ Do the terminal work and wait whenever I need to plug in a cable or type a passw
 
 STEP 0 - TARGET
 I am installing ANGI on: Pi 5 (BOARD=rpi5). Do not ask me which one.
-Run scripts/detect-board.py --require rpi5. If it reports that there is no image for it,
-stop and tell me so in plain words.
+Run python3 scripts/detect-board.py --require rpi5. If it reports no build, stop
+and tell me. If it reports an experimental build, explain what remains unverified
+and ask whether I want to proceed.
 
 STEP 1 - CONNECT OVER USB-C
 Use the direct USB-C data cable by default. Use direct Ethernet and the Pi's own

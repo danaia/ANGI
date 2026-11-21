@@ -8,6 +8,7 @@
 Writes:
   docs/install-prompts/part2-BOARD.txt  one rendered part 2 per target; part 1 tells the agent to print it
   README.md                 between <!-- prompt1:start/end -->                (generic prompt)
+  website/prompts.js        build prompt and status for each hardware tab
 Run after editing a template or boards.json:  python3 scripts/sync-install-prompt.py
 """
 import json, re, sys
@@ -30,15 +31,37 @@ If I have not already said, ask me this and wait for the answer:
 If I answer 6, run scripts/detect-board.py --list and --host and show me the "how to
 tell" lines (for a Pi, ask me to read the name printed on the board). Then run
 scripts/detect-board.py --require BOARD and follow what it reports. If it says a
-target has no image yet or has not been tried on hardware, tell me plainly and
-continue only if I agree. Never write another target's image to my drive, and never
-wipe this computer's disks or any disk I did not choose.
+target has no image yet, stop. If a build is experimental, explain what remains
+unverified and ask if I want to proceed. Use only the selected board and the
+removable drive I approve.
 """
 PICK = """STEP 0 - TARGET
 I am installing ANGI on: {name} (BOARD={id}). Do not ask me which one.
-Run scripts/detect-board.py --require {id}. If it reports that there is no image for it,
-stop and tell me so in plain words.
+Run python3 scripts/detect-board.py --require {id}. If it reports no build, stop
+and tell me. If it reports an experimental build, explain what remains unverified
+and ask whether I want to proceed.
 """
+NEW_CHAT = """Read docs/install-prompts/part2-BOARD.txt from the checkout, using my board ID.
+Show the full prompt in a code block and append the checkout path, private key path,
+and any prepared known_hosts path. Tell me to paste it into a new chat and stop
+after handing it over."""
+SAME_CHAT = """Wait for me to insert the card and power on the target. Then read and follow
+docs/install-prompts/part2-{id}.txt in this checkout. Carry forward its path,
+the SSH private key path and any prepared known_hosts file. Verify the running
+hardware and finish setup in this chat."""
+CHECK_TARGET = """Install ANGI from source on my {name}. The destination target ID is {id}.
+Clone the current default branch of https://github.com/danaia/ANGI.git on the
+workstation and record the commit with git rev-parse HEAD. Read
+.agents/skills/angi-install-media/SKILL.md from that checkout.
+Run python3 scripts/detect-board.py --require {id} from its repository root.
+
+If the checkout reports no build for {id}, tell me and stop before starting a build
+or touching any drive. If it reports an experimental build, explain what remains
+unverified and ask whether I want to proceed. If the checkout supports this target,
+follow its documented install procedure for {id}, passing BOARD={id} when building.
+If that procedure is missing, stop and tell me. Validate the documented boot artifact,
+confirm the exact removable device with me before erasing it, and verify the write
+and first boot. Keep the selected target."""
 PI_STEPS = ("Power off the Pi and unplug it.",
             "Take the finished card out of the card reader on this computer.",
             "Push the card into the Pi's microSD slot (gold contacts toward the board) until it seats.")
@@ -101,7 +124,9 @@ def render(t, vals):
 def generic():
     p1 = render(T1, dict(WHAT="I will tell you which computer ANGI is for.", MEDIA="SD card or USB drive", MEDIA_UP="CARD",
                          ATTACHED="my microSD card (or SD card or USB drive) is attached to THIS computer, in a card reader",
-                         STEP0=ASK, HANDOFF=GENERIC_HANDOFF))
+                         STEP0=ASK, HANDOFF=GENERIC_HANDOFF, BOARD="<my board>",
+                         PLAN_HANDOFF="Give me the second prompt to paste into a new chat.",
+                         CONTINUATION=NEW_CHAT))
     p2 = render(T2, dict(WHAT="My ANGI card from part 1 is in the target and it is connected to this computer.",
                          STEP0="STEP 0 - WHICH ONE\nAsk me which target this is (Pi Zero 2 W, Pi 4 or 400, Pi 5, ARM computer, Intel/AMD computer) if\nI did not say, and run scripts/detect-board.py --require BOARD. Follow what it reports.\n",
                          LINK=LINK_GENERIC, FIND=FIND_PI, EXTRA="", WIFI_NOTE=""))
@@ -130,7 +155,9 @@ def for_target(b):
                         "USB-C DATA cable (not charge-only), and power it on.", PI_WAIT)
     step0 = PICK.format(name=name, id=bid)
     p1 = render(T1, dict(WHAT=f"The target is my {name}.", MEDIA=("SD card or USB drive" if desktop else "microSD card"),
-                         MEDIA_UP=media.upper(), ATTACHED=attached, STEP0=step0, HANDOFF=handoff))
+                         MEDIA_UP=media.upper(), ATTACHED=attached, STEP0=step0, HANDOFF=handoff,
+                         BOARD=bid, PLAN_HANDOFF="Guide me through moving the media, booting, and finishing setup.",
+                         CONTINUATION=SAME_CHAT.format(id=bid)))
     if bid in ("rpi4", "rpi5"):
         return p1, render(T2_PI, dict(STEP0=step0, TARGET=name))
     link = LINK_DESKTOP if desktop else LINK_ZERO if bid == "rpizero2w" else LINK_USBC_ETH
@@ -154,10 +181,19 @@ readme = ROOT / "README.md"
 for i, g in ((1, g1),):
     sub_block(readme, rf"(<!-- prompt{i}:start -->\n```text\n).*?(\n```\n<!-- prompt{i}:end -->)",
               lambda m, g=g: m.group(1) + g + m.group(2))
-# The website offers prebuilt images (website/images.js) instead of build prompts,
-# so the build-from-source prompts live only in the README and docs.
 OUT = ROOT / "docs/install-prompts"
+website_prompts = {}
 for b in boards:
-    _, c = for_target(b)
+    p, c = for_target(b)
     (OUT / f"part2-{b['id']}.txt").write_text(c + "\n")
-print("Prompts synced: README.md and docs/install-prompts/part2-*.txt.")
+    # The shared card template implements the Pi 4 and Pi 5 SD workflows.
+    website_prompts[b["id"]] = (p if b["id"] in ("rpi4", "rpi5")
+                                else CHECK_TARGET.format(name=b["name"], id=b["id"]))
+statuses = {b["id"]: b["status"] for b in boards}
+(ROOT / "website/prompts.js").write_text(
+    "// Generated by scripts/sync-install-prompt.py. Edit the templates and regenerate.\n"
+    f"window.ANGI_BUILD_STATUS = {json.dumps(statuses, indent=2)};\n"
+    f"const angiInstallPrompts = {json.dumps(website_prompts, indent=2)};\n"
+    "window.ANGI_PROMPT = (target) => angiInstallPrompts[target.id];\n"
+)
+print("Prompts synced: README.md, docs/install-prompts/part2-*.txt, and website/prompts.js.")

@@ -1,10 +1,8 @@
 // ANGI image manifest: the single place to publish a download.
 //
-// Each install prompt tells the user's coding agent to download
-// `${ANGI_DOWNLOADS}/${file}` and its `.sha256` from the latest GitHub release,
-// so publishing an image means uploading both files to a release and setting
-// `status: 'available'` here. Optionally pin `sha256` so the prompt checks it
-// too, and set `size` and `version` for display.
+// The install prompts build from source. To offer an optional release image,
+// upload the image and its .sha256 file, then set status to 'available' here.
+// The image page can display its size and SHA-256.
 window.ANGI_RELEASES = 'https://github.com/danaia/ANGI/releases';
 window.ANGI_DOWNLOADS = 'https://github.com/danaia/ANGI/releases/latest/download';
 window.ANGI_REPO = 'https://github.com/danaia/ANGI.git';

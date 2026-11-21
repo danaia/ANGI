@@ -138,13 +138,13 @@ THE PLAN (tell me this in your first message, in plain words)
   2) You stay with the build the whole time, keep checking its progress, and tell me
      how it is going. I can leave it running.
   3) When the build has finished, you write it to my SD card or USB drive (I confirm the erase).
-  4) Then you tell me exactly what to do with the SD card or USB drive and the target, and you give me
-     a SECOND prompt to paste into a new chat. That second prompt is only given to me
-     once the build and the SD card or USB drive are both finished. I do not have it yet.
+  4) Give me the second prompt to paste into a new chat.
 
 Repository: https://github.com/danaia/ANGI.git
-Read .agents/skills/angi-install-media/SKILL.md from the repository before selecting
-the target or starting a build. Follow it through image validation and media write.
+Clone the repository's current default branch in a fresh checkout, or use an existing
+clean checkout at the current upstream commit. Record the commit with git rev-parse HEAD.
+From that checkout, read .agents/skills/angi-install-media/SKILL.md and run the target
+checks below before starting a build.
 
 STEP 0 - ASK WHAT ANGI IS GOING ON
 If I have not already said, ask me this and wait for the answer:
@@ -157,9 +157,9 @@ If I have not already said, ask me this and wait for the answer:
 If I answer 6, run scripts/detect-board.py --list and --host and show me the "how to
 tell" lines (for a Pi, ask me to read the name printed on the board). Then run
 scripts/detect-board.py --require BOARD and follow what it reports. If it says a
-target has no image yet or has not been tried on hardware, tell me plainly and
-continue only if I agree. Never write another target's image to my drive, and never
-wipe this computer's disks or any disk I did not choose.
+target has no image yet, stop. If a build is experimental, explain what remains
+unverified and ask if I want to proceed. Use only the selected board and the
+removable drive I approve.
 
 STEP 1 - CHECK THIS COMPUTER
 Check the host operating system, free disk space (need 20 GB), memory, and that
@@ -170,14 +170,13 @@ and use the Linux distribution's package manager to install missing tools with a
 Use the host's network settings for the direct link in part 2.
 
 STEP 2 - GET AND BUILD ANGI
-Clone the repository (or reuse a checkout without overwriting my changes).
 Run python3 scripts/ssh_provisioning.py as my normal user to select or generate
 the workstation's Ed25519 key pair. Record the matching private key's path for
 part 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,
 make build and make check-image, each with BOARD=<my board>. Fix errors and
 resume. Go on only when the image passes the check. For Pi 4 or Pi 5, also verify
 sdcard.img.sha256 in the selected build's images directory. On Pi 5, ensure the
-workstation has dropbearkey, then run python3 scripts/provision-sd.py to create
+workstation has dropbearkey, then run python3 scripts/provision-sd.py --images IMAGE_DIR to create
 the private image with a fresh Pi host key and matching known_hosts file.
 Record the private install directory for part 2.
 
@@ -203,7 +202,7 @@ computer for this step. If it is not attached here, stop and ask me to attach it
 2. Say clearly that EVERYTHING on it will be erased. Wait for me to type the
    approval in the form "erase DEVICE", using the exact whole-device path reported
    by the Linux card writer. Anything else means no.
-3. Then run scripts/flash-sd.sh --board BOARD --image IMAGE --device PATH --confirm-erase PATH.
+3. Then run scripts/flash-sd.sh --board <my board> --image IMAGE --device PATH --confirm-erase PATH.
    For Pi 5, use the private sdcard.img and add --personalized. Otherwise use the
    sdcard.img from the build that passed the check.
    It wipes the old partitions, writes the image, checks every byte, and ejects.
@@ -212,7 +211,7 @@ computer for this step. If it is not attached here, stop and ask me to attach it
    another disk. If a retry succeeds, tell me which attempt succeeded and have
    me close any terminal still showing the earlier failure.
 
-STEP 4 - TELL ME WHAT TO DO NEXT, THEN GIVE ME THE SECOND PROMPT
+STEP 4 - HAND OFF THE VERIFIED MEDIA
 Tell me the SD card or USB drive is ready and what happened ("built, written, every byte checked").
 Then give me these steps as a short numbered list, one physical action per line:
   1) Power off the target (a desktop: shut it down).
@@ -223,12 +222,10 @@ Then give me these steps as a short numbered list, one physical action per line:
 Remind me to have my Wi-Fi network name, its password and my two-letter country
 code ready, because the second part joins ANGI to Wi-Fi, which is the most important
 step.
-Right after the list, print the SECOND PROMPT for me: read the file docs/install-prompts/part2-BOARD.txt
-from the checkout (BOARD is my board), and show its full text in one code block
-I can copy. Append the checkout, private key path, and any prepared known_hosts file
-path to that block for the next agent. Tell me to open a NEW chat and paste it there. Say
-clearly that the first part is finished. Do not run the second part yourself and do not
-continue past this step.
+Read docs/install-prompts/part2-BOARD.txt from the checkout, using my board ID.
+Show the full prompt in a code block and append the checkout path, private key path,
+and any prepared known_hosts path. Tell me to paste it into a new chat and stop
+after handing it over.
 ```
 <!-- prompt1:end -->
 

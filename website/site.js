@@ -50,9 +50,9 @@
           <h3>${esc(img.name)}</h3>
           <p>${esc(img.blurb)}</p>
           <dl>
-            <dt>File</dt><dd>${esc(img.file)}${img.size ? ' · ' + esc(img.size) : ''}</dd>
             <dt>Written to</dt><dd>${esc(img.media)}</dd>
-            <dt>SHA-256</dt><dd>${img.sha256 ? esc(img.sha256) : `${esc(img.file)}.sha256, next to the image`}</dd>
+            ${published(img) ? `<dt>File</dt><dd>${esc(img.file)}${img.size ? ' · ' + esc(img.size) : ''}</dd>
+            <dt>SHA-256</dt><dd>${img.sha256 ? esc(img.sha256) : `${esc(img.file)}.sha256, next to the image`}</dd>` : ''}
           </dl>
         </div>
         <div class="acts">
@@ -79,7 +79,7 @@
         ${who('Your agent', [
           'Checks your computer and finds the card reader',
           'Finds this computer\'s SSH key, or creates one',
-          `Downloads the ${esc(img.short)} image and verifies its SHA-256`,
+          `Builds ANGI for the ${esc(img.short)} and verifies the image`,
           `Shows you the ${m}: path, size, model, contents`,
           'Writes it, checks every byte, and ejects it',
         ])}
@@ -96,16 +96,12 @@
         </div>
         ${who('You', [
           `Move the card into the ${esc(img.short)}`,
-          `Connect ${esc(img.port)} to your computer with a <b>USB data cable</b>. It powers the Pi too.`,
-          'At <b>10.77.0.2</b>, create your account and join Wi-Fi. Passwords stay in your browser.',
-          'Paste the <b>SSH public key</b> your agent gives you. It is what lets you connect over USB-C or Ethernet.',
-          'Say <b>Continue</b> when the page shows Setup complete',
+          'Connect a USB data cable, or use direct Ethernet and the Pi’s power supply',
+          'Create your account and join Wi-Fi in the ANGI terminal dashboard',
         ])}
         ${who('Your agent', [
-          'Waits for the USB link to come up',
-          'Opens the setup page at <b>10.77.0.2</b> in your browser',
-          'Confirms Wi-Fi and internet',
-          'Pins the Pi\'s identity, tests SSH, and gives you the command',
+          'Verifies the Pi’s identity and connects over SSH',
+          'Opens the ANGI terminal dashboard and verifies Wi-Fi and internet',
         ])}
       </div>` : `
       <div class="phase panel hot">
@@ -136,14 +132,19 @@
       if (on && focusTab) b.focus();
     });
     const pi = img.kind === 'pi';
+    const status = window.ANGI_BUILD_STATUS[img.id];
+    const planned = status === 'planned';
+    const notice = planned ? 'Build support is planned. The prompt checks the current repository for updates.'
+      : status === 'experimental' ? 'Experimental target. The agent will ask before building.' : '';
     guide.setAttribute('aria-labelledby', 'tab-' + img.id);
     guide.innerHTML = `
-      <div class="need">
-        <div class="panel">${icon('i-download')}<p><b>Your agent does the work</b>Downloads the image, checks it and writes your ${esc(img.media)}.</p></div>
+      ${notice ? `<p class="bring">${notice}</p>` : ''}
+      ${planned ? '' : `<div class="need">
+        <div class="panel">${icon('i-download')}<p><b>Your agent does the work</b>Builds the image, checks it and writes your ${esc(img.media)}.</p></div>
         <div class="panel">${icon('i-chat')}<p><b>It tells you what to do</b>Every physical step, the moment you need to take it.</p></div>
         <div class="panel">${icon('i-check')}<p><b>It sees it through</b>Step by step until ANGI is running${pi ? ' and online' : ''}.</p></div>
       </div>
-      <p class="bring"><b>You bring</b> a coding agent that can run commands (Claude Code, Codex, Cursor, OpenCode or similar), a ${esc(img.media)} you can erase${pi ? ', a USB data cable' : ''} and your Wi-Fi details.</p>
+      <p class="bring"><b>You bring</b> a coding agent with access to a Linux build environment, a ${esc(img.media)} you can erase${pi ? ', a data cable' : ''} and your Wi-Fi details.</p>`}
       <div class="prompt panel">
         <div class="prompt-bar">
           <div><h3>Install prompt for ${esc(img.name)}</h3><p>Paste it into your agent's chat.</p></div>
@@ -152,9 +153,9 @@
         <pre id="prompt-text" tabindex="0"></pre>
         <button class="more" type="button" aria-expanded="false">Show the whole prompt</button>
       </div>
-      <h2 class="phases-title"><span class="grad">What to expect</span></h2>
-      <p class="lead" style="margin-bottom:28px">The prompt runs in two phases. Your agent tells you when to move the ${pi ? 'card' : 'drive'}.</p>
-      ${phases(img)}`;
+      ${planned ? '' : `<h2 class="phases-title"><span class="grad">What to expect</span></h2>
+      <p class="lead" style="margin-bottom:28px">Your agent tells you when to move the ${pi ? 'card' : 'drive'}.</p>
+      ${phases(img)}`}`;
     $('#prompt-text').textContent = window.ANGI_PROMPT(img);
     const more = $('.more', guide), box = $('.prompt', guide);
     more.addEventListener('click', () => {

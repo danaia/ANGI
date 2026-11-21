@@ -1,119 +1,16 @@
-// Builds the one install prompt a user pastes into their coding agent.
-// Phase 1: the card is in THIS computer's reader; the agent downloads, verifies
-// and writes the image. Phase 2: the user moves the card into the target and
-// connects a USB-C data cable; the agent finishes setup over that link.
-window.ANGI_PROMPT = function (img) {
-  const downloads = window.ANGI_DOWNLOADS;
-  const repo = window.ANGI_REPO;
-  const url = img.url || `${downloads}/${img.file}`;
-  const pi = img.kind === 'pi';
-  const media = img.media;
-  const pin = img.sha256 ? `\nIt must also equal ${img.sha256}.` : '';
-
-  const head = `Install ANGI on my ${img.name}. Do all the terminal work yourself on this computer.
-Explain each step in one short sentence. Tell me exactly when I need to do something
-physical, then wait for me. Never ask me to type a password into this chat.
-
-There are two phases. In PHASE 1 my ${media} is in THIS computer and you write ANGI to it.
-In PHASE 2 I move it into the ${img.short} and you finish setup. Say this in your first message.`;
-
-  const phase1 = `PHASE 1 - WRITE THE ${media.toUpperCase()} ON THIS COMPUTER
-
-1. CHECK THIS COMPUTER
-Read .agents/skills/angi-install-media/SKILL.md from ${repo} before selecting an
-image or writing a drive. The selected hardware target is ${img.id}.
-Detect the operating system (Linux, macOS or Windows) and check for 4 GB of free space.
-Ask me to put my ${media} into ${pi ? 'a card reader on' : 'a USB port of'} THIS computer${pi ? ', with the ' + img.short + ' powered off' : ''}.
-Wait until it is attached before you continue.
-
-SSH KEY (REQUIRED)
-ANGI accepts SSH only with a key, so ${pi ? (img.id === 'rpizero2w' ? 'USB' : 'USB-C') + ' and Ethernet' : 'Ethernet'} access need one from
-this computer. Look in my .ssh folder for an Ed25519 key pair (id_ed25519 and
-id_ed25519.pub) and reuse it. If there is none, create one with
-ssh-keygen -t ed25519 -f <.ssh>/angi_ed25519. Never overwrite, move or print a
-private key. Record the private key's path and show me the one-line public key
-(.pub). I will give it to ANGI in phase 2.
-
-2. DOWNLOAD AND VERIFY THE IMAGE
-Download ${url}
-and ${url}.sha256 into a new folder. Compute the image's SHA-256 and compare it
-with the .sha256 file.${pin} If the download is not found, tell me the ${img.short}
-image is not published yet and stop. If anything does not match, delete the
-download, tell me, and stop.
-
-3. FIND THE ${media.toUpperCase()} AND GET MY APPROVAL
-List removable disks with each one's device path, size, model and contents.
-Never choose a disk that holds this computer's system. If there is more than one
-candidate, ask me which. Tell me clearly that EVERYTHING on it will be erased and
-wait until I type exactly: erase DEVICE (with the real device path). Anything else
-means no.
-
-4. WRITE, VERIFY AND EJECT
-Write the image to the whole device, check every written byte against the image,
-then eject it. Use the tool for this computer:
-  Linux: clone ${repo} (no build needed) and run
-    scripts/flash-sd.sh --board ${img.id} --image IMAGE --device PATH --confirm-erase PATH
-    It writes, verifies and ejects.
-  macOS: diskutil unmountDisk the disk, write with sudo dd to the raw device
-    (/dev/rdiskN, bs=4m), read back exactly the image's length from the device
-    and check its SHA-256 equals the image's, then diskutil eject.
-  Windows: use Raspberry Pi Imager's command-line mode (install it with my
-    approval if it is missing). It writes and verifies.
-Only say it is ready once verification has passed. If anything fails, tell me and
-do not try a different disk.`;
-
-  const phase2pi = `PHASE 2 - MOVE THE CARD TO THE ${img.short.toUpperCase()} AND FINISH
-
-5. MOVE THE CARD AND CONNECT ${img.id === 'rpizero2w' ? 'THE USB CABLE' : 'USB-C'}
-Tell me Phase 1 is done, then give me these steps, one action per line:
-  1) Take the card out of this computer.
-  2) Push it into the ${img.short}'s microSD slot, contacts toward the board.
-  3) Connect ${img.port} to this computer with a USB data cable (not
-     charge-only). This one cable powers the ${img.short} and links it to this computer.
-  4) Wait about a minute while it starts.
-Then wait for a new USB network adapter on this computer with the address
-10.77.0.1. If it does not appear within 3 minutes, help me check the cable, the
-port, the power and that the card is seated.
-
-6. FINISH SETUP IN MY BROWSER
-Open http://10.77.0.2 in my browser.
-Tell me to create my administrator account there, choose my Wi-Fi country, scan,
-and join my network${img.id === 'rpizero2w' ? ' (the Zero 2 W only sees 2.4 GHz networks)' : ''}. I type passwords on that page, not here.
-Give me the public key from the SSH key step again and tell me to paste it into
-the page's "SSH public key" field. The page marks it optional; for this install it
-is required. Without it I cannot connect over SSH, USB or Ethernet.
-When the page shows "Setup complete" I will say "Continue". Ask me to paste the
-result lines from the page (they contain no passwords). Confirm that Wi-Fi and the
-internet check passed.
-
-7. PIN THE PI'S IDENTITY AND CHECK SSH
-The result lines include "Pi SSH host key: SHA256:...". Write a known_hosts file
-just for this Pi. Fill it only with an Ed25519 host key whose fingerprint equals
-that line, under the names 10.77.0.2 and 10.78.0.2. Then run, with my private key and
-strict host key checking: ssh MY-NAME@10.77.0.2 agx status --json. If the
-fingerprint differs, stop and tell me; never turn host key checking off. Finally
-show me the ssh command and its options, and tell me the same key and pinned
-identity work over Ethernet: the Pi is 10.78.0.2, this computer 10.78.0.1/24 with no
-gateway. The USB cable stays a private link to this computer for development;
-the ${img.short} reaches the web over Wi-Fi.`;
-
-  const phase2desktop = `PHASE 2 - MOVE THE DRIVE TO THE ${img.short.toUpperCase()} COMPUTER AND FINISH
-
-5. MOVE THE DRIVE AND START FROM IT
-Tell me Phase 1 is done, then give me these steps, one action per line:
-  1) Unplug the USB drive from this computer.
-  2) Plug it into the ${img.short} computer and power it on.
-  3) Open its boot menu (often F12, F11 or Esc) and choose the USB drive.
-Help me find the boot menu key or the firmware setting for USB boot if needed.
-
-6. FINISH SETUP
-Read the setup steps in the release notes for this image at
-${window.ANGI_RELEASES}/latest and walk me through them, one step at a time.
-When setup asks for an SSH public key, give me the one from the SSH key step to
-paste. It is required for this install: without it I cannot connect from this
-computer over Ethernet. Pin the ${img.short} computer's host key only after
-checking its fingerprint against the one setup shows, and keep strict host key
-checking on.`;
-
-  return [head, phase1, pi ? phase2pi : phase2desktop].join('\n\n');
+// Generated by scripts/sync-install-prompt.py. Edit the templates and regenerate.
+window.ANGI_BUILD_STATUS = {
+  "rpi5": "ready",
+  "rpi4": "experimental",
+  "rpizero2w": "planned",
+  "arm-desktop": "planned",
+  "x86-desktop": "planned"
 };
+const angiInstallPrompts = {
+  "rpi5": "INSTALL ANGI: build it and put it on an SD card, on this computer. The target is my Pi 5.\nExplain each step in one short, plain sentence. Do the terminal work yourself and\nguide me through it: before each step say what you are about to do and what I will\nsee, tell me exactly when I need to do something physical, and wait for me. Ask me\nonly for passwords, approvals, or something physical. Write the built sdcard.img\nstraight onto my microSD card.\n\nTHE PLAN (tell me this in your first message, in plain words)\n  1) You check this computer and build ANGI. This is the long part: about 1 to 3 hours\n     for a first build, depending on this computer's CPU and internet speed. Give me\n     your own estimate once you have checked this computer.\n  2) You stay with the build the whole time, keep checking its progress, and tell me\n     how it is going. I can leave it running.\n  3) When the build has finished, you write it to my microSD card (I confirm the erase).\n  4) Guide me through moving the media, booting, and finishing setup.\n\nRepository: https://github.com/danaia/ANGI.git\nClone the repository's current default branch in a fresh checkout, or use an existing\nclean checkout at the current upstream commit. Record the commit with git rev-parse HEAD.\nFrom that checkout, read .agents/skills/angi-install-media/SKILL.md and run the target\nchecks below before starting a build.\n\nSTEP 0 - TARGET\nI am installing ANGI on: Pi 5 (BOARD=rpi5). Do not ask me which one.\nRun python3 scripts/detect-board.py --require rpi5. If it reports no build, stop\nand tell me. If it reports an experimental build, explain what remains unverified\nand ask whether I want to proceed.\n\nSTEP 1 - CHECK THIS COMPUTER\nCheck the host operating system, free disk space (need 20 GB), memory, and that\na card reader with my microSD card is attached to THIS computer. The repository build and card writer use Linux. On macOS or Windows,\nuse a Linux environment that can access the physical card reader, or a separate\nLinux computer. Confirm that access before proceeding. Check the build dependencies\nand use the Linux distribution's package manager to install missing tools with approval.\nUse the host's network settings for the direct link in part 2.\n\nSTEP 2 - GET AND BUILD ANGI\nRun python3 scripts/ssh_provisioning.py as my normal user to select or generate\nthe workstation's Ed25519 key pair. Record the matching private key's path for\npart 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,\nmake build and make check-image, each with BOARD=rpi5. Fix errors and\nresume. Go on only when the image passes the check. For Pi 4 or Pi 5, also verify\nsdcard.img.sha256 in the selected build's images directory. On Pi 5, ensure the\nworkstation has dropbearkey, then run python3 scripts/provision-sd.py --images IMAGE_DIR to create\nthe private image with a fresh Pi host key and matching known_hosts file.\nRecord the private install directory for part 2.\n\nWATCH THE BUILD. THIS IS REQUIRED.\n- Before you start make build, say: \"The build takes a long time, about <your\n  estimate>. I will keep watching it and checking its progress until it is finished.\"\n- Run the build so you can watch it (in the background, writing to a log file), and\n  look at the log every few minutes. Do not start it and walk away, and do not wait\n  silently.\n- Each time you check, tell me in one or two short lines: which stage it is on, whether\n  it is still moving, and about how much time is left.\n- If it stops, errors or looks stuck, tell me, find the cause and fix it, and resume.\n- Do not assume it worked. Wait until the build has actually finished and\n  make check-image has passed, then tell me clearly: \"The build is complete.\" Do not\n  start step 3 before that.\n\nSTEP 3 - ERASE AND FORMAT THE CARD ON THIS COMPUTER (needs my OK)\nThe microSD card must be attached to THIS computer. Never ask me to put it in the target\ncomputer for this step. If it is not attached here, stop and ask me to attach it.\n1. Run scripts/flash-sd.sh --list and show me the microSD card: path, size, model,\n   serial, and what is on it. If there are several or I might not recognize it,\n   ask me which. Never use a disk that holds this computer's system.\n2. Say clearly that EVERYTHING on it will be erased. Wait for me to type the\n   approval in the form \"erase DEVICE\", using the exact whole-device path reported\n   by the Linux card writer. Anything else means no.\n3. Then run scripts/flash-sd.sh --board rpi5 --image IMAGE --device PATH --confirm-erase PATH.\n   For Pi 5, use the private sdcard.img and add --personalized. Otherwise use the\n   sdcard.img from the build that passed the check.\n   It wipes the old partitions, writes the image, checks every byte, and ejects.\n   Wait for the command to finish successfully before saying the microSD card is ready.\n   If it refuses, verification fails, or ejection fails, tell me. Do not try\n   another disk. If a retry succeeds, tell me which attempt succeeded and have\n   me close any terminal still showing the earlier failure.\n\nSTEP 4 - HAND OFF THE VERIFIED MEDIA\nTell me the microSD card is ready and what happened (\"built, written, every byte checked\").\nThen give me these steps as a short numbered list, one physical action per line:\n  1) Power off the Pi 5 and unplug it.\n  2) Take the finished card out of the card reader on this computer.\n  3) Push the card into the Pi 5's microSD slot (gold contacts toward the board) until it seats.\n  4) Connect a USB-C data cable to this computer and power on the Pi. For direct Ethernet, connect the Ethernet cable and use the Pi's own power supply.\n  5) Wait up to 2 minutes for it to start: the red light is power, a blinking green light means it is reading the card.\nRemind me to have my Wi-Fi network name, its password and my two-letter country\ncode ready, because the second part joins ANGI to Wi-Fi, which is the most important\nstep.\nWait for me to insert the card and power on the target. Then read and follow\ndocs/install-prompts/part2-rpi5.txt in this checkout. Carry forward its path,\nthe SSH private key path and any prepared known_hosts file. Verify the running\nhardware and finish setup in this chat.",
+  "rpi4": "INSTALL ANGI: build it and put it on an SD card, on this computer. The target is my Pi 4 / 400.\nExplain each step in one short, plain sentence. Do the terminal work yourself and\nguide me through it: before each step say what you are about to do and what I will\nsee, tell me exactly when I need to do something physical, and wait for me. Ask me\nonly for passwords, approvals, or something physical. Write the built sdcard.img\nstraight onto my microSD card.\n\nTHE PLAN (tell me this in your first message, in plain words)\n  1) You check this computer and build ANGI. This is the long part: about 1 to 3 hours\n     for a first build, depending on this computer's CPU and internet speed. Give me\n     your own estimate once you have checked this computer.\n  2) You stay with the build the whole time, keep checking its progress, and tell me\n     how it is going. I can leave it running.\n  3) When the build has finished, you write it to my microSD card (I confirm the erase).\n  4) Guide me through moving the media, booting, and finishing setup.\n\nRepository: https://github.com/danaia/ANGI.git\nClone the repository's current default branch in a fresh checkout, or use an existing\nclean checkout at the current upstream commit. Record the commit with git rev-parse HEAD.\nFrom that checkout, read .agents/skills/angi-install-media/SKILL.md and run the target\nchecks below before starting a build.\n\nSTEP 0 - TARGET\nI am installing ANGI on: Pi 4 / 400 (BOARD=rpi4). Do not ask me which one.\nRun python3 scripts/detect-board.py --require rpi4. If it reports no build, stop\nand tell me. If it reports an experimental build, explain what remains unverified\nand ask whether I want to proceed.\n\nSTEP 1 - CHECK THIS COMPUTER\nCheck the host operating system, free disk space (need 20 GB), memory, and that\na card reader with my microSD card is attached to THIS computer. The repository build and card writer use Linux. On macOS or Windows,\nuse a Linux environment that can access the physical card reader, or a separate\nLinux computer. Confirm that access before proceeding. Check the build dependencies\nand use the Linux distribution's package manager to install missing tools with approval.\nUse the host's network settings for the direct link in part 2.\n\nSTEP 2 - GET AND BUILD ANGI\nRun python3 scripts/ssh_provisioning.py as my normal user to select or generate\nthe workstation's Ed25519 key pair. Record the matching private key's path for\npart 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,\nmake build and make check-image, each with BOARD=rpi4. Fix errors and\nresume. Go on only when the image passes the check. For Pi 4 or Pi 5, also verify\nsdcard.img.sha256 in the selected build's images directory. On Pi 5, ensure the\nworkstation has dropbearkey, then run python3 scripts/provision-sd.py --images IMAGE_DIR to create\nthe private image with a fresh Pi host key and matching known_hosts file.\nRecord the private install directory for part 2.\n\nWATCH THE BUILD. THIS IS REQUIRED.\n- Before you start make build, say: \"The build takes a long time, about <your\n  estimate>. I will keep watching it and checking its progress until it is finished.\"\n- Run the build so you can watch it (in the background, writing to a log file), and\n  look at the log every few minutes. Do not start it and walk away, and do not wait\n  silently.\n- Each time you check, tell me in one or two short lines: which stage it is on, whether\n  it is still moving, and about how much time is left.\n- If it stops, errors or looks stuck, tell me, find the cause and fix it, and resume.\n- Do not assume it worked. Wait until the build has actually finished and\n  make check-image has passed, then tell me clearly: \"The build is complete.\" Do not\n  start step 3 before that.\n\nSTEP 3 - ERASE AND FORMAT THE CARD ON THIS COMPUTER (needs my OK)\nThe microSD card must be attached to THIS computer. Never ask me to put it in the target\ncomputer for this step. If it is not attached here, stop and ask me to attach it.\n1. Run scripts/flash-sd.sh --list and show me the microSD card: path, size, model,\n   serial, and what is on it. If there are several or I might not recognize it,\n   ask me which. Never use a disk that holds this computer's system.\n2. Say clearly that EVERYTHING on it will be erased. Wait for me to type the\n   approval in the form \"erase DEVICE\", using the exact whole-device path reported\n   by the Linux card writer. Anything else means no.\n3. Then run scripts/flash-sd.sh --board rpi4 --image IMAGE --device PATH --confirm-erase PATH.\n   For Pi 5, use the private sdcard.img and add --personalized. Otherwise use the\n   sdcard.img from the build that passed the check.\n   It wipes the old partitions, writes the image, checks every byte, and ejects.\n   Wait for the command to finish successfully before saying the microSD card is ready.\n   If it refuses, verification fails, or ejection fails, tell me. Do not try\n   another disk. If a retry succeeds, tell me which attempt succeeded and have\n   me close any terminal still showing the earlier failure.\n\nSTEP 4 - HAND OFF THE VERIFIED MEDIA\nTell me the microSD card is ready and what happened (\"built, written, every byte checked\").\nThen give me these steps as a short numbered list, one physical action per line:\n  1) Power off the Pi 4 / 400 and unplug it.\n  2) Take the finished card out of the card reader on this computer.\n  3) Push the card into the Pi 4 / 400's microSD slot (gold contacts toward the board) until it seats.\n  4) Connect a USB-C data cable to this computer and power on the Pi. For direct Ethernet, connect the Ethernet cable and use the Pi's own power supply.\n  5) Wait up to 2 minutes for it to start: the red light is power, a blinking green light means it is reading the card.\nRemind me to have my Wi-Fi network name, its password and my two-letter country\ncode ready, because the second part joins ANGI to Wi-Fi, which is the most important\nstep.\nWait for me to insert the card and power on the target. Then read and follow\ndocs/install-prompts/part2-rpi4.txt in this checkout. Carry forward its path,\nthe SSH private key path and any prepared known_hosts file. Verify the running\nhardware and finish setup in this chat.",
+  "rpizero2w": "Install ANGI from source on my Raspberry Pi Zero 2 W. The destination target ID is rpizero2w.\nClone the current default branch of https://github.com/danaia/ANGI.git on the\nworkstation and record the commit with git rev-parse HEAD. Read\n.agents/skills/angi-install-media/SKILL.md from that checkout.\nRun python3 scripts/detect-board.py --require rpizero2w from its repository root.\n\nIf the checkout reports no build for rpizero2w, tell me and stop before starting a build\nor touching any drive. If it reports an experimental build, explain what remains\nunverified and ask whether I want to proceed. If the checkout supports this target,\nfollow its documented install procedure for rpizero2w, passing BOARD=rpizero2w when building.\nIf that procedure is missing, stop and tell me. Validate the documented boot artifact,\nconfirm the exact removable device with me before erasing it, and verify the write\nand first boot. Keep the selected target.",
+  "arm-desktop": "Install ANGI from source on my ARM desktop or laptop (UEFI). The destination target ID is arm-desktop.\nClone the current default branch of https://github.com/danaia/ANGI.git on the\nworkstation and record the commit with git rev-parse HEAD. Read\n.agents/skills/angi-install-media/SKILL.md from that checkout.\nRun python3 scripts/detect-board.py --require arm-desktop from its repository root.\n\nIf the checkout reports no build for arm-desktop, tell me and stop before starting a build\nor touching any drive. If it reports an experimental build, explain what remains\nunverified and ask whether I want to proceed. If the checkout supports this target,\nfollow its documented install procedure for arm-desktop, passing BOARD=arm-desktop when building.\nIf that procedure is missing, stop and tell me. Validate the documented boot artifact,\nconfirm the exact removable device with me before erasing it, and verify the write\nand first boot. Keep the selected target.",
+  "x86-desktop": "Install ANGI from source on my x86-64 desktop or laptop (UEFI). The destination target ID is x86-desktop.\nClone the current default branch of https://github.com/danaia/ANGI.git on the\nworkstation and record the commit with git rev-parse HEAD. Read\n.agents/skills/angi-install-media/SKILL.md from that checkout.\nRun python3 scripts/detect-board.py --require x86-desktop from its repository root.\n\nIf the checkout reports no build for x86-desktop, tell me and stop before starting a build\nor touching any drive. If it reports an experimental build, explain what remains\nunverified and ask whether I want to proceed. If the checkout supports this target,\nfollow its documented install procedure for x86-desktop, passing BOARD=x86-desktop when building.\nIf that procedure is missing, stop and tell me. Validate the documented boot artifact,\nconfirm the exact removable device with me before erasing it, and verify the write\nand first boot. Keep the selected target."
+};
+window.ANGI_PROMPT = (target) => angiInstallPrompts[target.id];

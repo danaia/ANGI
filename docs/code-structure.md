@@ -40,6 +40,11 @@ Some feature/service files remain large and are candidates for later focused pas
 
 `scripts/flash-sd.sh` owns workstation-side card identification, erase confirmation, and the locked write, read-back and eject sequence. `scripts/check-image.py` validates Buildroot output. `scripts/iso_media.py` assembles and verifies the hybrid ISO format. `scripts/build-iso.py` packages the generic release, while `scripts/provision-iso.py` adds the installation's SSH keys to a private copy before flashing.
 
+`scripts/sync-install-prompt.py` renders the README and website source-build
+prompts and first-boot handoffs from `docs/install-prompts/` and the board
+registry in `scripts/boards.json`. The website selects the generated prompt
+by board ID.
+
 `scripts/provision-sd.py` creates the private Pi 5 SD image and its SSH trust
 record from validated Buildroot output. `scripts/ssh_provisioning.py` owns
 workstation identity selection and creation, plus offline SSH key installation

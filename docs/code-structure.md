@@ -45,7 +45,13 @@ prompts and first-boot handoffs from `docs/install-prompts/` and the board
 registry in `scripts/boards.json`. The website selects the generated prompt
 by board ID.
 
-`scripts/provision-sd.py` creates the private Pi 5 SD image and its SSH trust
+The Zero 2 W defconfig selects the GUI's `headless` feature and the existing
+software VNC platform. Its board overlay owns the gadget address, Wi-Fi module
+options and compressed swap script. The common data-volume startup invokes
+the swap script on images that ship it. Image validation checks the board's
+boot files and the shared desktop binary packed into the root filesystem.
+
+`scripts/provision-sd.py` creates the private Pi 5 and Zero 2 W SD images and SSH trust
 record from validated Buildroot output. `scripts/ssh_provisioning.py` owns
 workstation identity selection and creation, plus offline SSH key installation
 and verification for both SD and ISO provisioning.

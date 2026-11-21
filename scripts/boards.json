@@ -84,18 +84,23 @@
       "id": "rpizero2w",
       "name": "Raspberry Pi Zero 2 W",
       "arch": "aarch64",
-      "status": "planned",
-      "base_buildroot_defconfig": "raspberrypizero2w_defconfig",
+      "status": "experimental",
+      "defconfig": "agx_rpizero2w_defconfig",
+      "output": "output-rpizero2w",
+      "firmware_dir": "buildroot/board/agx/rpizero2w",
+      "dtbs": ["bcm2710-rpi-zero-2-w"],
+      "serial": "ttyAMA0",
+      "note": "The source build selects the software VNC desktop. Boot and desktop verification on the Zero 2 W are pending.",
       "medium": "microSD card",
       "dt_model": "Raspberry Pi Zero 2",
       "usb_boot_ids": [
         "0a5c:2764"
       ],
       "links": {
-        "usb-c": {
-          "pi": "10.77.0.2",
-          "host": "10.77.0.1",
-          "profile": "agx-direct"
+        "micro-usb": {
+          "pi": "10.79.0.2",
+          "host": "10.79.0.1",
+          "profile": "angi-zero-usb"
         }
       },
       "how_to_tell": "Tiny board, one mini-HDMI port, no Ethernet port, 'Zero 2 W' printed on it.",
@@ -105,7 +110,7 @@
         "media": "microSD card",
         "card": "A microSD card of 16 GB or more. Your agent formats it for you; everything on it is erased.",
         "reader": "Put the card in a card reader on your computer. Leave the Pi off and empty.",
-        "connect": "Your agent tells you when to put the finished card in the Pi and connect a USB-C data cable to your computer. The Zero 2 W has no Ethernet jack, so it reaches the web over Wi-Fi."
+        "connect": "Your agent guides you through setup over the micro-USB data port. The Zero 2 W reaches the internet over 2.4 GHz Wi-Fi."
       }
     },
     {

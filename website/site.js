@@ -96,7 +96,8 @@
         </div>
         ${who('You', [
           `Move the card into the ${esc(img.short)}`,
-          'Connect a USB data cable, or use direct Ethernet and the Pi’s power supply',
+          img.id === 'rpizero2w' ? 'Connect a data cable to the micro-USB port marked USB'
+            : 'Connect a USB data cable, or use direct Ethernet and the Pi’s power supply',
           'Create your account and join Wi-Fi in the ANGI terminal dashboard',
         ])}
         ${who('Your agent', [

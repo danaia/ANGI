@@ -9,6 +9,9 @@ prepare_apps() {
 }
 case "$1" in
     start)
+        if test -x /usr/libexec/agx-zram; then
+            /usr/libexec/agx-zram start || echo 'ANGI compressed swap unavailable' >&2
+        fi
         test -r /etc/agx/data-volume.uuid || exit 0
         uuid=$(cat /etc/agx/data-volume.uuid)
         case "$uuid" in ''|*[!0-9a-fA-F-]*) echo 'Invalid AGX data UUID' >&2; exit 1 ;; esac
@@ -26,6 +29,11 @@ case "$1" in
         exit 1
         ;;
     prepare) mountpoint -q /var/lib/agx-data && prepare_apps ;;
-    stop) mountpoint -q /var/lib/agx-data && umount /var/lib/agx-data || true ;;
+    stop)
+        if test -x /usr/libexec/agx-zram; then
+            /usr/libexec/agx-zram stop || true
+        fi
+        mountpoint -q /var/lib/agx-data && umount /var/lib/agx-data || true
+        ;;
     *) exit 0 ;;
 esac

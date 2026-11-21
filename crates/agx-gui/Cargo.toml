@@ -17,6 +17,8 @@ path = "src/main.rs"
 # Preview on a desktop (Wayland/X11) window.
 default = ["desktop"]
 desktop = ["slint/backend-winit", "slint/renderer-femtovg", "slint/renderer-software"]
+# Appliance mode with a software framebuffer and no local display backend.
+headless = ["slint/renderer-software", "dep:i-slint-core"]
 # Appliance mode: draw straight to DRM/KMS with libinput. No display server.
 kms = ["dep:glow", "dep:libloading", "dep:input", "slint/unstable-libinput-09", "slint/backend-linuxkms-noseat", "slint/renderer-femtovg", "slint/renderer-software"]
 
@@ -34,6 +36,8 @@ agx-bluetooth = { path = "../agx-bluetooth" }
 zeroize = "1"
 libc = "0.2"
 signal-hook = "0.3"
+# Enable embedded icon decoders in the absence of the Winit and KMS backends.
+i-slint-core = { version = "=1.18.1", optional = true, default-features = false, features = ["image-decoders", "svg"] }
 slint = { version = "1.18.1", default-features = false, features = ["std", "compat-1-2"] }
 alacritty_terminal = { version = "=0.26.0", default-features = false }
 

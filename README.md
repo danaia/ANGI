@@ -93,7 +93,7 @@ ANGI is in early development. This guide is tested on **Arch Linux + NetworkMana
 | --- | --- | --- |
 | **Raspberry Pi 5** | A microSD card | Ethernet or USB-C |
 | **Raspberry Pi 4 / 400** | A microSD card | Ethernet or USB-C |
-| **Raspberry Pi Zero 2 W** | A microSD card | USB-C |
+| **Raspberry Pi Zero 2 W** | A microSD card | [Micro-USB and VNC](docs/pi-zero-2w.md) |
 | **ARM computer** (UEFI) | An SD card or USB drive you start from | Its network or screen |
 | **Intel / AMD computer** (x86-64) | An SD card or USB drive you start from | Its network or screen |
 
@@ -174,10 +174,12 @@ Run python3 scripts/ssh_provisioning.py as my normal user to select or generate
 the workstation's Ed25519 key pair. Record the matching private key's path for
 part 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,
 make build and make check-image, each with BOARD=<my board>. Fix errors and
-resume. Go on only when the image passes the check. For Pi 4 or Pi 5, also verify
-sdcard.img.sha256 in the selected build's images directory. On Pi 5, ensure the
-workstation has dropbearkey, then run python3 scripts/provision-sd.py --images IMAGE_DIR to create
-the private image with a fresh Pi host key and matching known_hosts file.
+resume. Use the image built from this checkout for the selected board.
+Go on only when the image passes the check. Verify sdcard.img.sha256 in
+the selected build's images directory. On Pi 5 and Zero 2 W, ensure the
+workstation has dropbearkey. Run python3 scripts/provision-sd.py --images IMAGE_DIR
+--output-dir PRIVATE_PARENT, using a private directory outside the checkout.
+This creates an image with a fresh Pi host key and matching known_hosts file.
 Record the private install directory for part 2.
 
 WATCH THE BUILD. THIS IS REQUIRED.
@@ -203,7 +205,7 @@ computer for this step. If it is not attached here, stop and ask me to attach it
    approval in the form "erase DEVICE", using the exact whole-device path reported
    by the Linux card writer. Anything else means no.
 3. Then run scripts/flash-sd.sh --board <my board> --image IMAGE --device PATH --confirm-erase PATH.
-   For Pi 5, use the private sdcard.img and add --personalized. Otherwise use the
+   For Pi 5 and Zero 2 W, use the private sdcard.img and add --personalized. Otherwise use the
    sdcard.img from the build that passed the check.
    It wipes the old partitions, writes the image, checks every byte, and ejects.
    Wait for the command to finish successfully before saying the SD card or USB drive is ready.
@@ -217,8 +219,8 @@ Then give me these steps as a short numbered list, one physical action per line:
   1) Power off the target (a desktop: shut it down).
   2) Take the finished card out of the card reader on this computer.
   3) Put it in the target: push a microSD card into the Pi's slot, gold contacts toward the board, until it seats. A desktop: plug the drive in.
-  4) Connect it to this computer by Ethernet or USB-C data cable (desktops: no cable), then power it on.
-  5) Wait up to 2 minutes for the first start. A Pi shows a red light, then a blinking green one.
+  4) Connect the Pi 4 or Pi 5 by USB-C or direct Ethernet. For the Zero 2 W, use the micro-USB port marked USB.
+  5) Power on the target and allow up to 2 minutes for first boot.
 Remind me to have my Wi-Fi network name, its password and my two-letter country
 code ready, because the second part joins ANGI to Wi-Fi, which is the most important
 step.
@@ -253,7 +255,7 @@ When the build is done and the card is written, your agent tells you what to do.
 
 1. Power off the Pi.
 2. Take the card out of the reader and push it into the Pi's slot.
-3. Connect the Pi to your computer with an **Ethernet cable** or a **USB-C data cable** (Pi Zero 2 W: USB-C only). Desktops: plug the drive in and start from it.
+3. Connect a Pi 4 or Pi 5 using **Ethernet** or a **USB-C data cable**. For the **Zero 2 W**, use the micro-USB port marked **USB**. Desktops use the boot menu to start from the drive.
 4. Power the Pi on.
 
 ```text

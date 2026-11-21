@@ -95,7 +95,20 @@ fn attach_graphical_console() -> io::Result<()> {
     Ok(())
 }
 /// Serial login devices in preference order (Pi 5 debug UART, then the Pi 4 mini UART).
-const SERIAL_CONSOLES: [&str; 2] = ["ttyAMA10", "ttyS0"];
+const SERIAL_CONSOLES: [&str; 3] = ["ttyAMA10", "ttyS0", "ttyAMA0"];
+
+fn configured_serial_console(cmdline: &str) -> Option<&'static str> {
+    cmdline
+        .split_ascii_whitespace()
+        .filter_map(|arg| arg.strip_prefix("console="))
+        .filter_map(|console| console.split(',').next())
+        .filter_map(|tty| {
+            SERIAL_CONSOLES
+                .into_iter()
+                .find(|supported| *supported == tty)
+        })
+        .last()
+}
 pub fn definitions(pid1: bool) -> Vec<Definition> {
     let mut services = Vec::new();
     if pid1 {
@@ -115,9 +128,11 @@ pub fn definitions(pid1: bool) -> Vec<Definition> {
             ),
             console_definition(std::path::Path::new("/usr/bin/agx-gui").is_file()),
         ]);
-        // The serial login follows the board: the Pi 5 debug UART or the Pi 4 mini UART.
-        if let Some(tty) = SERIAL_CONSOLES
-            .iter()
+        // Follow the firmware command line when a board exposes multiple UARTs.
+        let cmdline = fs::read_to_string("/proc/cmdline").unwrap_or_default();
+        if let Some(tty) = configured_serial_console(&cmdline)
+            .into_iter()
+            .chain(SERIAL_CONSOLES)
             .find(|tty| std::path::Path::new("/dev").join(tty).exists())
         {
             services.push(Definition::new(
@@ -533,6 +548,16 @@ fn backoff(failures: u32) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn firmware_console_selects_the_uart_for_each_pi() {
+        for tty in SERIAL_CONSOLES {
+            let args = format!("console=tty1 console={tty},115200 rootwait");
+            assert_eq!(configured_serial_console(&args), Some(tty));
+        }
+        assert_eq!(configured_serial_console("console=tty1 rootwait"), None);
+    }
+
     fn pump(manager: &mut Supervisor, until: impl Fn(&mut Supervisor) -> bool) {
         let deadline = Instant::now() + Duration::from_secs(8);
         loop {

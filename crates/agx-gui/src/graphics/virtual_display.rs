@@ -91,6 +91,12 @@ mod tests {
                     .any(|p| p[..3] != [0, 0, 0])
             );
         }
+        let theme = ui.global::<crate::Theme>();
+        theme.set_dark(false);
+        let light = ui.window().take_snapshot().unwrap();
+        theme.set_dark(true);
+        let dark = ui.window().take_snapshot().unwrap();
+        assert_ne!(light.as_bytes(), dark.as_bytes());
         let weak = ui.as_weak();
         let worker = std::thread::spawn(move || {
             weak.upgrade_in_event_loop(|ui| {

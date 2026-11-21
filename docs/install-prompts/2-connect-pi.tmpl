@@ -3,14 +3,8 @@ Use the checkout and SSH key from part 1. Explain each step in one short sentenc
 Do the terminal work and wait whenever I need to plug in a cable or type a password.
 
 {{STEP0}}
-STEP 1 - CONNECT OVER USB-C
-Use the direct USB-C data cable by default. Use direct Ethernet and the Pi's own
-power supply if I chose Ethernet. Use the host's network settings to configure
-only the dedicated adapter. For USB, match the Ethernet adapter with MAC
-02:77:00:00:00:01. Set the computer to 10.77.0.1/24 and reach the Pi at
-10.77.0.2. For Ethernet, use 10.78.0.1/24 and reach the Pi at 10.78.0.2. Leave
-the gateway blank and keep the existing internet route. On Linux with
-NetworkManager, reuse agx-direct or agx-ethernet if present.
+STEP 1 - CONNECT THE DIRECT LINK
+{{LINK}}
 Check the route and source address before connecting. If the Pi fails to appear,
 check the cable, power, activity LED and card seating with me.
 
@@ -28,7 +22,7 @@ ssh -t ... agx tui.
 STEP 3 - CREATE THE ADMINISTRATOR AND JOIN WI-FI
 In Profile (1), let me set the hostname and create my administrator account.
 In Network (4), let me set the two-letter Wi-Fi country, scan, and use Connect & save.
-Use manual entry for a hidden network. Let me type passwords in the TUI.
+Use manual entry for a hidden network. Let me type passwords in the TUI.{{WIFI_NOTE}}
 Keep the direct SSH connection available while Wi-Fi is being configured.
 Use agx wifi status --json to check the Wi-Fi address and agx wifi check for DNS
 and HTTPS. If Wi-Fi fails, keep the account and direct access ready so we can

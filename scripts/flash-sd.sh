@@ -188,7 +188,7 @@ BEFORE=$(identity "$DEVICE") || die "cannot read the card's identity"
 python3 "$ROOT/scripts/detect-board.py" --require "$BOARD" >/dev/null || { python3 "$ROOT/scripts/detect-board.py" --require "$BOARD" >&2 || true; die "no image for $BOARD; refusing"; }
 IMAGE_DIR=$(dirname -- "$IMAGE")
 if (( PERSONALIZED )); then
-    [[ $BOARD == rpi5 && ${IMAGE##*/} == sdcard.img ]] || die "select a private Pi 5 sdcard.img"
+    [[ ${IMAGE##*/} == sdcard.img ]] || die "select a private sdcard.img"
 fi
 if [[ $IMAGE == *.iso ]]; then
     [[ $BOARD == rpi4 ]] || die "the hybrid ISO requires Pi 4 / 400"
@@ -214,7 +214,7 @@ IMG_BYTES=$(stat -c %s "$IMAGE")
 (( BYTES <= MAX_GIB * 1024 * 1024 * 1024 )) \
     || die "$DEVICE is $(human "$BYTES"), larger than ${MAX_GIB} GiB. That is unusual for a microSD card; pass --max-gib to override"
 if (( PERSONALIZED )); then
-    python3 "$ROOT/scripts/provision-sd.py" --verify "$IMAGE_DIR" \
+    python3 "$ROOT/scripts/provision-sd.py" --verify "$IMAGE_DIR" --board "$BOARD" \
         || die "the private SD image failed verification; refusing to write it"
 elif [[ $IMAGE == *.iso ]]; then
     python3 "$ROOT/scripts/iso_media.py" "$IMAGE" \

@@ -1,11 +1,6 @@
-INSTALL ANGI, PART 2: get my ANGI system ready. The target is my Pi Zero 2 W. The card from part 1 is in it and it is connected to this computer.
-Explain each step in one short, plain sentence. Do the terminal work yourself and
-guide me through it: before each step say what you are about to do and what I will
-see, tell me exactly when I need to do something physical, and wait for me. Ask me
-only for passwords, approvals, or something physical.
-
-Repository: https://github.com/danaia/ANGI.git (use the checkout from part 1 if
-there is one; otherwise clone it).
+INSTALL ANGI, PART 2: finish provisioning my Pi Zero 2 W over SSH.
+Use the checkout and SSH key from part 1. Explain each step in one short sentence.
+Do the terminal work and wait whenever I need to plug in a cable or type a password.
 
 STEP 0 - TARGET
 I am installing ANGI on: Pi Zero 2 W (BOARD=rpizero2w). Do not ask me which one.
@@ -13,52 +8,41 @@ Run python3 scripts/detect-board.py --require rpizero2w. If it reports no build,
 and tell me. If it reports an experimental build, explain what remains unverified
 and ask whether I want to proceed.
 
-STEP 1 - SET UP THE LINK
-The Pi Zero 2 W has no Ethernet jack. I use a USB-C data cable.
-Pi 10.77.0.2, me 10.77.0.1/24. Use the host's network settings to configure the
-dedicated USB adapter (MAC 02:77:00:00:00:01). Leave its gateway blank and keep
-my internet route in place. On Linux with NetworkManager, reuse agx-direct if present.
+STEP 1 - CONNECT THE DIRECT LINK
+Connect a data cable to the Zero 2 W micro-USB port marked USB.
+Use 10.79.0.1/24 on the workstation and reach the Pi at 10.79.0.2. Identify the
+adapter by MAC 02:79:00:00:00:01. Configure only that link, with no gateway or
+default route. On Linux with NetworkManager, reuse angi-zero-usb if it exists.
+Use the private image's per-card known_hosts file. See docs/pi-zero-2w.md.
+Check the route and source address before connecting. If the Pi fails to appear,
+check the cable, power, activity LED and card seating with me.
 
-STEP 2 - FIND IT
-Wait up to 2 minutes for it to boot. For USB, look for a new Ethernet adapter. For
-direct Ethernet, check that the dedicated wired port has a link. Confirm the route and
-ping it. If it does not appear, go through: data cable (not charge-only)? powered, with the
-red LED on and the green LED blinking? another USB port or the Pi's own supply? card fully
-seated? Fix what you can and tell me what to check.
+STEP 2 - VERIFY SSH AND OPEN THE TUI
+Use root@PI_ADDRESS with the private key matching the public key used in part 1.
+If part 1 prepared a known_hosts file, use it as UserKnownHostsFile and enable
+StrictHostKeyChecking from the first connection. Otherwise, verify the Pi's
+fingerprint through its local console or an independent trusted source before
+connecting. If the key differs from the verified key, stop and resolve the
+device identity with me.
+Read /proc/device-tree/model and run agx status --json over that trusted connection.
+Confirm the hardware matches Pi Zero 2 W, then open a workstation terminal with
+ssh -t ... agx tui.
 
-STEP 3 - CONNECT SAFELY
-Connect as root@ADDRESS with my private key. This is a new system, so show me the
-SSH fingerprint before trusting it, and ask me before replacing any old saved key
-for that address. Run agx status --json to confirm it is ANGI, and run
-scripts/detect-board.py --identify root@ADDRESS to confirm it is the target I chose.
-If it is a different one, stop and tell me.
-
-STEP 4 - JOIN WI-FI (REQUIRED: the most important step)
-ANGI must be on Wi-Fi so it can reach the web. Do not call the install done until this
-works. The cable only carries this setup; Wi-Fi carries the internet.
+STEP 3 - CREATE THE ADMINISTRATOR AND JOIN WI-FI
+In Profile (1), let me set the hostname and create my administrator account.
+In Network (4), let me set the two-letter Wi-Fi country, scan, and use Connect & save.
+Use manual entry for a hidden network. Let me type passwords in the TUI.
 The Pi Zero 2 W only supports 2.4 GHz Wi-Fi, so help me use a 2.4 GHz network.
-1. Ask me for my Wi-Fi network name, its security (WPA2 is the usual one) and my
-   two-letter country code, if I have not given them. Never ask me to paste the
-   password into this chat and never put it in a command line or a log.
-2. On the system run: agx wifi country CODE, then agx wifi scan --json, and confirm my
-   network is listed. If it is not, tell me and help me fix it (distance, band, name).
-3. Run ssh -t ... agx wifi connect "NETWORK" --security wpa2 (add --hidden for a hidden
-   network). It asks for the password with the screen echo off: tell me to type it
-   there. (Or open agx tui and use the Network tab, key 4.)
-4. Verify: agx wifi status --json shows it connected with an IP address, and
-   agx wifi check shows DNS and HTTPS work. Show me the result.
-5. If it fails, diagnose: wrong password, wrong country code, a band the hardware does
-   not support, or a captive-portal network (those are not supported). Try again with me.
-6. Offer to reboot it (F10 in agx tui) and confirm it joins Wi-Fi again by itself.
+Keep the direct SSH connection available while Wi-Fi is being configured.
+Use agx wifi status --json to check the Wi-Fi address and agx wifi check for DNS
+and HTTPS. If Wi-Fi fails, keep the account and direct access ready so we can
+retry. Report what is still pending.
+Verify that the named administrator can reconnect. Report the current Wi-Fi address.
 
-STEP 5 - GET THE REST OF THE SYSTEM READY
-Open agx tui in an interactive SSH terminal if you can (otherwise give me one exact
-command, with the key path). Walk me through, one at a time, waiting for me:
-1. Explain keys 1-7, ?, F9, F10 and q.
-2. Profile tab: set up my account and password login.
-3. Services and Logs: run agx services --json and show me everything is healthy.
-
-STEP 6 - FINISH
-Tell me how to shut down safely (F9) and how to reconnect later (over the cable, or over
-Wi-Fi at the address shown in Network). Report what you checked, confirm Wi-Fi is
-connected, and say what is still unresolved.
+STEP 4 - OPEN THE DESKTOP
+Open an SSH tunnel from a free workstation loopback port to the Pi's
+127.0.0.1:5900 over the trusted direct connection. Verify an RFB greeting, then
+connect a VNC viewer for the host operating system to that local port. If the
+viewer offers its own SSH tunnel, leave it disabled while using this forward.
+Let me sign in to ANGI with the administrator account. Check agx services --json.
+Tell me how to reconnect over the cable or Wi-Fi and how to shut down safely.

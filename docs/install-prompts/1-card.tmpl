@@ -34,10 +34,12 @@ Run python3 scripts/ssh_provisioning.py as my normal user to select or generate
 the workstation's Ed25519 key pair. Record the matching private key's path for
 part 2. Keep that private key on the workstation. As my normal user run make configure, make dependencies,
 make build and make check-image, each with BOARD={{BOARD}}. Fix errors and
-resume. Go on only when the image passes the check. For Pi 4 or Pi 5, also verify
-sdcard.img.sha256 in the selected build's images directory. On Pi 5, ensure the
-workstation has dropbearkey, then run python3 scripts/provision-sd.py --images IMAGE_DIR to create
-the private image with a fresh Pi host key and matching known_hosts file.
+resume. Use the image built from this checkout for the selected board.
+Go on only when the image passes the check. Verify sdcard.img.sha256 in
+the selected build's images directory. On Pi 5 and Zero 2 W, ensure the
+workstation has dropbearkey. Run python3 scripts/provision-sd.py --images IMAGE_DIR
+--output-dir PRIVATE_PARENT, using a private directory outside the checkout.
+This creates an image with a fresh Pi host key and matching known_hosts file.
 Record the private install directory for part 2.
 
 WATCH THE BUILD. THIS IS REQUIRED.
@@ -63,7 +65,7 @@ computer for this step. If it is not attached here, stop and ask me to attach it
    approval in the form "erase DEVICE", using the exact whole-device path reported
    by the Linux card writer. Anything else means no.
 3. Then run scripts/flash-sd.sh --board {{BOARD}} --image IMAGE --device PATH --confirm-erase PATH.
-   For Pi 5, use the private sdcard.img and add --personalized. Otherwise use the
+   For Pi 5 and Zero 2 W, use the private sdcard.img and add --personalized. Otherwise use the
    sdcard.img from the build that passed the check.
    It wipes the old partitions, writes the image, checks every byte, and ejects.
    Wait for the command to finish successfully before saying the {{MEDIA}} is ready.

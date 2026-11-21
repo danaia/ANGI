@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a private ANGI Pi 5 SD image and its matching SSH trust file."""
+"""Prepare a private ANGI Pi SD image and its matching SSH trust file."""
 
 import argparse
 from pathlib import Path
@@ -16,15 +16,23 @@ from ssh_provisioning import checked_public_key, personalize_rootfs, workstation
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = "sdcard.img"
 CHECKSUM = IMAGE + ".sha256"
-HOSTS = b"10.77.0.2,10.78.0.2"
+HOSTS = {"rpi5": b"10.77.0.2,10.78.0.2", "rpizero2w": b"10.79.0.2"}
 
 
-def verify_bundle(directory):
+def board_for(directory, expected=None):
+    board = (directory / "board.txt").read_text().strip()
+    if board not in HOSTS:
+        raise ValueError(f"Private SD provisioning is unavailable for {board}")
+    if expected is not None and board != expected:
+        raise ValueError(f"Image is for {board}, expected {expected}")
+    return board
+
+
+def verify_bundle(directory, expected=None):
     image = directory / IMAGE
-    if (directory / "board.txt").read_text() != "rpi5\n":
-        raise ValueError("The private install image must be for Pi 5")
+    board = board_for(directory, expected)
     pins = (directory / "known_hosts").read_bytes().splitlines()
-    if len(pins) != 1 or not pins[0].startswith(HOSTS + b" ssh-ed25519 "):
+    if len(pins) != 1 or not pins[0].startswith(HOSTS[board] + b" ssh-ed25519 "):
         raise ValueError("The private install image is missing its Ed25519 SSH trust entry")
     subprocess.run(["ssh-keygen", "-lf", str(directory / "known_hosts")],
                    stdout=subprocess.DEVNULL, check=True)
@@ -36,14 +44,14 @@ def verify_bundle(directory):
 
 
 def provision(images, output_parent, public_key, dropbearkey):
-    if (images / "board.txt").read_text().strip() != "rpi5":
-        raise ValueError("Build the Pi 5 image before provisioning")
-    subprocess.run([sys.executable, str(ROOT / "scripts/check-image.py"), str(images)], check=True)
+    board = board_for(images)
+    subprocess.run([sys.executable, str(ROOT / "scripts/check-image.py"), str(images),
+                    "--board", board], check=True)
     keygen = shutil.which(dropbearkey)
     if keygen is None:
         raise ValueError("Install dropbearkey or supply its path with --dropbearkey")
 
-    with tempfile.TemporaryDirectory(dir=output_parent, prefix=".angi-rpi5-provision-") as staging:
+    with tempfile.TemporaryDirectory(dir=output_parent, prefix=f".angi-{board}-provision-") as staging:
         staging = Path(staging)
         shutil.copyfile(images / "rootfs.ext4", staging / "rootfs")
         host_key = personalize_rootfs(staging, checked_public_key(public_key), str(Path(keygen).resolve()))
@@ -65,14 +73,14 @@ def provision(images, output_parent, public_key, dropbearkey):
                 if disk.read(len(chunk)) != chunk:
                     raise ValueError("The packaged root filesystem did not match its source")
 
-        (staging / "known_hosts").write_bytes(HOSTS + b" " + host_key)
-        (staging / "board.txt").write_text("rpi5\n")
+        (staging / "known_hosts").write_bytes(HOSTS[board] + b" " + host_key)
+        (staging / "board.txt").write_text(board + "\n")
         (staging / CHECKSUM).write_text(f"{sha256_file(staging / IMAGE)}  {IMAGE}\n")
         for artifact in (IMAGE, "known_hosts", "board.txt", CHECKSUM):
             (staging / artifact).chmod(0o600)
         verify_bundle(staging)
 
-        install = Path(tempfile.mkdtemp(dir=output_parent, prefix="angi-rpi5-install-"))
+        install = Path(tempfile.mkdtemp(dir=output_parent, prefix=f"angi-{board}-install-"))
         for artifact in (IMAGE, "known_hosts", "board.txt", CHECKSUM):
             (staging / artifact).replace(install / artifact)
 
@@ -87,10 +95,13 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=Path.cwd())
     parser.add_argument("--dropbearkey", default="dropbearkey")
     parser.add_argument("--verify", type=Path, metavar="INSTALL_DIRECTORY")
+    parser.add_argument("--board", choices=HOSTS, help="Expected target when verifying a private image")
     args = parser.parse_args()
     if args.verify:
-        verify_bundle(args.verify)
+        verify_bundle(args.verify, args.board)
     else:
+        if args.board:
+            parser.error("--board requires --verify; provisioning uses the build's board stamp")
         public = args.public_key if args.public_key is not None else workstation_public_key()
         provision(args.images.resolve(strict=True), args.output_dir.resolve(strict=True),
                   public, args.dropbearkey)

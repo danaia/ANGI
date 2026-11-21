@@ -1,5 +1,5 @@
 //! Startup display selection, explicit renderer overrides and cursor ownership.
-#[cfg(any(feature = "kms", test))]
+#[cfg(any(feature = "kms", feature = "headless", test))]
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -20,7 +20,7 @@ static SOFTWARE_CURSOR: AtomicBool = AtomicBool::new(false);
 
 /// Called before signal handlers, Slint, or any application worker starts threads.
 pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(feature = "kms")]
+    #[cfg(any(feature = "kms", feature = "headless"))]
     if unsafe { libc::geteuid() } == 0 {
         // /etc/agx is private to root; the greeter passes these whitelisted
         // options to the authenticated session instead of opening it as that user.
@@ -43,6 +43,8 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     let requested = std::env::var("SLINT_BACKEND").unwrap_or_else(|_| {
         if cfg!(feature = "kms") {
             "auto"
+        } else if cfg!(feature = "headless") {
+            "vnc-software"
         } else {
             "winit-femtovg"
         }
@@ -108,7 +110,7 @@ pub fn draw_cursor() -> bool {
     SOFTWARE_CURSOR.load(Ordering::Relaxed) || std::env::var_os("AGX_GUI_CURSOR").is_some()
 }
 
-#[cfg(any(feature = "kms", test))]
+#[cfg(any(feature = "kms", feature = "headless", test))]
 fn parse_config(config: &str) -> io::Result<Vec<(String, String)>> {
     let mut options = Vec::new();
     for line in config

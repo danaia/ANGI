@@ -7,7 +7,7 @@ export BOARD
 prepare configure dependencies build:
 	./scripts/build.sh $@
 check-image:
-	python3 scripts/check-image.py "$(OUT)/images"
+	python3 scripts/check-image.py "$(OUT)/images" --board "$(BOARD)"
 	cd "$(OUT)/images" && sha256sum sdcard.img > sdcard.img.sha256
 
 .PHONY: iso

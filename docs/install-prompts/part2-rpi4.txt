@@ -8,14 +8,15 @@ Run python3 scripts/detect-board.py --require rpi4. If it reports no build, stop
 and tell me. If it reports an experimental build, explain what remains unverified
 and ask whether I want to proceed.
 
-STEP 1 - CONNECT OVER USB-C
-Use the direct USB-C data cable by default. Use direct Ethernet and the Pi's own
-power supply if I chose Ethernet. Use the host's network settings to configure
-only the dedicated adapter. For USB, match the Ethernet adapter with MAC
-02:77:00:00:00:01. Set the computer to 10.77.0.1/24 and reach the Pi at
-10.77.0.2. For Ethernet, use 10.78.0.1/24 and reach the Pi at 10.78.0.2. Leave
-the gateway blank and keep the existing internet route. On Linux with
-NetworkManager, reuse agx-direct or agx-ethernet if present.
+STEP 1 - CONNECT THE DIRECT LINK
+Ask me if I am using USB-C or Ethernet, if I did not say.
+USB-C: data cable to the Pi's USB-C port. Pi 10.77.0.2, me 10.77.0.1/24.
+Identify the USB Ethernet adapter by MAC 02:77:00:00:00:01.
+ETHERNET: RJ45 cable and the Pi's own power supply. Pi 10.78.0.2, me 10.78.0.1. Create or
+reuse a dedicated wired connection with a /24 prefix. If that port carries my
+internet, stop and ask. Configure the dedicated adapter in the host's network
+settings, leave its gateway blank, and keep my internet route in place. On Linux
+with NetworkManager, reuse agx-direct or agx-ethernet if present.
 Check the route and source address before connecting. If the Pi fails to appear,
 check the cable, power, activity LED and card seating with me.
 

@@ -77,8 +77,8 @@ GENERIC_HANDOFF = steps(
     "Take the finished card out of the card reader on this computer.",
     "Put it in the target: push a microSD card into the Pi's slot, gold contacts toward the board, until it seats. "
     "A desktop: plug the drive in.",
-    "Connect it to this computer by Ethernet or USB-C data cable (desktops: no cable), then power it on.",
-    "Wait up to 2 minutes for the first start. A Pi shows a red light, then a blinking green one.")
+    "Connect the Pi 4 or Pi 5 by USB-C or direct Ethernet. For the Zero 2 W, use the micro-USB port marked USB.",
+    "Power on the target and allow up to 2 minutes for first boot.")
 LINK_GENERIC = """Ask which link I use, if I did not say:
   USB-C (any Pi): USB-C data cable. Pi 10.77.0.2, me 10.77.0.1.
   ETHERNET (Pi 4 / Pi 5): RJ45 cable and the Pi's own power supply. Pi 10.78.0.2, me 10.78.0.1.
@@ -95,10 +95,11 @@ reuse a dedicated wired connection with a /24 prefix. If that port carries my
 internet, stop and ask. Configure the dedicated adapter in the host's network
 settings, leave its gateway blank, and keep my internet route in place. On Linux
 with NetworkManager, reuse agx-direct or agx-ethernet if present."""
-LINK_ZERO = """The Pi Zero 2 W has no Ethernet jack. I use a USB-C data cable.
-Pi 10.77.0.2, me 10.77.0.1/24. Use the host's network settings to configure the
-dedicated USB adapter (MAC 02:77:00:00:00:01). Leave its gateway blank and keep
-my internet route in place. On Linux with NetworkManager, reuse agx-direct if present."""
+LINK_ZERO = """Connect a data cable to the Zero 2 W micro-USB port marked USB.
+Use 10.79.0.1/24 on the workstation and reach the Pi at 10.79.0.2. Identify the
+adapter by MAC 02:79:00:00:00:01. Configure only that link, with no gateway or
+default route. On Linux with NetworkManager, reuse angi-zero-usb if it exists.
+Use the private image's per-card known_hosts file. See docs/pi-zero-2w.md."""
 LINK_DESKTOP = """There is no cable profile for this target. Ask me how it is reachable (it is on my network,
 or I have its screen and keyboard) and help me connect that way."""
 FIND_PI = """Wait up to 2 minutes for it to boot. For USB, look for a new Ethernet adapter. For
@@ -144,8 +145,8 @@ def for_target(b):
                         "Plug it into the computer ANGI is going on, and start that computer from the drive (boot menu).",
                         "Wait for it to start.")
     elif bid == "rpizero2w":
-        handoff = steps(*PI_STEPS, "Connect a USB-C DATA cable (not charge-only) from the Pi Zero 2 W's data port to this "
-                        "computer. This also powers it.", PI_WAIT)
+        handoff = steps(*PI_STEPS, "Connect the micro-USB port marked USB to this computer using a data cable.",
+                        "Allow up to 2 minutes for the first boot.")
     elif bid in ("rpi4", "rpi5"):
         handoff = steps(*(t.replace("the Pi", f"the {name}") for t in PI_STEPS),
                         "Connect a USB-C data cable to this computer and power on the Pi. For direct Ethernet, connect the Ethernet cable and use the Pi's own power supply.", PI_WAIT)
@@ -158,8 +159,10 @@ def for_target(b):
                          MEDIA_UP=media.upper(), ATTACHED=attached, STEP0=step0, HANDOFF=handoff,
                          BOARD=bid, PLAN_HANDOFF="Guide me through moving the media, booting, and finishing setup.",
                          CONTINUATION=SAME_CHAT.format(id=bid)))
-    if bid in ("rpi4", "rpi5"):
-        return p1, render(T2_PI, dict(STEP0=step0, TARGET=name))
+    if bid in ("rpi4", "rpi5", "rpizero2w"):
+        return p1, render(T2_PI, dict(STEP0=step0, TARGET=name,
+                                     LINK=LINK_ZERO if bid == "rpizero2w" else LINK_USBC_ETH,
+                                     WIFI_NOTE=WIFI_ZERO if bid == "rpizero2w" else ""))
     link = LINK_DESKTOP if desktop else LINK_ZERO if bid == "rpizero2w" else LINK_USBC_ETH
     p2 = render(T2, dict(WHAT=f"The target is my {name}. The card from part 1 is in it and it is connected to this computer.",
                          STEP0=step0, LINK=link, FIND=FIND_DESKTOP if desktop else FIND_PI,
@@ -186,8 +189,7 @@ website_prompts = {}
 for b in boards:
     p, c = for_target(b)
     (OUT / f"part2-{b['id']}.txt").write_text(c + "\n")
-    # The shared card template implements the Pi 4 and Pi 5 SD workflows.
-    website_prompts[b["id"]] = (p if b["id"] in ("rpi4", "rpi5")
+    website_prompts[b["id"]] = (p if b["id"] in ("rpi4", "rpi5", "rpizero2w")
                                 else CHECK_TARGET.format(name=b["name"], id=b["id"]))
 statuses = {b["id"]: b["status"] for b in boards}
 (ROOT / "website/prompts.js").write_text(

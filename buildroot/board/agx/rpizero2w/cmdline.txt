@@ -1,0 +1,1 @@
+root=/dev/mmcblk0p2 rootwait logo.nologo console=ttyAMA0,115200 g_ether.host_addr=02:79:00:00:00:01 g_ether.dev_addr=02:79:00:00:00:02 init=/usr/sbin/agx-init

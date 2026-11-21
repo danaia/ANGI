@@ -91,7 +91,9 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
     if uid < 1000 {
         return io::Error::other("An ANGI administrator account is required");
     }
-    if let Err(error) = crate::browser::prepare_user_storage(uid, gid) {
+    if !cfg!(feature = "headless")
+        && let Err(error) = crate::browser::prepare_user_storage(uid, gid)
+    {
         eprintln!("agx-gui: Web storage is unavailable: {error}");
     }
     let mut session = Command::new("/usr/bin/agx");
@@ -119,7 +121,7 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
     unsafe {
         session.pre_exec(move || {
             // The software framebuffer backend needs access to the active VT.
-            if libc::chown(c"/dev/tty1".as_ptr(), uid, gid) != 0
+            if (!cfg!(feature = "headless") && libc::chown(c"/dev/tty1".as_ptr(), uid, gid) != 0)
                 || libc::initgroups(name.as_ptr(), gid) != 0
                 || libc::setgid(gid) != 0
                 || libc::setuid(uid) != 0

@@ -1,10 +1,13 @@
 config BR2_PACKAGE_AGX_GUI
 	bool "ANGI desktop"
 	depends on BR2_PACKAGE_AGX
-	depends on BR2_PACKAGE_LIBINPUT
-	depends on BR2_PACKAGE_LIBXKBCOMMON
 	depends on BR2_PACKAGE_FONTCONFIG
-	depends on BR2_PACKAGE_MESA3D_GBM
-	depends on BR2_PACKAGE_HAS_LIBEGL && BR2_PACKAGE_HAS_LIBGLES
+	depends on BR2_PACKAGE_AGX_GUI_HEADLESS || (BR2_PACKAGE_LIBINPUT && BR2_PACKAGE_LIBXKBCOMMON && BR2_PACKAGE_MESA3D_GBM && BR2_PACKAGE_HAS_LIBEGL && BR2_PACKAGE_HAS_LIBGLES)
 	help
 	  ANGI desktop with HDMI graphics and a headless VNC display.
+
+config BR2_PACKAGE_AGX_GUI_HEADLESS
+	bool "Build ANGI desktop for software VNC only"
+	depends on BR2_PACKAGE_AGX
+	help
+	  Build the desktop without HDMI graphics libraries for small headless devices.

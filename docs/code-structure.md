@@ -38,12 +38,22 @@ Some feature/service files remain large and are candidates for later focused pas
 
 `scripts/trace-gui.py` owns workstation-side diagnostic collection, bounded log storage, SSH reconnection, and collector cleanup. It reads the Pi's existing logs and process state without changing GUI or system configuration.
 
-`scripts/flash-sd.sh` owns workstation-side card identification, erase confirmation, and the locked write, read-back and eject sequence. `scripts/check-image.py` validates Buildroot output. `scripts/iso_media.py` assembles and verifies the hybrid ISO format. `scripts/build-iso.py` packages the generic release, while `scripts/provision-iso.py` adds the installation's SSH keys to a private copy before flashing.
+`scripts/install-source.py` preflights the local build environment and runs the
+board-selected build and verification stages. `scripts/flash-sd.sh` owns
+removable-device identity, approval, locked writes, read-back and ejection.
+`scripts/check-image.py` validates Pi build artifacts and delegates GPT and EFI
+checks to `scripts/uefi_image.py`. The existing ISO assembler and provisioner
+remain available for the Pi 4 release format.
 
-`scripts/sync-install-prompt.py` renders the README and website source-build
-prompts and first-boot handoffs from `docs/install-prompts/` and the board
-registry in `scripts/boards.json`. The website selects the generated prompt
-by board ID.
+`scripts/net_bootstrap.py` assembles a RAM-only bootstrap from local build output.
+`scripts/net-install.py` owns the dedicated host link, temporary server and
+strict SSH handoff. The RAM installer owns target disk inspection and the
+approved write and read-back.
+
+`scripts/sync-install-prompt.py` renders one website prompt template, target
+profiles, and Pi first-boot guides from `docs/install-prompts/` and
+`scripts/boards.json`. `website/install.js` selects the target and deployment
+method. Both website branches consume the same generated sources.
 
 The Zero 2 W defconfig selects the GUI's `headless` feature and the existing
 software VNC platform. Its board overlay owns the gadget address, Wi-Fi module
@@ -51,7 +61,7 @@ options and compressed swap script. The common data-volume startup invokes
 the swap script on images that ship it. Image validation checks the board's
 boot files and the shared desktop binary packed into the root filesystem.
 
-`scripts/provision-sd.py` creates the private Pi 5 and Zero 2 W SD images and SSH trust
+`scripts/provision-sd.py` creates the private Pi and UEFI boot artifacts and their SSH trust
 record from validated Buildroot output. `scripts/ssh_provisioning.py` owns
 workstation identity selection and creation, plus offline SSH key installation
 and verification for both SD and ISO provisioning.

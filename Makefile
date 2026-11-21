@@ -1,6 +1,7 @@
 # BOARD selects the target (see scripts/detect-board.py --list): make build BOARD=rpi4
 BOARD ?= rpi5
 OUT := $(or $(AGX_BUILD_OUTPUT),$(shell python3 -I scripts/detect-board.py --field $(BOARD) output 2>/dev/null || echo output))
+IMAGE := $(or $(shell python3 -I scripts/detect-board.py --field $(BOARD) image 2>/dev/null),sdcard.img)
 export BOARD
 
 .PHONY: prepare configure dependencies build check-image
@@ -8,7 +9,7 @@ prepare configure dependencies build:
 	./scripts/build.sh $@
 check-image:
 	python3 scripts/check-image.py "$(OUT)/images" --board "$(BOARD)"
-	cd "$(OUT)/images" && sha256sum sdcard.img > sdcard.img.sha256
+	cd "$(OUT)/images" && sha256sum "$(IMAGE)" > "$(IMAGE).sha256"
 
 .PHONY: iso
 iso:
@@ -18,7 +19,7 @@ iso:
 # `make flash-sd DEVICE=/dev/sdX`; it asks you to type the device path to confirm.
 .PHONY: flash-sd
 flash-sd: check-image
-	./scripts/flash-sd.sh --board "$(BOARD)" --image "$(OUT)/images/sdcard.img" --device "$(DEVICE)"
+	./scripts/flash-sd.sh --board "$(BOARD)" --image "$(OUT)/images/$(IMAGE)" --device "$(DEVICE)"
 
 .PHONY: tui-test tui-build deploy-tui
 tui-test:

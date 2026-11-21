@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="site.css">
 <script src="images.js"></script>
 <script src="prompts.js"></script>
+<script src="install.js"></script>
 </head>
 <body>
 <script src="assets.js"></script>
@@ -36,7 +37,7 @@
 <header class="hero page-hero">
   <div class="wrap">
     <h1><span class="grad">One prompt.</span><br><span>Your agent installs ANGI.</span></h1>
-    <p class="sub">Pick your system and copy its prompt into your coding agent. It builds ANGI for your hardware, writes the boot media, and guides you through first boot.</p>
+    <p class="sub">Pick your system and copy its prompt into your coding agent. It builds ANGI on your computer, verifies the boot media, and guides you through first boot.</p>
   </div>
 </header>
 
@@ -57,7 +58,7 @@
       <h2 id="stuck-title"><span class="grad">Quick fixes.</span></h2>
     </div>
     <div class="faqs panel reveal">
-      <details class="faq"><summary>My agent cannot run the prompt</summary><p>Use an agent that can run commands on your computer, such as Claude Code, Codex, Cursor's agent mode or OpenCode. The agent needs access to a Linux build environment and the drive you plan to write.</p></details>
+      <details class="faq"><summary>My agent cannot run the prompt</summary><p>Use an agent that can run commands on your computer, such as Claude Code, Codex, Cursor's agent mode or OpenCode. The agent needs access to a local Linux build environment and direct access to the media you plan to write.</p></details>
       <details class="faq"><summary>The agent cannot find my card</summary><p>Take the card out and put it back in, then ask the agent to look again. Tell it the card's size and your card reader's model if it still cannot tell which disk it is.</p></details>
       <details class="faq"><summary>The agent cannot connect to my Pi</summary><p>Give the Pi time to boot, then check power and use a cable that carries data. Your agent can check the route and verify the Pi’s identity.</p></details>
       <details class="faq"><summary>The Pi keeps restarting</summary><p>Your computer's USB port may not supply enough power. Try another port, a powered USB hub, or a shorter, better cable.</p></details>

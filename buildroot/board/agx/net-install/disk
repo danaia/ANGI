@@ -1,0 +1,58 @@
+#!/bin/sh
+# Runs only in the network-booted recovery RAM environment.
+set -eu
+set -o pipefail
+PATH=/sbin:/usr/sbin:/usr/bin:/bin
+export PATH
+
+die() { echo "ANGI installer: $*" >&2; exit 1; }
+[ -f /run/installer/active ] && grep -qw angi.netinstall=1 /proc/cmdline ||
+    die 'boot the temporary installer before selecting a disk'
+
+action=${1:-}
+if [ "$action" = list ]; then
+    lsblk -p -o NAME,SIZE,TYPE,MODEL,SERIAL,TRAN,FSTYPE,LABEL,MOUNTPOINTS
+    exit
+fi
+device=${2:-}
+case "$device" in /dev/*) ;; *) die 'choose a whole device' ;; esac
+[ "$(readlink -f "$device")" = "$device" ] || die 'use the canonical whole-device path'
+[ -b "$device" ] && [ "$(lsblk -dnro TYPE "$device")" = disk ] ||
+    die 'the destination is not a whole disk'
+[ "$(blockdev --getro "$device")" = 0 ] || die 'destination is read-only'
+nodes=$(lsblk -rn -o NAME "$device") || die 'could not inspect the destination'
+for node in $nodes; do
+    [ -z "$(ls "/sys/class/block/$node/holders")" ] || die 'disk has active holders'
+done
+mounts=$(lsblk -rn -o MOUNTPOINTS "$device") || die 'could not check destination mounts'
+[ -z "$(printf '%s' "$mounts" | tr -d '[:space:]')" ] || die 'destination is mounted'
+details=$(lsblk -dnb -o MAJ:MIN,SIZE,MODEL,SERIAL,WWN "$device")
+sysdev=/sys/class/block/${device##*/}
+sequence=$(cat "$sysdev/diskseq")
+identity=$(printf '%s\n%s\n%s' "$details" "$(readlink -f "$sysdev")" "$sequence" | sha256sum)
+identity=${identity%% *}
+if [ "$action" = inspect ]; then
+    lsblk -p -o NAME,SIZE,TYPE,MODEL,SERIAL,TRAN,FSTYPE,LABEL,MOUNTPOINTS "$device"
+    printf 'Identity: %s\n' "$identity"
+    exit
+fi
+[ "$action" = write ] && [ "$#" = 6 ] || die 'inspect a disk before approving a write'
+[ "$3" = "$device" ] && [ "$4" = "$identity" ] || die 'approval or disk identity changed'
+bytes=$5
+digest=$6
+case "$bytes" in ''|*[!0-9]*) die 'invalid payload size' ;; esac
+case "$digest" in *[!0-9a-f]*) die 'invalid SHA-256' ;; esac
+[ "${#digest}" = 64 ] && [ "$bytes" -gt 0 ] && [ "$bytes" -le "$(blockdev --getsize64 "$device")" ] ||
+    die 'payload does not fit destination'
+exec 9<>"$device"
+flock -n -x 9 || die 'could not lock the approved disk'
+current=$("$0" inspect "$device" | sed -n 's/^Identity: //p')
+[ "$current" = "$identity" ] || die 'disk changed after locking'
+LOCK_BLOCK_DEVICE=no wipefs --all --force "$device" >&2
+head -c "$bytes" | dd of=/proc/self/fd/9 bs=1048576 conv=fsync,notrunc >&2
+blockdev --flushbufs "$device"
+current=$("$0" inspect "$device" | sed -n 's/^Identity: //p')
+[ "$current" = "$identity" ] || die 'disk changed during the write'
+actual=$(head -c "$bytes" /proc/self/fd/9 | sha256sum)
+[ "${actual%% *}" = "$digest" ] || die 'read-back SHA-256 mismatch'
+echo 'Installed artifact read-back SHA-256 verified'

@@ -49,7 +49,11 @@ else
         exit 1
     fi
     local_overlay="$OUTPUT/.ssh-overlay"
-    build_options+=("BR2_ROOTFS_OVERLAY=$ROOT/buildroot/board/agx/rootfs-overlay $ROOT/buildroot/board/agx/$BOARD/rootfs-overlay $local_overlay")
+    overlays="$ROOT/buildroot/board/agx/rootfs-overlay"
+    if [[ -d $ROOT/buildroot/board/agx/$BOARD/rootfs-overlay ]]; then
+        overlays+=" $ROOT/buildroot/board/agx/$BOARD/rootfs-overlay"
+    fi
+    build_options+=("BR2_ROOTFS_OVERLAY=$overlays $local_overlay")
     install -d -m 700 "$local_overlay/root/.ssh"
     install -m 600 "$PUBLIC_KEY" "$local_overlay/root/.ssh/authorized_keys"
 fi
@@ -57,7 +61,27 @@ brmake() {
     make -C "$SOURCE" O="$OUTPUT" BR2_EXTERNAL="$ROOT/buildroot" "${build_options[@]}" "$@"
 }
 if [[ "$ACTION" == configure || ! -f "$OUTPUT/.config" ]]; then
-    brmake "$DEFCONFIG"
+    case "$(uname -m)" in
+        x86_64)
+            brmake "$DEFCONFIG"
+            ;;
+        aarch64)
+            # Buildroot's prebuilt Bootlin toolchains run on x86-64 hosts.
+            # Build a glibc toolchain locally inside a native ARM64 Linux guest.
+            mkdir -p "$OUTPUT"
+            host_config="$OUTPUT/.angi-arm64-host-defconfig"
+            {
+                sed '/^BR2_TOOLCHAIN_EXTERNAL/d' "$ROOT/buildroot/configs/$DEFCONFIG"
+                printf '%s\n' BR2_TOOLCHAIN_BUILDROOT=y BR2_TOOLCHAIN_BUILDROOT_GLIBC=y \
+                    BR2_INSTALL_LIBSTDCPP=y
+            } > "$host_config"
+            brmake defconfig BR2_DEFCONFIG="$host_config"
+            ;;
+        *)
+            echo "ANGI builds require an x86-64 or ARM64 Linux host" >&2
+            exit 1
+            ;;
+    esac
 fi
 case "$ACTION" in
     configure) ;;
@@ -84,8 +108,10 @@ case "$ACTION" in
             brmake "BR2_JLEVEL=${JOBS:-8}" agx-web-rebuild
         fi
         # Buildroot does not otherwise recopy changed external firmware configuration.
-        if ! cmp -s "$FIRMWARE_DIR/config.txt" "$OUTPUT/images/rpi-firmware/config.txt" ||
-           ! cmp -s "$FIRMWARE_DIR/cmdline.txt" "$OUTPUT/images/rpi-firmware/cmdline.txt"; then
+        if [[ -f "$FIRMWARE_DIR/config.txt" ]] && {
+            ! cmp -s "$FIRMWARE_DIR/config.txt" "$OUTPUT/images/rpi-firmware/config.txt" ||
+            ! cmp -s "$FIRMWARE_DIR/cmdline.txt" "$OUTPUT/images/rpi-firmware/cmdline.txt";
+        }; then
             brmake "BR2_JLEVEL=${JOBS:-8}" rpi-firmware-rebuild
         fi
         brmake "BR2_JLEVEL=${JOBS:-8}" all

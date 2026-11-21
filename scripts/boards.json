@@ -38,7 +38,26 @@
         "card": "A microSD card of 16 GB or more (32 GB tested). Your agent formats it for you; everything on it is erased.",
         "reader": "Put the card in a card reader on your computer. Leave the Pi off with its card slot empty.",
         "connect": "Your agent tells you when to put the finished card in the Pi and connect an Ethernet cable or a USB-C data cable."
-      }
+      },
+      "install": {
+        "media": [
+          "sd",
+          "usb",
+          "ethernet"
+        ],
+        "first_boot": "docs/install-prompts/part2-rpi5.txt",
+        "connection": "Use a suitable Pi 5 power supply with direct Ethernet, or use a USB-C data connection with adequate power.",
+        "ssh_host_alias": "agx_rpi5",
+        "choices": [
+          {
+            "id": "rpi5",
+            "name": "Raspberry Pi 5",
+            "short": "Pi 5"
+          }
+        ]
+      },
+      "disk_signature": "41475805",
+      "image": "sdcard.img"
     },
     {
       "id": "rpi4",
@@ -78,7 +97,26 @@
         "card": "A microSD card of 16 GB or more (32 GB works well). Your agent formats it for you; everything on it is erased.",
         "reader": "Put the card in a card reader on your computer. Leave the Pi off with its card slot empty.",
         "connect": "Your agent tells you when to put the finished card in the Pi, power it with a 5 V / 3 A supply, and connect an Ethernet cable or a USB-C data cable."
-      }
+      },
+      "install": {
+        "media": [
+          "sd",
+          "usb",
+          "ethernet"
+        ],
+        "first_boot": "docs/install-prompts/part2-rpi4.txt",
+        "connection": "Use a suitable Pi 4 power supply with direct Ethernet, or use a USB-C data connection with adequate power.",
+        "ssh_host_alias": "agx_rpi4",
+        "choices": [
+          {
+            "id": "rpi4",
+            "name": "Raspberry Pi 4",
+            "short": "Pi 4"
+          }
+        ]
+      },
+      "disk_signature": "41475804",
+      "image": "sdcard.img"
     },
     {
       "id": "rpizero2w",
@@ -88,7 +126,9 @@
       "defconfig": "agx_rpizero2w_defconfig",
       "output": "output-rpizero2w",
       "firmware_dir": "buildroot/board/agx/rpizero2w",
-      "dtbs": ["bcm2710-rpi-zero-2-w"],
+      "dtbs": [
+        "bcm2710-rpi-zero-2-w"
+      ],
       "serial": "ttyAMA0",
       "note": "The source build selects the software VNC desktop. Boot and desktop verification on the Zero 2 W are pending.",
       "medium": "microSD card",
@@ -111,18 +151,38 @@
         "card": "A microSD card of 16 GB or more. Your agent formats it for you; everything on it is erased.",
         "reader": "Put the card in a card reader on your computer. Leave the Pi off and empty.",
         "connect": "Your agent guides you through setup over the micro-USB data port. The Zero 2 W reaches the internet over 2.4 GHz Wi-Fi."
-      }
+      },
+      "install": {
+        "media": [
+          "sd"
+        ],
+        "first_boot": "docs/install-prompts/part2-rpizero2w.txt",
+        "connection": "Use the micro-USB port marked USB for the headless data connection. Use the separate PWR IN port if the workstation cannot reliably supply power. Use 2.4 GHz Wi-Fi.",
+        "ssh_host_alias": "agx_zero",
+        "choices": [
+          {
+            "id": "rpizero2w",
+            "name": "Raspberry Pi Zero 2 W",
+            "short": "Pi Zero 2 W"
+          }
+        ]
+      },
+      "image": "sdcard.img"
     },
     {
       "id": "arm-desktop",
       "name": "ARM desktop or laptop (UEFI)",
       "arch": "aarch64",
-      "status": "planned",
-      "medium": "internal disk or USB stick (installer, not a card write)",
+      "status": "experimental",
+      "medium": "USB stick or SD card in a USB reader",
       "dt_model": "",
       "usb_boot_ids": [],
       "links": {
-        "ethernet": null
+        "ethernet": {
+          "pi": "10.78.0.2",
+          "host": "10.78.0.1",
+          "profile": "agx-ethernet"
+        }
       },
       "how_to_tell": "A normal computer with a UEFI/BIOS that is not x86 (for example Ampere, Apple-silicon VMs, Snapdragon X).",
       "marketing": {
@@ -132,18 +192,43 @@
         "card": "An SD card or USB drive of 16 GB or more. Your agent formats it for you; everything on it is erased.",
         "reader": "Plug the drive or card reader into the computer you are working on, not the one ANGI is going on.",
         "connect": "Your agent tells you when to plug the finished drive into your ARM computer and start it from that drive."
-      }
+      },
+      "install": {
+        "media": [
+          "usb",
+          "ethernet"
+        ],
+        "first_boot": "docs/install-prompts/pc-uefi.md",
+        "connection": "Power the target normally and choose the USB stick or USB SD card reader in its 64-bit UEFI boot menu.",
+        "ssh_host_alias": "agx_arm64",
+        "choices": [
+          {
+            "id": "arm-desktop",
+            "name": "ARM64 computer",
+            "short": "ARM"
+          }
+        ]
+      },
+      "defconfig": "agx_arm_desktop_defconfig",
+      "output": "output-arm-desktop",
+      "firmware_dir": "buildroot/board/agx/uefi",
+      "image": "disk.img",
+      "note": "Source configuration available. Physical boot, networking, and USB-reader verification are pending."
     },
     {
       "id": "x86-desktop",
       "name": "x86-64 desktop or laptop (UEFI)",
       "arch": "x86_64",
-      "status": "planned",
-      "medium": "internal disk or USB stick (installer, not a card write)",
+      "status": "experimental",
+      "medium": "USB stick or SD card in a USB reader",
       "dt_model": "",
       "usb_boot_ids": [],
       "links": {
-        "ethernet": null
+        "ethernet": {
+          "pi": "10.78.0.2",
+          "host": "10.78.0.1",
+          "profile": "agx-ethernet"
+        }
       },
       "how_to_tell": "A normal Intel or AMD computer.",
       "marketing": {
@@ -153,7 +238,35 @@
         "card": "An SD card or USB drive of 16 GB or more. Your agent formats it for you; everything on it is erased.",
         "reader": "Plug the drive or card reader into the computer you are working on, not the one ANGI is going on.",
         "connect": "Your agent tells you when to plug the finished drive into your Intel or AMD computer and start it from that drive."
-      }
+      },
+      "install": {
+        "media": [
+          "usb",
+          "ethernet"
+        ],
+        "first_boot": "docs/install-prompts/pc-uefi.md",
+        "connection": "Power the target normally and choose the USB stick or USB SD card reader in its 64-bit UEFI boot menu.",
+        "ssh_host_alias": "agx_x86",
+        "choices": [
+          {
+            "id": "amd",
+            "name": "Amd x86-64 computer",
+            "short": "AMD",
+            "cpu_vendor": "AuthenticAMD"
+          },
+          {
+            "id": "intel",
+            "name": "Intel x86-64 computer",
+            "short": "Intel",
+            "cpu_vendor": "GenuineIntel"
+          }
+        ]
+      },
+      "defconfig": "agx_x86_desktop_defconfig",
+      "output": "output-x86-desktop",
+      "firmware_dir": "buildroot/board/agx/uefi",
+      "image": "disk.img",
+      "note": "Source configuration available. Physical boot, networking, and USB-reader verification are pending."
     }
   ]
 }

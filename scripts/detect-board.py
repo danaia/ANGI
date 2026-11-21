@@ -15,9 +15,9 @@ ask the person (use the how_to_tell text) and then confirm after the first boot.
 import argparse, json, platform, re, subprocess, sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BOARDS = json.loads((ROOT / "scripts/boards.json").read_text())["boards"]
-BY_ID = {b["id"]: b for b in BOARDS}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from detect_board_registry import BOARDS, BY_ID, ROOT
+
 READY = [b["id"] for b in BOARDS if b["status"] in ("ready", "experimental")]
 
 
@@ -82,6 +82,10 @@ def cmd_require(a):
         print(f"Unknown target '{a.require}'. Known: {', '.join(BY_ID)}", file=sys.stderr)
         return 2
     if b["status"] in ("ready", "experimental"):
+        config = ROOT / "buildroot/configs" / b["defconfig"]
+        if not config.is_file():
+            print(f"Checkout lacks the {b['id']} defconfig: {config}", file=sys.stderr)
+            return 3
         print(f'{b["id"]}: {b["status"]} ({b.get("defconfig")})')
         if b["status"] == "experimental":
             print(f'NOTE: {b.get("note", "not yet booted on hardware")}', file=sys.stderr)

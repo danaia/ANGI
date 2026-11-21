@@ -1,38 +1,36 @@
-INSTALL ANGI, PART 2: finish provisioning my {{TARGET}} over SSH.
-Use the checkout and SSH key from part 1. Explain each step in one short sentence.
-Do the terminal work and wait whenever I need to plug in a cable or type a password.
+# First boot on {{TARGET}}
 
-{{STEP0}}
-STEP 1 - CONNECT THE DIRECT LINK
+Keep the private key and private install directory selected during the build.
+Explain each physical step and wait for the customer to say Continue.
+
+## Connect the direct link
+
 {{LINK}}
-Check the route and source address before connecting. If the Pi fails to appear,
-check the cable, power, activity LED and card seating with me.
+Check the route and source address before connecting. If the Pi fails to appear
+within two minutes, check the data cable, power and card seating with the customer.
 
-STEP 2 - VERIFY SSH AND OPEN THE TUI
-Use root@PI_ADDRESS with the private key matching the public key used in part 1.
-If part 1 prepared a known_hosts file, use it as UserKnownHostsFile and enable
-StrictHostKeyChecking from the first connection. Otherwise, verify the Pi's
-fingerprint through its local console or an independent trusted source before
-connecting. If the key differs from the verified key, stop and resolve the
-device identity with me.
-Read /proc/device-tree/model and run agx status --json over that trusted connection.
-Confirm the hardware matches {{TARGET}}, then open a workstation terminal with
-ssh -t ... agx tui.
+## Verify SSH and open the TUI
 
-STEP 3 - CREATE THE ADMINISTRATOR AND JOIN WI-FI
-In Profile (1), let me set the hostname and create my administrator account.
-In Network (4), let me set the two-letter Wi-Fi country, scan, and use Connect & save.
-Use manual entry for a hidden network. Let me type passwords in the TUI.{{WIFI_NOTE}}
-Keep the direct SSH connection available while Wi-Fi is being configured.
-Use agx wifi status --json to check the Wi-Fi address and agx wifi check for DNS
-and HTTPS. If Wi-Fi fails, keep the account and direct access ready so we can
-retry. Report what is still pending.
-Verify that the named administrator can reconnect. Report the current Wi-Fi address.
+Connect as root with the workstation identity and the prepared known_hosts.
+Use IdentitiesOnly=yes, StrictHostKeyChecking=yes and the profile's HostKeyAlias
+from the first connection onward. If the key differs, stop. Read
+/proc/device-tree/model and run agx status --json. Confirm this is the selected
+board. Open a workstation terminal with ssh -t ... agx tui.
 
-STEP 4 - OPEN THE DESKTOP
-Open an SSH tunnel from a free workstation loopback port to the Pi's
-127.0.0.1:5900 over the trusted direct connection. Verify an RFB greeting, then
-connect a VNC viewer for the host operating system to that local port. If the
-viewer offers its own SSH tunnel, leave it disabled while using this forward.
-Let me sign in to ANGI with the administrator account. Check agx services --json.
-Tell me how to reconnect over the cable or Wi-Fi and how to shut down safely.
+## Create the administrator and connect to the network
+
+In Profile, let the customer set the hostname and create an administrator.
+In Network, let them set the Wi-Fi country, scan and use Connect & save. Use
+manual entry for a hidden network. Enter passwords only in the TUI.{{WIFI_NOTE}}
+Keep direct SSH connected. Verify the network address with agx wifi status --json
+and test DNS and HTTPS with agx wifi check. If the administrator needs a login
+key, install the workstation's selected public key in that account with the
+account's ownership and SSH permissions. Preserve any existing keys. Verify the
+administrator can reconnect before removing the direct link.
+
+## Open the desktop
+
+Forward a free workstation loopback port to the Pi's 127.0.0.1:5900 using the
+trusted SSH connection. Verify an RFB greeting and connect the workstation VNC
+viewer to the local port. Have the customer sign in, then check
+agx services --json. Show how to reconnect and shut down safely.

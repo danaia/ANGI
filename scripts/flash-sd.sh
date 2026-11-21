@@ -20,6 +20,8 @@ DEVICE=""
 CONFIRM=""
 LIST=0
 PERSONALIZED=0
+INSPECT=0
+EXPECTED_IDENTITY=""
 
 die() { echo "flash-sd: $*" >&2; exit 1; }
 usage() { sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
@@ -27,6 +29,8 @@ usage() { sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 while (( $# )); do
     case $1 in
         --list) LIST=1 ;;
+        --inspect) INSPECT=1 ;;
+        --expect-identity) EXPECTED_IDENTITY=${2:?--expect-identity needs the inspected identity}; shift ;;
         --personalized) PERSONALIZED=1 ;;
         --device) DEVICE=${2:?--device needs a path}; shift ;;
         --confirm-erase) CONFIRM=${2:?--confirm-erase needs the device path}; shift ;;
@@ -167,7 +171,7 @@ show_disk() {
 }
 
 if (( LIST )); then
-    echo "Candidate microSD cards (removable or card-reader disks, none hosting the running system):"
+    echo "Candidate removable drives (USB or card-reader disks that do not host the running system):"
     found=0
     while read -r name; do
         [[ -n $name ]] || continue
@@ -181,14 +185,24 @@ fi
 [[ -b $DEVICE ]] || die "$DEVICE is not a block device"
 [[ $(lsblk -dnro TYPE "$DEVICE") == disk ]] || die "$DEVICE is a partition; pass the whole disk (for example /dev/sdb, not /dev/sdb1)"
 BEFORE=$(identity "$DEVICE") || die "cannot read the card's identity"
+if [[ -n $EXPECTED_IDENTITY && $EXPECTED_IDENTITY != "$BEFORE" ]]; then
+    die "the approved device identity changed; inspect the target again"
+fi
+if (( INSPECT )); then
+    grep -qxF "$DEVICE" < <(candidates) || die "the device is not an eligible removable disk"
+    show_disk "$DEVICE"
+    echo "Identity: $BEFORE"
+    exit 0
+fi
 [[ -n $BOARD ]] || die "say which board this card is for with --board (scripts/detect-board.py --list)"
-[[ -n $IMAGE ]] || IMAGE="$ROOT/$(python3 -I "$ROOT/scripts/detect-board.py" --field "$BOARD" output)/images/sdcard.img"
+IMAGE_NAME=$(python3 -I "$ROOT/scripts/detect-board.py" --field "$BOARD" image) || die "unknown build target"
+[[ -n $IMAGE ]] || IMAGE="$ROOT/$(python3 -I "$ROOT/scripts/detect-board.py" --field "$BOARD" output)/images/$IMAGE_NAME"
 [[ -f $IMAGE ]] || die "image not found: $IMAGE (run make build first)"
 
 python3 "$ROOT/scripts/detect-board.py" --require "$BOARD" >/dev/null || { python3 "$ROOT/scripts/detect-board.py" --require "$BOARD" >&2 || true; die "no image for $BOARD; refusing"; }
 IMAGE_DIR=$(dirname -- "$IMAGE")
 if (( PERSONALIZED )); then
-    [[ ${IMAGE##*/} == sdcard.img ]] || die "select a private sdcard.img"
+    [[ ${IMAGE##*/} == "$IMAGE_NAME" ]] || die "select the private $IMAGE_NAME for $BOARD"
 fi
 if [[ $IMAGE == *.iso ]]; then
     [[ $BOARD == rpi4 ]] || die "the hybrid ISO requires Pi 4 / 400"
@@ -220,10 +234,10 @@ elif [[ $IMAGE == *.iso ]]; then
     python3 "$ROOT/scripts/iso_media.py" "$IMAGE" \
         || die "the ISO failed validation; refusing to write it"
 else
-    python3 "$ROOT/scripts/check-image.py" "$IMAGE_DIR" >/dev/null \
+    python3 "$ROOT/scripts/check-image.py" "$IMAGE_DIR" --board "$BOARD" >/dev/null \
         || die "the image failed validation; refusing to write it"
-    if [[ ! $IMAGE -ef "$IMAGE_DIR/sdcard.img" ]] && ! cmp -s -- "$IMAGE" "$IMAGE_DIR/sdcard.img"; then
-        die "the selected image differs from the checked sdcard.img"
+    if [[ ! $IMAGE -ef "$IMAGE_DIR/$IMAGE_NAME" ]] && ! cmp -s -- "$IMAGE" "$IMAGE_DIR/$IMAGE_NAME"; then
+        die "the selected image differs from the checked $IMAGE_NAME"
     fi
 fi
 require_same_card

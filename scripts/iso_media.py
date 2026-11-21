@@ -118,6 +118,10 @@ def build_iso(boot, rootfs, output, edition, xorriso=None):
             "-append_partition", "2", "0x83", str(rootfs),
             "-o", str(image), str(files),
         ], check=True)
+        # Keep the Pi 4 root PARTUUID when xorriso creates the hybrid MBR.
+        with image.open("r+b") as stream:
+            stream.seek(440)
+            stream.write(struct.pack("<I", 0x41475804))
         verify_iso(image, edition)
         image.chmod(0o644 if edition == "generic" else 0o600)
         image.replace(output)

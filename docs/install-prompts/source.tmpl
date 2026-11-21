@@ -1,0 +1,54 @@
+Install ANGI from source for {{name}}. The selected target is {{board}} and the
+deployment method is {{medium}}. Do the terminal work yourself, describe what
+you are doing, and wait whenever I need to move something or make a decision.
+Before you start, tell me that you will check this computer, build and verify
+ANGI, prepare the boot media, then guide me through first boot in this chat.
+Passwords belong in ANGI's local setup or terminal, never in this chat.
+
+1. CHECK THE SOURCE AND HOST
+Use an isolated checkout of https://github.com/danaia/ANGI.git. Fetch
+{{sourceRef}}, check out FETCH_HEAD detached, and record git rev-parse HEAD.
+When the source ref is a full commit ID, require HEAD to equal it. Keep that
+commit throughout the install. If the ref, installer, board, or guide is missing,
+stop. Run python3 scripts/detect-board.py --require {{board}}. If experimental,
+explain what still needs hardware verification and ask before proceeding.
+Use a Linux build environment on this computer. On macOS use a local Linux VM.
+On Windows use WSL 2 or a local Linux VM. ARM64 Linux builds its own toolchain
+and may take longer. Confirm the Linux environment can see
+the real whole device or dedicated network interface. If it cannot, stop and
+help me choose a local Linux environment with that access. Do not guess.
+{{access}}
+
+2. BUILD AND CHECK ANGI
+Run python3 scripts/install-source.py prepare --board {{board}} {{prepareArgs}}
+using an existing private output directory outside the checkout. This command
+records the commit, preflights the host tools, RAM, capacity and transport,
+selects the workstation Ed25519 key, and runs:
+  make configure BOARD={{board}}
+  make dependencies BOARD={{board}}
+  make build BOARD={{board}}
+  make check-image BOARD={{board}}
+It checks the board stamp and runs the equivalent of sha256sum -c
+{{artifact}}.sha256, then makes a private copy with the public login key and a
+fresh SSH host key. Verify the private artifact and known_hosts with:
+  python3 scripts/provision-sd.py --verify PRIVATE_DIR --board {{board}}
+Monitor the build until it finishes and report progress periodically. Stop on
+a failed build, image check or SHA-256 mismatch, before requesting erase approval.
+Record the board, commit, final artifact checksum and private trust path. Keep
+the workstation private key and the private boot artifact out of chat and logs.
+
+3. VERIFY, WRITE AND HAND OFF
+{{deploy}}
+
+4. FINISH FIRST BOOT
+{{connection}}
+Follow {{guide}} from the same checkout. Use the retained private key,
+UserKnownHostsFile=PRIVATE_DIR/known_hosts, HostKeyAlias={{alias}},
+StrictHostKeyChecking=yes and IdentitiesOnly=yes on the installed OS. The agent
+must do SSH pin and SHA-256 verification itself. Do not ask me to copy keys or
+fingerprints for the installed OS. Stop on a host-key mismatch.
+{{identity}}
+Finish administrator and network setup. Verify the administrator can reconnect
+using the same SSH identity, and verify network connectivity. Report artifact
+SHA-256, written-media verification, successful hardware boot and network setup
+as separate results. A verified write alone is not a verified hardware boot.

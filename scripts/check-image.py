@@ -8,6 +8,9 @@ import struct
 import subprocess
 import sys
 
+from detect_board_registry import BY_ID
+from uefi_image import check_uefi
+
 
 def require(condition, message):
     if not condition:
@@ -49,9 +52,12 @@ PROFILES = {
 def check(images, expected_board=None):
     stamp = images / "board.txt"
     board = stamp.read_text().strip() if stamp.is_file() else "rpi5"
-    require(board in PROFILES, f"Unknown board stamp: {board}")
+    require(board in BY_ID, f"Unknown board stamp: {board}")
     require(expected_board is None or board == expected_board,
             f"Image is for {board}, expected {expected_board}")
+    if board in ("arm-desktop", "x86-desktop"):
+        check_uefi(images, BY_ID[board])
+        return
     profile = PROFILES[board]
     zero = board == "rpizero2w"
     build_config = (images.parent / '.config').read_text().splitlines()
@@ -82,6 +88,8 @@ def check(images, expected_board=None):
     with disk_image.open("rb") as image:
         mbr = image.read(512)
         require(mbr[510:512] == b"\x55\xaa", "Invalid MBR signature")
+        signature = BY_ID[board].get("disk_signature")
+        disk_signature = mbr[440:444]
         previous_end = 512
         for index, (name, kind) in enumerate((("boot.vfat", 0x0C), ("rootfs.ext4", 0x83))):
             entry = mbr[446 + 16 * index:462 + 16 * index]
@@ -116,7 +124,12 @@ def check(images, expected_board=None):
     require("dtoverlay=dwc2,dr_mode=peripheral" in config, "Missing USB device overlay")
     cmdline = (images / "rpi-firmware/cmdline.txt").read_text()
     usb_prefix = "79" if zero else "77"
-    for token in ("root=/dev/mmcblk0p2", "rootwait", "init=/usr/sbin/agx-init", "logo.nologo", f"console={serial},115200",
+    root = "/dev/mmcblk0p2"
+    if signature and "root=/dev/mmcblk0p2" not in cmdline.split():
+        require(int.from_bytes(disk_signature, "little") == int(signature, 16),
+                f"Incorrect {board} MBR signature")
+        root = f"PARTUUID={signature}-02"
+    for token in (f"root={root}", "rootwait", "init=/usr/sbin/agx-init", "logo.nologo", f"console={serial},115200",
                   f"g_ether.host_addr=02:{usb_prefix}:00:00:00:01", f"g_ether.dev_addr=02:{usb_prefix}:00:00:00:02"):
         require(token in cmdline.split(), f"Missing boot argument: {token}")
     require("console=tty1" not in cmdline.split(), "Kernel messages must not overwrite the HDMI login")
@@ -276,7 +289,7 @@ def check(images, expected_board=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("images", type=Path, nargs="?", default=Path("output/images"))
-    parser.add_argument("--board", choices=PROFILES)
+    parser.add_argument("--board", choices=BY_ID)
     args = parser.parse_args()
     try:
         check(args.images.resolve(), args.board)

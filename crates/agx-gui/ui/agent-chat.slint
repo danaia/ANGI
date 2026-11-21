@@ -22,10 +22,10 @@ component MessageText inherits TextInput {
     read-only: true;
     wrap: word-wrap;
     font-family: "Noto Sans";
-    font-size: 15px;
-    color: Theme.fg-bright;
-    selection-background-color: Theme.accent;
-    selection-foreground-color: Theme.bg-dark;
+    font-size: Theme.text-label;
+    color: Theme.ink;
+    selection-background-color: Theme.selection;
+    selection-foreground-color: Theme.ink;
     vertical-stretch: 0;
 }
 
@@ -37,9 +37,9 @@ component ChatTurn inherits VerticalLayout {
         alignment: end;
         Rectangle {
             max-width: root.width * 0.8;
-            border-radius: 16px;
-            background: Theme.bg-light;
-            border-width: 1px; border-color: Theme.muted;
+            border-radius: Theme.radius-md;
+            background: Theme.surface-muted;
+            border-width: 0px;
             VerticalLayout {
                 padding-left: 16px; padding-right: 16px;
                 padding-top: 11px; padding-bottom: 11px;
@@ -54,14 +54,14 @@ component ChatTurn inherits VerticalLayout {
             AngiMark { width: 25px; height: 25px; }
             Text {
                 text: root.message.failed ? "Couldn’t complete the reply" : "Angi";
-                font-family: "Noto Sans"; font-size: 13px; font-weight: 700;
-                color: root.message.failed ? Theme.red : Theme.fg-bright;
+                font-family: "Noto Sans"; font-size: Theme.text-body-sm; font-weight: 600;
+                color: root.message.failed ? Theme.danger : Theme.ink;
                 vertical-alignment: center;
             }
         }
         MessageText {
             text: root.message.text;
-            color: root.message.failed ? Theme.red : Theme.fg-bright;
+            color: root.message.failed ? Theme.danger : Theme.ink;
         }
     }
 }
@@ -71,8 +71,8 @@ component Thinking inherits HorizontalLayout {
     property <int> tick: mod(floor(animation-tick() / 1s * 3), 3);
     AngiMark { width: 25px; height: 25px; }
     Text {
-        text: "Working…"; font-family: "Noto Sans"; font-size: 13px;
-        color: Theme.fg; vertical-alignment: center;
+        text: "Working…"; font-family: "Noto Sans"; font-size: Theme.text-body-sm;
+        color: Theme.ink; vertical-alignment: center;
     }
     for dot in 3: Rectangle {
         width: 4px; height: 4px; border-radius: 2px;

@@ -1,6 +1,7 @@
 // Native chrome; the web engine supplies only the page pixels.
 import { Theme } from "data.slint";
-import { LineEdit, ListView } from "std-widgets.slint";
+import { ListView } from "std-widgets.slint";
+import { TextField, Icons, Icon } from "pebble/pebble.slint";
 export struct WebOption { label: string, enabled: bool, selected: bool }
 export struct BookmarkItem { title: string, letter: string, icon: image, has-icon: bool, compact: bool, url: string, folder: bool, pinned: bool, open: bool }
 export struct BookmarkRow { title: string, icon: image, has-icon: bool, url: string, folder: bool, open: bool }
@@ -57,17 +58,14 @@ component NavigationIcon inherits Rectangle {
     in property <bool> available: true;
     width: 30px;
     height: 30px;
-    border-radius: 5px;
-    background: Theme.bg-light;
+    border-radius: 15px;
+    background: transparent;
     accessible-role: button;
     accessible-label: action == 0 ? "Back" : action == 1 ? "Forward" : action == 2 ? "Reload" : "Home";
-    Text {
-        text: root.action == 0 ? "←" : root.action == 1 ? "→" : root.action == 2 ? "↻" : "⌂";
-        color: root.available ? Theme.fg : Theme.muted;
-        font-family: "DejaVu Sans";
-        font-size: 19px;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    Icon {
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        source: root.action == 0 ? Icons.chevron-left : root.action == 1 ? Icons.chevron-right : root.action == 2 ? Icons.refresh : Icons.home;
+        color: root.available ? Theme.ink : Theme.ink-subtle;
     }
 }
 export component BrowserPanel inherits Rectangle {
@@ -82,18 +80,18 @@ export component BrowserPanel inherits Rectangle {
     changed request => { root.set-focus(); }
     changed active => { root.set-focus(); }
     init => { root.set-focus(); }
-    background: #f7f9fc;
+    background: Theme.surface;
     clip: true;
     Rectangle {
         x: 0; y: 36px;
         width: parent.width;
         height: 78px;
-        background: Theme.bg-dark;
+        background: Theme.surface;
         NavigationIcon { x: 8px; y: 7px; action: 0; available: Web.can-back; }
         NavigationIcon { x: 40px; y: 7px; action: 1; available: Web.can-forward; }
         NavigationIcon { x: 72px; y: 7px; action: 2; }
         NavigationIcon { x: 104px; y: 7px; action: 3; }
-        address := LineEdit {
+        address := TextField {
             x: 144px; y: 6px; width: max(1px, parent.width - 188px); height: 32px;
             text <=> Web.address;
             placeholder-text: "Enter a website address";
@@ -110,22 +108,22 @@ export component BrowserPanel inherits Rectangle {
         Image { x: 0; y: 0; width: Web.frame-width * 1px; height: Web.frame-height * 1px; source: Web.frame; image-fit: fill; }
         if Web.download-notice != "": Rectangle {
             y: parent.height - 30px; height: 30px; width: parent.width;
-            background: Theme.bg-light;
-            Text { x: 12px; width: parent.width - 48px; text: Web.download-notice; color: Theme.fg-bright; font-size: 13px; vertical-alignment: center; overflow: elide; }
+            background: Theme.surface-muted;
+            Text { x: 12px; width: parent.width - 48px; text: Web.download-notice; color: Theme.ink; font-size: Theme.text-body-sm; vertical-alignment: center; overflow: elide; }
             TouchArea {
                 x: parent.width - 36px; width: 36px;
                 mouse-cursor: MouseCursor.pointer;
                 clicked => { Web.download-notice = ""; }
-                Text { text: "×"; color: Theme.fg-dim; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: "×"; color: Theme.ink-muted; font-size: Theme.text-label; horizontal-alignment: center; vertical-alignment: center; }
             }
             Timer { interval: 8s; running: Web.download-notice != ""; triggered => { Web.download-notice = ""; } }
         }
         if !Web.ready || Web.error != "": Rectangle {
-            background: Theme.bg;
+            background: Theme.surface;
             VerticalLayout {
                 alignment: center; padding: 24px; spacing: 12px;
-                Text { text: Web.error == "" ? "Opening Web…" : "Unable to display this page"; color: Theme.fg-bright; font-size: 18px; horizontal-alignment: center; wrap: word-wrap; }
-                Text { text: Web.error; color: Theme.fg-dim; horizontal-alignment: center; wrap: word-wrap; }
+                Text { text: Web.error == "" ? "Opening Web…" : "Unable to display this page"; color: Theme.ink; font-size: Theme.text-title; horizontal-alignment: center; wrap: word-wrap; }
+                Text { text: Web.error; color: Theme.ink-muted; horizontal-alignment: center; wrap: word-wrap; }
             }
         }
     }
@@ -139,12 +137,12 @@ component TabControl inherits Rectangle {
     accessible-role: button;
     accessible-label: root.label;
     width: 30px;
-    border-radius: 4px;
-    background: hit.has-hover && root.enabled ? Theme.bg-light : transparent;
+    border-radius: self.height / 2;
+    background: hit.has-hover && root.enabled ? Theme.surface-hover : transparent;
     Text {
         text: root.glyph;
-        font-family: "DejaVu Sans"; font-size: 18px;
-        color: root.enabled ? Theme.fg-bright : Theme.muted;
+        font-family: "DejaVu Sans"; font-size: Theme.text-title;
+        color: root.enabled ? Theme.ink : Theme.line-strong;
         horizontal-alignment: center; vertical-alignment: center;
     }
     hit := TouchArea {
@@ -156,7 +154,7 @@ component TabControl inherits Rectangle {
 
 export component BrowserTabs inherits Rectangle {
     callback pointer-moved(length, length);
-    background: Theme.bg-dark;
+    background: Theme.surface;
     clip: true;
     TouchArea {
         moved => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
@@ -166,16 +164,14 @@ export component BrowserTabs inherits Rectangle {
         alignment: start;
         for title[i] in Web.tabs: Rectangle {
             width: max(0px, min(192px, (root.width - 82px) / max(1, Web.tabs.length) - 3px));
-            border-radius: 4px;
-            border-width: i == Web.active-tab ? 1px : 0px;
-            border-color: Theme.accent;
-            background: i == Web.active-tab || tab-touch.has-hover ? Theme.bg-light : Theme.bg;
+            border-radius: self.height / 2;
+            background: i == Web.active-tab ? Theme.surface-muted : tab-touch.has-hover ? Theme.surface-hover : transparent;
             accessible-role: button;
             accessible-label: title;
             Text {
                 x: 8px; width: max(0px, parent.width - 16px);
-                text: title; color: i == Web.active-tab ? Theme.fg-bright : Theme.fg-dim;
-                font-size: 12px; vertical-alignment: center; overflow: elide;
+                text: title; color: i == Web.active-tab ? Theme.ink : Theme.ink-muted;
+                font-size: Theme.text-small; font-weight: 500; vertical-alignment: center; overflow: elide;
             }
             tab-touch := TouchArea {
                 mouse-cursor: MouseCursor.pointer;
@@ -201,29 +197,29 @@ export component BookmarkChrome inherits Rectangle {
     // Toolbar row: the star; below it, the bar.
     Rectangle { x: 0; y: 0; width: parent.width; height: 44px; background: transparent;
         Rectangle {
-            x: parent.width - 40px; y: 7px; width: 30px; height: 30px; border-radius: 5px;
-            background: Theme.bg-light;
+            x: parent.width - 40px; y: 7px; width: 30px; height: 30px; border-radius: 15px;
+            background: transparent;
             accessible-role: button;
             accessible-label: Web.starred ? "Remove bookmark" : "Bookmark this page";
-            Text { text: Web.starred ? "★" : "☆"; color: Web.starred ? Theme.accent : Theme.fg; font-family: "DejaVu Sans"; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: Web.starred ? "★" : "☆"; color: Web.starred ? Theme.ink : Theme.ink-muted; font-family: "DejaVu Sans"; font-size: Theme.text-title; horizontal-alignment: center; vertical-alignment: center; }
             TouchArea { mouse-cursor: MouseCursor.pointer; clicked => { Web.bookmark-toggle(); } }
         }
     }
     Rectangle { x: 0; y: 0; width: parent.width; height: parent.height; background: transparent;
         Rectangle {
             x: 0; y: 44px; width: parent.width; height: 34px;
-            background: Theme.bg;
+            background: Theme.surface;
             if Web.bookmarks.length == 0: HorizontalLayout {
                 padding-left: 10px; padding-right: 16px; spacing: 12px;
                 Rectangle {
                     width: 190px;
                     Text {
                         text: Web.bookmark-importing ? "Importing" + (dots == 0 ? "" : dots == 1 ? "." : dots == 2 ? ".." : "...") : "Import Google bookmarks";
-                        color: Theme.accent; font-size: 12px; vertical-alignment: center;
+                        color: Theme.ink; font-size: Theme.text-small; font-weight: 500; vertical-alignment: center;
                     }
                     TouchArea { enabled: !Web.bookmark-importing; mouse-cursor: MouseCursor.pointer; clicked => { Web.bookmark-import(); } }
                 }
-                Text { text: Web.bookmark-status != "" ? Web.bookmark-status : "No bookmarks yet."; color: Theme.fg-dim; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                Text { text: Web.bookmark-status != "" ? Web.bookmark-status : "No bookmarks yet."; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; overflow: elide; }
             }
             Timer { interval: 350ms; running: Web.bookmark-importing; triggered => { dots = Math.mod(dots + 1, 4); } }
             HorizontalLayout {
@@ -231,8 +227,8 @@ export component BookmarkChrome inherits Rectangle {
                 for item[i] in Web.bookmarks: Rectangle {
                     visible: !item.pinned;
                     width: item.pinned ? 0px : item.compact ? 30px : min(170px, label.preferred-width + (item.has-icon ? 36px : 16px));
-                    border-radius: 4px;
-                    background: item.open || touch.has-hover ? Theme.bg-light : transparent;
+                    border-radius: Theme.radius-xs;
+                    background: item.open || touch.has-hover ? Theme.surface-muted : transparent;
                     accessible-role: button;
                     accessible-label: item.title;
                     if item.has-icon: Image {
@@ -240,14 +236,14 @@ export component BookmarkChrome inherits Rectangle {
                         source: item.icon; image-fit: contain;
                     }
                     if item.letter != "": Rectangle {
-                        width: 18px; height: 18px; border-radius: 9px; background: Theme.bg-light; border-color: Theme.muted; border-width: 1px;
-                        Text { text: item.letter; color: Theme.fg-bright; font-size: 10px; horizontal-alignment: center; vertical-alignment: center; }
+                        width: 18px; height: 18px; border-radius: 9px; background: Theme.surface-muted; border-color: Theme.line-strong; border-width: 1px;
+                        Text { text: item.letter; color: Theme.ink; font-size: Theme.text-caption; horizontal-alignment: center; vertical-alignment: center; }
                     }
                     label := Text {
                         visible: !item.compact;
                         x: item.has-icon ? 28px : 8px; width: max(0px, parent.width - (item.has-icon ? 36px : 16px));
                         text: (item.folder ? "▸ " : "") + item.title;
-                        color: Theme.fg; font-size: 12px; vertical-alignment: center; overflow: elide;
+                        color: Theme.ink; font-size: Theme.text-small; vertical-alignment: center; overflow: elide;
                     }
                     touch := TouchArea {
                         mouse-cursor: MouseCursor.pointer;
@@ -262,11 +258,11 @@ export component BookmarkChrome inherits Rectangle {
             for item[i] in Web.bookmarks: Rectangle {
                 visible: item.pinned;
                 x: parent.width - self.width - 8px; y: 3px; height: parent.height - 6px; width: item.pinned ? all-label.preferred-width + 16px : 0px;
-                border-radius: 4px;
-                background: item.open || all-touch.has-hover ? Theme.bg-light : transparent;
+                border-radius: Theme.radius-xs;
+                background: item.open || all-touch.has-hover ? Theme.surface-muted : transparent;
                 accessible-role: button;
                 accessible-label: item.title;
-                all-label := Text { x: 8px; text: "▸ " + item.title; color: Theme.fg; font-size: 12px; vertical-alignment: center; }
+                all-label := Text { x: 8px; text: "▸ " + item.title; color: Theme.ink; font-size: Theme.text-small; vertical-alignment: center; }
                 all-touch := TouchArea {
                     mouse-cursor: MouseCursor.pointer;
                     clicked => { Web.menu-x = max(0px, self.absolute-position.x - root.absolute-position.x - 220px); Web.bookmark-folder(-1, i); }
@@ -286,15 +282,15 @@ export component BookmarkMenus inherits Rectangle {
     for rows[level] in Web.menus: Rectangle {
         x: max(0px, min(Web.menu-x + level * 248px, root.width - 252px - (Web.menus.length - 1 - level) * 248px)); y: level * 4px;
         width: 250px; height: min(420px, rows.length * 26px + 8px);
-        background: Theme.bg-dark; border-color: Theme.accent; border-width: 1px; border-radius: 4px;
+        background: Theme.surface; border-color: Theme.line-strong; border-width: Theme.stroke-hair; border-radius: Theme.radius-md;
         ListView {
             x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
             for row[r] in rows: Rectangle {
                 height: 26px;
-                background: row.open || row-touch.has-hover ? Theme.bg-light : transparent;
+                background: row.open || row-touch.has-hover ? Theme.surface-muted : transparent;
                 if row.has-icon: Image { x: 8px; y: (parent.height - 16px) / 2; width: 16px; height: 16px; source: row.icon; image-fit: contain; }
                 Text {
-                    x: row.has-icon ? 30px : 8px; width: parent.width - (row.has-icon ? 38px : 16px); vertical-alignment: center; overflow: elide; font-size: 12px; color: Theme.fg;
+                    x: row.has-icon ? 30px : 8px; width: parent.width - (row.has-icon ? 38px : 16px); vertical-alignment: center; overflow: elide; font-size: Theme.text-small; color: Theme.ink;
                     text: (row.folder ? "▸ " : "") + row.title;
                 }
                 row-touch := TouchArea {

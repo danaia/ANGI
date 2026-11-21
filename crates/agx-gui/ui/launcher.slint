@@ -1,19 +1,17 @@
 // Searchable launcher with Settings (built-in tools), Apps (command-line tools and servers that run on ANGI)
 // and Commands tabs. The catalogues and command routing live in launcher.rs.
-import { Theme, MenuRow } from "data.slint";
+import { MenuRow } from "data.slint";
+import { Theme, Icons, Icon, Badge, Kbd, SegmentedControl, Heading2, Hint, Caption } from "pebble/pebble.slint";
 import { ScrollView } from "std-widgets.slint";
 
 component AppIcon inherits Rectangle {
     in property <int> kind;
-    out property <color> tint: kind == 0 ? Theme.green : kind == 1 ? Theme.accent
-        : kind == 2 ? Theme.magenta : kind == 3 ? Theme.cyan : kind == 4 ? Theme.yellow
-        : kind == 5 ? Theme.red : kind == 6 ? Theme.accent : kind == 16 ? Theme.cyan : Theme.fg;
+    // Pebble Line: every app icon is an ink outline in a `surface-muted` well; no per-app colour.
+    out property <color> tint: Theme.ink;
     width: 42px;
     height: 42px;
-    border-radius: 11px;
-    background: tint.with-alpha(0.12);
-    border-width: 1px;
-    border-color: tint.with-alpha(0.12);
+    border-radius: Theme.radius-sm;
+    background: Theme.surface-muted;
     Image {
         x: 9px; y: 9px; width: 24px; height: 24px;
         colorize: root.kind == 13 ? transparent : root.tint;
@@ -43,13 +41,13 @@ component LauncherTab inherits Rectangle {
     callback chosen();
     height: 32px;
     width: 112px;
-    border-radius: 7px;
-    background: active ? Theme.bg-light : touch.has-hover ? Theme.bg-light.with-alpha(0.5) : transparent;
+    border-radius: self.height / 2;
+    background: active ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
     Text {
         text: root.label;
-        color: root.active ? Theme.fg-bright : Theme.fg;
-        font-size: 12px;
-        font-weight: root.active ? 600 : 400;
+        color: root.active || touch.has-hover ? Theme.ink : Theme.ink-muted;
+        font-size: Theme.text-body-sm;
+        font-weight: 500;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -75,7 +73,7 @@ export component AppLauncher inherits Rectangle {
     callback remove(int);
     callback dismissed();
     callback pointer-moved(length, length);
-    background: #05070cb8;
+    background: Theme.scrim;
     init => { search.focus(); }
 
     function choose() {
@@ -115,48 +113,51 @@ export component AppLauncher inherits Rectangle {
         y: max(24px, min(72px, (parent.height - self.height) / 2));
         width: min(660px, parent.width - 40px);
         height: min(240px + max(70px, min(root.content-height, 8 * 70px + 68px)), parent.height - 64px);
-        border-radius: 16px;
-        background: Theme.bg;
-        border-width: 1px;
-        border-color: Theme.fg-dim.with-alpha(0.45);
+        border-radius: Theme.radius-lg;
+        background: Theme.surface;
+        border-width: Theme.stroke-hair;
+        border-color: Theme.line-strong;
         // Consume clicks in the panel; only the backdrop dismisses it.
         TouchArea { pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); } }
         VerticalLayout {
-            padding: 20px;
+            padding: Theme.space-6;
             padding-bottom: 0px;
-            spacing: 14px;
+            spacing: Theme.space-4;
             HorizontalLayout {
                 height: 42px;
                 spacing: 12px;
                 AppIcon { kind: 0; }
                 VerticalLayout {
-                    spacing: 3px;
-                    Text { text: "Applications"; color: Theme.fg-bright; font-size: 22px; font-weight: 700; }
-                    Text { text: "Monitor, connect, and manage your Pi."; color: Theme.fg; font-size: 11px; overflow: elide; }
+                    spacing: 0px;
+                    Heading2 { text: "Applications"; wrap: no-wrap; }
+                    Hint { text: "Monitor, connect and manage your Pi."; wrap: no-wrap; overflow: elide; }
                 }
                 Rectangle { horizontal-stretch: 1; }
-                Rectangle {
-                    width: 38px; height: 25px; border-radius: 5px;
-                    background: Theme.bg-light;
-                    Text { text: "Esc"; color: Theme.fg; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
-                    TouchArea { mouse-cursor: pointer; accessible-role: button; accessible-label: "Close launcher"; clicked => { root.dismissed(); } }
+                VerticalLayout {
+                    alignment: center;
+                    Kbd {
+                        text: "Esc";
+                        TouchArea { mouse-cursor: pointer; accessible-role: button; accessible-label: "Close launcher"; clicked => { root.dismissed(); } }
+                    }
                 }
             }
             Rectangle {
-                height: 48px;
-                border-radius: 9px;
-                background: Theme.bg-dark;
-                border-width: 1px;
-                border-color: search.has-focus ? Theme.accent.with-alpha(0.75) : Theme.muted;
+                height: 46px;
+                border-radius: self.height / 2;
+                background: Theme.surface;
+                border-width: search.has-focus ? Theme.stroke-rule : Theme.stroke-hair;
+                border-color: search.has-focus ? Theme.ink : Theme.line;
                 HorizontalLayout {
-                    padding-left: 14px; padding-right: 12px; spacing: 12px;
-                    Text { text: "󰍉"; color: Theme.accent; font-size: 19px; vertical-alignment: center; }
+                    padding-left: Theme.space-5; padding-right: Theme.space-4; spacing: Theme.space-3;
+                    VerticalLayout { alignment: center; Icon { source: Icons.search; } }
                     Rectangle {
                         horizontal-stretch: 1;
-                        Text { x: 0px; y: 0px; width: parent.width; height: parent.height; text: "Search settings, apps or commands…"; visible: search.text == ""; color: Theme.fg-dim; font-size: 13px; horizontal-alignment: left; vertical-alignment: center; }
+                        Text { x: 0px; y: 0px; width: parent.width; height: parent.height; text: "Search settings, apps or commands…"; visible: search.text == ""; color: Theme.ink-muted; font-size: Theme.text-body; horizontal-alignment: left; vertical-alignment: center; }
                         search := TextInput {
-                            color: Theme.fg-bright;
-                            font-size: 13px;
+                            color: Theme.ink;
+                            font-size: Theme.text-body;
+                            selection-background-color: Theme.selection;
+                            selection-foreground-color: Theme.ink;
                             vertical-alignment: center;
                             horizontal-alignment: left;
                             single-line: true;
@@ -178,7 +179,7 @@ export component AppLauncher inherits Rectangle {
                     }
                     if search.text != "": Rectangle {
                         width: 24px;
-                        Text { text: "×"; color: Theme.fg; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+                        Icon { source: Icons.x; width: 16px; height: 16px; x: 4px; y: (parent.height - self.height) / 2; }
                         TouchArea {
                             mouse-cursor: pointer;
                             accessible-role: button;
@@ -189,12 +190,16 @@ export component AppLauncher inherits Rectangle {
                 }
             }
             HorizontalLayout {
-                height: 32px; spacing: 6px;
-                LauncherTab { label: "Apps"; active: root.section == 0; chosen => { root.switch-section(0); } }
-                LauncherTab { label: "Commands"; active: root.section == 1; chosen => { root.switch-section(1); } }
-                LauncherTab { label: "Settings"; active: root.section == 2; chosen => { root.switch-section(2); } }
+                height: 42px; spacing: Theme.space-3;
+                SegmentedControl {
+                    label: "Launcher view";
+                    options: ["Apps", "Commands", "Settings"];
+                    current-index: root.section;
+                    selected(index) => { root.switch-section(index); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
                 Rectangle { horizontal-stretch: 1; }
-                Text { text: search.text != "" ? "SEARCH RESULTS" : root.section == 0 ? "RUNS ON ANGI" : root.section == 1 ? "DESKTOP & SESSION" : "YOUR TOOLS"; color: Theme.fg-dim; font-size: 10px; vertical-alignment: center; }
+                Caption { text: search.text != "" ? "SEARCH RESULTS" : root.section == 0 ? "RUNS ON ANGI" : root.section == 1 ? "DESKTOP & SESSION" : "YOUR TOOLS"; vertical-alignment: center; }
             }
             Rectangle {
                 vertical-stretch: 1;
@@ -207,10 +212,8 @@ export component AppLauncher inherits Rectangle {
                         y: row.top;
                         height: 64px;
                         width: results.visible-width;
-                        border-radius: 10px;
-                        background: i == root.selected ? Theme.accent.with-alpha(0.12) : transparent;
-                        border-width: 1px;
-                        border-color: i == root.selected ? Theme.accent.with-alpha(0.28) : transparent;
+                        border-radius: Theme.radius-md;
+                        background: i == root.selected ? Theme.surface-muted : transparent;
                         HorizontalLayout {
                             padding-left: 10px; padding-right: 14px; spacing: 13px;
                             VerticalLayout { width: 42px; alignment: center; AppIcon { kind: row.icon; } }
@@ -219,38 +222,34 @@ export component AppLauncher inherits Rectangle {
                                 horizontal-stretch: 1;
                                 HorizontalLayout {
                                     spacing: 8px;
-                                    Text { text: row.label; color: Theme.fg-bright; font-size: 14px; font-weight: 600; overflow: elide; vertical-alignment: center; }
-                                    if row.badge != "": Rectangle {
-                                        width: badge-text.preferred-width + 16px; height: 16px; y: 1px; border-radius: 8px;
-                                        background: Theme.yellow.with-alpha(0.14); border-width: 1px; border-color: Theme.yellow.with-alpha(0.45);
-                                        badge-text := Text { text: "★ " + row.badge; color: Theme.yellow; font-size: 9px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-                                    }
+                                    Text { text: row.label; color: Theme.ink; font-size: Theme.text-label; font-weight: 500; overflow: elide; vertical-alignment: center; }
+                                    if row.badge != "": VerticalLayout { alignment: center; Badge { text: row.badge; height: 20px; } }
                                     Rectangle { horizontal-stretch: 1; }
                                 }
-                                Text { text: row.description; color: row.state == 6 ? Theme.red : Theme.fg; font-size: 12px; overflow: elide; }
+                                Text { text: row.description; color: row.state == 6 ? Theme.danger : Theme.ink-muted; font-size: Theme.text-body-sm; overflow: elide; }
                             }
                             if row.removable && i == root.selected: Rectangle { width: 104px; }
                             if row.running: VerticalLayout {
                                 width: 5px; alignment: center;
-                                Rectangle { width: 5px; height: 5px; border-radius: 3px; background: Theme.green; }
+                                Rectangle { width: 5px; height: 5px; border-radius: 3px; background: Theme.success; }
                             }
                             Text {
                                 text: row.hint; width: row.state == 0 ? 60px : 140px; horizontal-alignment: right;
-                                color: row.state == 3 ? Theme.accent : row.state == 5 ? #ff9e64 : row.state == 6 ? Theme.red
-                                    : row.running ? Theme.green : Theme.fg-dim;
-                                font-size: 10px; vertical-alignment: center; overflow: elide;
+                                color: row.state == 3 ? Theme.ink : row.state == 5 ? Theme.warning : row.state == 6 ? Theme.danger
+                                    : row.running ? Theme.success : Theme.ink-muted;
+                                font-size: Theme.text-small; vertical-alignment: center; overflow: elide;
                             }
-                            Text { width: 18px; text: i == root.selected && (row.action != "" || row.state == 0) ? "↵" : ""; color: Theme.accent; font-size: 18px; vertical-alignment: center; }
+                            Text { width: 18px; text: i == root.selected && (row.action != "" || row.state == 0) ? "↵" : ""; color: Theme.ink-muted; font-size: Theme.text-label; vertical-alignment: center; }
                         }
                         // A section's heading sits above its first row.
                         if row.heading != "": Text {
                             x: 12px; y: -26px; height: 20px; text: row.heading;
-                            color: Theme.fg-dim; font-size: 10px; font-weight: 700; vertical-alignment: center;
+                            color: Theme.ink-muted; font-size: Theme.text-caption; letter-spacing: 0.5px; vertical-alignment: center;
                         }
                         // Live install progress along the bottom edge of the row.
                         if row.state == 3: Rectangle {
-                            x: 10px; y: parent.height - 6px; width: parent.width - 20px; height: 3px; border-radius: 2px;
-                            background: Theme.muted.with-alpha(0.4);
+                            x: 16px; y: parent.height - 7px; width: parent.width - 32px; height: 4px; border-radius: 2px;
+                            background: Theme.line;
                             Rectangle { x: 0px; width: parent.width * max(0.02, min(1.0, row.progress)); height: parent.height; border-radius: 2px; background: Theme.accent; }
                         }
                         TouchArea {
@@ -265,10 +264,10 @@ export component AppLauncher inherits Rectangle {
                         }
                         if row.removable && i == root.selected: Rectangle {
                             x: parent.width - 14px - 18px - 13px - 140px - 13px - 98px; y: (parent.height - self.height) / 2;
-                            width: 98px; height: 26px; border-radius: 6px;
-                            background: root.confirm-remove == i ? Theme.red.with-alpha(0.22) : remove-touch.has-hover ? Theme.bg-light : transparent;
-                            border-width: 1px; border-color: root.confirm-remove == i ? Theme.red : Theme.muted;
-                            Text { text: root.confirm-remove == i ? "Confirm" : "Remove"; color: root.confirm-remove == i ? Theme.red : Theme.fg; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+                            width: 98px; height: 30px; border-radius: self.height / 2;
+                            background: root.confirm-remove == i ? Theme.danger-soft : remove-touch.has-hover ? Theme.surface-hover : Theme.surface;
+                            border-width: Theme.stroke-hair; border-color: root.confirm-remove == i ? Theme.danger : Theme.line;
+                            Text { text: root.confirm-remove == i ? "Confirm" : "Remove"; color: Theme.danger; font-size: Theme.text-small; font-weight: 500; horizontal-alignment: center; vertical-alignment: center; }
                             remove-touch := TouchArea {
                                 mouse-cursor: pointer; accessible-role: button;
                                 accessible-label: root.confirm-remove == i ? "Confirm removing " + row.label : "Remove " + row.label;
@@ -280,24 +279,24 @@ export component AppLauncher inherits Rectangle {
                 if root.rows.length == 0: VerticalLayout {
                     alignment: center;
                     spacing: 12px;
-                    Text { text: "No matching settings, apps or commands"; color: Theme.fg-bright; font-size: 15px; horizontal-alignment: center; }
-                    Text { text: "Try network, btop, ripgrep, or restart."; color: Theme.fg; font-size: 12px; horizontal-alignment: center; }
+                    Text { text: "No matching settings, apps or commands"; color: Theme.ink; font-size: Theme.text-label; font-weight: 500; horizontal-alignment: center; }
+                    Text { text: "Try network, btop, ripgrep or restart."; color: Theme.ink-muted; font-size: Theme.text-body-sm; horizontal-alignment: center; }
                 }
             }
             Rectangle {
-                height: 42px;
+                height: 46px;
                 border-width: 0px;
-                Rectangle { x: 0px; y: 0px; width: parent.width; height: 1px; background: Theme.muted.with-alpha(0.5); }
+                Rectangle { x: 0px; y: 0px; width: parent.width; height: 1px; background: Theme.line; }
                 HorizontalLayout {
                     y: 1px;
                     height: parent.height - 1px;
                     spacing: 12px;
-                    Text { text: "↑↓  Navigate"; color: Theme.fg; font-size: 10px; vertical-alignment: center; }
-                    Text { text: "↵  " + (root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].action != "" ? root.rows[root.selected].action : root.rows[root.selected].state == 0 ? "Open" : "Working…"); color: Theme.fg; font-size: 10px; vertical-alignment: center; }
-                    if root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].removable && search.text == "": Text { text: "Del  Remove"; color: Theme.fg; font-size: 10px; vertical-alignment: center; }
-                    Text { text: "Tab  Switch view"; color: Theme.fg; font-size: 10px; vertical-alignment: center; }
+                    Text { text: "↑↓  Navigate"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
+                    Text { text: "↵  " + (root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].action != "" ? root.rows[root.selected].action : root.rows[root.selected].state == 0 ? "Open" : "Working…"); color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
+                    if root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].removable && search.text == "": Text { text: "Del  Remove"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
+                    Text { text: "Tab  Switch view"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; }
-                    Text { text: root.rows.length == 1 ? "1 result" : "\{root.rows.length} results"; color: Theme.fg; font-size: 10px; vertical-alignment: center; }
+                    Text { text: root.rows.length == 1 ? "1 result" : "\{root.rows.length} results"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
                 }
             }
         }

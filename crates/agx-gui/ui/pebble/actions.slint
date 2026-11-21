@@ -1,0 +1,160 @@
+// Pebble Line actions: Button and IconButton.
+//
+// Every interactive part reports `pointer-moved` with window coordinates so the desktop can
+// draw its own cursor on the native display. Forward it from every TouchArea you add.
+import { Theme } from "tokens.slint";
+import { Icon } from "type.slint";
+
+// primary: the one main action (solid accent). secondary: outlined. ghost: quiet, no stroke.
+// danger: outlined, red ink, for destructive actions.
+export enum ButtonVariant { primary, secondary, ghost, danger }
+export enum ControlSize { sm, md, lg }
+
+// Focus ring: 2px `focus` stroke, 2px outside the control.
+export component FocusRing inherits Rectangle {
+    in property <bool> shown;
+    in property <length> radius;
+    x: -4px; y: -4px;
+    border-radius: root.radius + 4px;
+    border-width: Theme.stroke-focus;
+    border-color: Theme.focus;
+    visible: root.shown;
+}
+
+export component Button inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <image> icon-right;
+    in property <ButtonVariant> variant: ButtonVariant.secondary;
+    in property <ControlSize> size: ControlSize.sm;
+    in property <bool> enabled: true;
+    // Shows the pressed fill, for toggle-like buttons.
+    in property <bool> checked: false;
+    out property <bool> has-hover: touch.has-hover;
+    out property <bool> has-focus: keys.has-focus;
+    callback clicked();
+    callback pointer-moved(length, length);
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+
+    private property <bool> filled: root.variant == ButtonVariant.primary;
+    private property <color> ink: !root.enabled ? Theme.ink-subtle
+        : root.filled ? Theme.on-accent
+        : root.variant == ButtonVariant.danger ? Theme.danger
+        : root.variant == ButtonVariant.ghost && !touch.has-hover ? Theme.ink-muted
+        : Theme.ink;
+
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+
+    height: root.size == ControlSize.sm ? 36px : root.size == ControlSize.md ? 44px : 56px;
+    horizontal-stretch: 0;
+    border-radius: self.height / 2;
+    border-width: Theme.stroke-hair;
+    background: !root.enabled ? Theme.surface-muted
+        : root.filled ? (touch.has-hover ? Theme.accent-hover : Theme.accent)
+        : root.variant == ButtonVariant.danger && touch.has-hover ? Theme.danger-soft
+        : root.checked || touch.pressed ? Theme.surface-muted
+        : touch.has-hover ? Theme.surface-hover
+        : root.variant == ButtonVariant.ghost ? transparent : Theme.surface;
+    border-color: !root.enabled ? transparent
+        : root.filled ? self.background
+        : root.variant == ButtonVariant.ghost ? transparent
+        : root.variant == ButtonVariant.danger && touch.has-hover ? Theme.danger
+        : touch.has-hover ? Theme.line-strong : Theme.line;
+    animate background, border-color { duration: 150ms; }
+
+    HorizontalLayout {
+        alignment: center;
+        padding-left: root.size == ControlSize.sm ? Theme.space-4 : root.size == ControlSize.md ? Theme.space-6 : Theme.space-8;
+        padding-right: self.padding-left;
+        spacing: Theme.space-2;
+        if root.icon.width > 0: VerticalLayout {
+            alignment: center;
+            Icon { source: root.icon; color: root.ink; width: 16px; height: 16px; }
+        }
+        Text {
+            text: root.text;
+            color: root.ink;
+            font-size: root.size == ControlSize.sm ? 13px : root.size == ControlSize.md ? 15px : 17px;
+            font-weight: 500;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if root.icon-right.width > 0: VerticalLayout {
+            alignment: center;
+            Icon { source: root.icon-right; color: root.ink; width: 16px; height: 16px; }
+        }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => { root.pointer-focus = true; keys.focus(); root.clicked(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }
+}
+
+// Round icon-only button. Always give it a `label`; it is the accessible name.
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <ControlSize> size: ControlSize.sm;
+    // Outlined by default; `quiet` drops the stroke for dense chrome such as window headers.
+    in property <bool> quiet: false;
+    in property <bool> active: false;
+    in property <bool> enabled: true;
+    in property <color> tint: Theme.ink-muted;
+    out property <bool> has-hover: touch.has-hover;
+    callback clicked();
+    callback pointer-moved(length, length);
+    out property <bool> has-focus: keys.has-focus;
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+    width: self.height;
+    height: root.size == ControlSize.sm ? 36px : root.size == ControlSize.md ? 44px : 56px;
+    border-radius: self.height / 2;
+    border-width: Theme.stroke-hair;
+    background: root.active ? Theme.accent : touch.has-hover ? Theme.surface-hover : root.quiet ? transparent : Theme.surface;
+    border-color: root.active ? Theme.accent : root.quiet ? transparent : touch.has-hover ? Theme.line-strong : Theme.line;
+    opacity: root.enabled ? 1 : 0.5;
+    animate background { duration: 150ms; }
+    Icon {
+        source: root.icon;
+        width: root.size == ControlSize.lg ? 22px : 18px; height: self.width;
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        color: root.active ? Theme.on-accent : touch.has-hover ? Theme.ink : root.tint;
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == " ") { root.clicked(); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.pointer-focus = true; keys.focus(); root.clicked(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }
+}

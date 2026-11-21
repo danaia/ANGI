@@ -1,7 +1,8 @@
 // Bluetooth page of Settings: power, search, pairing prompts, agent approvals and device list.
 // The daemon (agx-bluetoothd) owns the radio; src/bluetooth.rs mirrors its state into this global.
 import { Theme } from "data.slint";
-import { Button, LineEdit, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Button, TextField, ButtonVariant, FocusRing } from "pebble/pebble.slint";
 
 export struct BtDevice {
     address: string,
@@ -49,30 +50,36 @@ export global BluetoothSettings {
     callback decide(int, bool);
 }
 
+// Pebble Line switch (48×28 track, `accent` fill when on), keeping the page's focus API.
 component PowerToggle inherits Rectangle {
     in property <bool> on;
     in property <bool> enabled: true;
     callback toggled();
     public function focus-toggle() { scope.focus(); }
-    width: 52px; height: 28px; border-radius: 14px;
-    background: root.on ? Theme.accent : Theme.muted;
+    width: 48px; height: 28px; border-radius: 14px;
+    background: root.on ? Theme.accent : Theme.surface-muted;
+    border-width: Theme.stroke-hair;
+    border-color: root.on ? Theme.accent : Theme.line-strong;
     opacity: root.enabled ? 1 : 0.5;
-    accessible-role: checkbox;
+    accessible-role: switch;
+    accessible-checkable: true;
     accessible-checked: root.on;
     accessible-label: "Bluetooth";
     accessible-action-default => { root.toggled(); }
     Rectangle {
-        x: root.on ? parent.width - self.width - 3px : 3px; y: 3px;
-        width: 22px; height: 22px; border-radius: 11px; background: Theme.fg-bright;
-        animate x { duration: 120ms; }
+        x: root.on ? 23px : 3px; y: 3px;
+        width: 20px; height: 20px; border-radius: 10px;
+        background: root.on ? Theme.on-accent : Theme.surface;
+        border-width: Theme.stroke-hair; border-color: root.on ? Theme.on-accent : Theme.line-strong;
+        animate x { duration: 200ms; easing: cubic-bezier(0.3, 0.7, 0.4, 1); }
     }
-    Rectangle { border-radius: 14px; border-width: scope.has-focus ? 2px : 0px; border-color: Theme.fg-bright; }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: scope.has-focus; radius: 14px; }
     scope := FocusScope {
         key-pressed(e) => {
             if (root.enabled && (e.text == " " || e.text == Key.Return)) { root.toggled(); return accept; }
             reject
         }
-        TouchArea { clicked => { scope.focus(); if (root.enabled) { root.toggled(); } } }
+        TouchArea { mouse-cursor: MouseCursor.pointer; clicked => { scope.focus(); if (root.enabled) { root.toggled(); } } }
     }
 }
 
@@ -82,25 +89,25 @@ component SignalBars inherits Rectangle {
     for level in 4: Rectangle {
         x: level * 6px; width: 4px; height: 4px + level * 4px; y: parent.height - self.height;
         border-radius: 1px;
-        background: level < root.bars ? Theme.green : Theme.muted;
+        background: level < root.bars ? Theme.success : Theme.line-strong;
     }
 }
 
 component Card inherits Rectangle {
     in property <color> tint: Theme.accent;
-    border-radius: 8px; border-width: 1px; border-color: root.tint; background: Theme.bg;
+    border-radius: Theme.radius-md; border-width: Theme.stroke-hair; border-color: Theme.line; background: Theme.surface;
 }
 
 // Question from the device being paired: compare, type, enter or allow.
 component PromptCard inherits Card {
     in-out property <string> entered;
     height: BluetoothSettings.prompt-kind == 3 || BluetoothSettings.prompt-kind == 4 ? 176px : 148px;
-    tint: Theme.yellow;
+    tint: Theme.warning;
     VerticalLayout {
         padding: 14px; spacing: 8px;
-        Text { text: BluetoothSettings.prompt-text; color: Theme.fg-bright; font-weight: 600; font-size: 13px; wrap: word-wrap; }
-        if BluetoothSettings.prompt-code != "": Text { text: BluetoothSettings.prompt-code; color: Theme.accent; font-size: 26px; font-weight: 700; letter-spacing: 4px; }
-        if BluetoothSettings.prompt-kind == 3 || BluetoothSettings.prompt-kind == 4: LineEdit {
+        Text { text: BluetoothSettings.prompt-text; color: Theme.ink; font-weight: 500; font-size: Theme.text-body; wrap: word-wrap; }
+        if BluetoothSettings.prompt-code != "": Text { text: BluetoothSettings.prompt-code; color: Theme.ink; font-size: Theme.text-numeral; font-weight: 300; letter-spacing: 4px; }
+        if BluetoothSettings.prompt-kind == 3 || BluetoothSettings.prompt-kind == 4: TextField {
             text <=> root.entered;
             placeholder-text: BluetoothSettings.prompt-kind == 3 ? "PIN" : "6-digit passkey";
             input-type: BluetoothSettings.prompt-kind == 4 ? InputType.number : InputType.text;
@@ -112,11 +119,11 @@ component PromptCard inherits Card {
             spacing: 8px; alignment: start;
             if BluetoothSettings.prompt-kind != 2: Button {
                 text: BluetoothSettings.prompt-kind == 5 ? "Allow" : "Pair";
-                primary: true;
+                variant: ButtonVariant.primary;
                 clicked => { BluetoothSettings.respond(true, root.entered); }
             }
             Button { text: BluetoothSettings.prompt-kind == 5 ? "Deny" : "Cancel"; clicked => { BluetoothSettings.respond(false, ""); } }
-            Text { text: BluetoothSettings.prompt-kind == 2 ? "Waiting for the device…" : "Enter to accept · Esc to cancel"; color: Theme.fg-dim; font-size: 10px; vertical-alignment: center; }
+            Text { text: BluetoothSettings.prompt-kind == 2 ? "Waiting for the device…" : "Enter to accept · Esc to cancel"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
         }
     }
 }
@@ -126,14 +133,14 @@ component ApprovalCard inherits Card {
     in property <BtApproval> approval;
     in property <bool> compact;
     height: root.compact ? 96px : 64px;
-    tint: Theme.magenta;
+    tint: Theme.ink;
     Text {
         x: 14px; y: 10px; width: parent.width - 28px; height: root.compact ? 40px : 44px;
-        text: "An agent asks to " + root.approval.text; color: Theme.fg-bright; font-size: 12px; wrap: word-wrap; overflow: elide;
+        text: "An agent asks to " + root.approval.text; color: Theme.ink; font-size: Theme.text-body-sm; wrap: word-wrap; overflow: elide;
     }
     Button {
         x: root.compact ? 14px : parent.width - 180px; y: root.compact ? 54px : (parent.height - self.height) / 2;
-        width: 80px; height: 30px; text: "Allow"; primary: true;
+        width: 80px; height: 30px; text: "Allow"; variant: ButtonVariant.primary;
         clicked => { BluetoothSettings.decide(root.approval.id, true); }
     }
     Button {
@@ -160,9 +167,9 @@ component DeviceRow inherits Rectangle {
         spacing: 0;
         Rectangle {
             height: 60px;
-            border-radius: 8px; border-width: 1px;
-            border-color: root.selected ? Theme.accent : Theme.bg-light;
-            background: root.selected ? Theme.bg-light : tap.has-hover ? Theme.bg-light : Theme.bg;
+            border-radius: Theme.radius-md; border-width: Theme.stroke-hair;
+            border-color: root.selected ? Theme.line-strong : Theme.line;
+            background: root.selected ? Theme.surface-muted : tap.has-hover ? Theme.surface-hover : Theme.surface;
             tap := TouchArea {
                 mouse-cursor: MouseCursor.pointer;
                 clicked => { root.chosen(); }
@@ -170,11 +177,11 @@ component DeviceRow inherits Rectangle {
             }
             HorizontalLayout {
                 padding-left: 14px; padding-right: 12px; spacing: 12px;
-                Text { width: 28px; text: root.device.glyph; color: root.device.connected ? Theme.green : Theme.fg; font-size: 22px; vertical-alignment: center; }
+                Text { width: 28px; text: root.device.glyph; color: root.device.connected ? Theme.ink : Theme.ink-muted; font-size: Theme.text-heading-2; vertical-alignment: center; }
                 VerticalLayout {
                     alignment: center; spacing: 2px; horizontal-stretch: 1; min-width: 0px;
-                    Text { text: root.device.name; color: Theme.fg-bright; font-weight: 600; font-size: 13px; overflow: elide; }
-                    Text { text: root.device.detail; color: root.device.connected ? Theme.green : Theme.fg-dim; font-size: 11px; overflow: elide; }
+                    Text { text: root.device.name; color: Theme.ink; font-weight: 500; font-size: Theme.text-body; overflow: elide; }
+                    Text { text: root.device.detail; color: root.device.connected ? Theme.success-ink : Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
                 }
                 if !root.compact && root.device.bars > 0: VerticalLayout { alignment: center; SignalBars { bars: root.device.bars; } }
                 VerticalLayout {
@@ -183,7 +190,7 @@ component DeviceRow inherits Rectangle {
                         width: root.compact ? 112px : 120px; height: 32px;
                         text: root.primary-label();
                         enabled: !root.device.busy;
-                        primary: !root.device.paired;
+                        variant: !root.device.paired ? ButtonVariant.primary : ButtonVariant.secondary;
                         accessible-label: root.primary-label() + " " + root.device.name;
                         clicked => { root.act(root.primary-action()); }
                     }
@@ -275,19 +282,19 @@ export component BluetoothPage inherits Rectangle {
             padding: root.compact ? 12px : 24px;
             spacing: 12px;
             alignment: start;
-            Text { text: "Bluetooth"; wrap: word-wrap; color: Theme.fg-bright; font-size: 20px; font-weight: 700; }
-            Text { text: "Find, pair and connect keyboards, headphones, speakers and other devices."; color: Theme.fg; font-size: 12px; wrap: word-wrap; }
-            if !BluetoothSettings.available: Text { text: "The Bluetooth service is not running on this device."; color: Theme.red; wrap: word-wrap; font-size: 11px; }
-            if BluetoothSettings.available && !BluetoothSettings.adapter: Text { text: "No Bluetooth adapter found. Connect a radio, or check that this device has one."; color: Theme.yellow; wrap: word-wrap; font-size: 11px; }
+            Text { text: "Bluetooth"; wrap: word-wrap; color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; }
+            Text { text: "Find, pair and connect keyboards, headphones, speakers and other devices."; color: Theme.ink-muted; font-size: Theme.text-body; wrap: word-wrap; }
+            if !BluetoothSettings.available: Text { text: "The Bluetooth service is not running on this device."; color: Theme.danger; wrap: word-wrap; font-size: Theme.text-small; }
+            if BluetoothSettings.available && !BluetoothSettings.adapter: Text { text: "No Bluetooth adapter found. Connect a radio, or check that this device has one."; color: Theme.warning; wrap: word-wrap; font-size: Theme.text-small; }
             Rectangle {
-                height: 64px; border-radius: 8px; border-width: 1px; border-color: Theme.bg-light; background: Theme.bg;
+                height: 72px; border-radius: Theme.radius-md; border-width: Theme.stroke-hair; border-color: Theme.line; background: Theme.surface;
                 opacity: root.usable ? 1 : 0.6;
                 HorizontalLayout {
                     padding: 14px; spacing: 12px;
                     VerticalLayout {
                         alignment: center; horizontal-stretch: 1; min-width: 0px;
-                        Text { text: "Bluetooth"; color: Theme.fg-bright; font-weight: 600; font-size: 14px; }
-                        Text { text: !root.usable ? "Unavailable" : BluetoothSettings.powered ? "On · visible to your ANGI desktop" : "Off"; color: Theme.fg-dim; font-size: 11px; overflow: elide; }
+                        Text { text: "Bluetooth"; color: Theme.ink; font-weight: 500; font-size: Theme.text-label; }
+                        Text { text: !root.usable ? "Unavailable" : BluetoothSettings.powered ? "On · visible to your ANGI desktop" : "Off"; color: Theme.ink-muted; font-size: Theme.text-body-sm; overflow: elide; }
                     }
                     VerticalLayout {
                         alignment: center;
@@ -307,21 +314,21 @@ export component BluetoothPage inherits Rectangle {
                     changed request => { self.focus(); }
                     width: 190px; height: 32px;
                     text: BluetoothSettings.scanning ? "Stop searching" : "Search for devices";
-                    primary: !BluetoothSettings.scanning;
+                    variant: !BluetoothSettings.scanning ? ButtonVariant.primary : ButtonVariant.secondary;
                     clicked => { BluetoothSettings.search(!BluetoothSettings.scanning); }
                 }
                 Text {
                     text: BluetoothSettings.scanning ? "Searching… " + BluetoothSettings.seconds-left + "s" : "";
-                    color: Theme.accent; font-size: 11px; vertical-alignment: center;
+                    color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center;
                 }
             }
             if BluetoothSettings.powered && root.usable && root.count == 0: Text {
                 text: BluetoothSettings.scanning ? "Looking for devices. Put yours in pairing mode." : "No devices yet. Search, and put your device in pairing mode.";
-                color: Theme.fg-dim; font-size: 12px; wrap: word-wrap;
+                color: Theme.ink-muted; font-size: Theme.text-body-sm; wrap: word-wrap;
             }
             for device[index] in BluetoothSettings.devices: VerticalLayout {
                 spacing: 6px;
-                if device.header != "": Text { text: device.header; color: Theme.fg-dim; font-size: 10px; font-weight: 600; }
+                if device.header != "": Text { text: device.header; color: Theme.ink-muted; font-size: Theme.text-caption; letter-spacing: 0.5px; }
                 DeviceRow {
                     device: device;
                     selected: BluetoothSettings.selected == index;

@@ -1,5 +1,7 @@
 //! Hit testing and spatial queries over a laid-out scene.
-use super::{Axis, BORDER, BTN_W, Button, Edges, HEADER, Handle, Hit, Kind, Placed, Rect, Scene};
+use super::{
+    Axis, BORDER, BTN_INSET, BTN_W, Button, Edges, HEADER, Handle, Hit, Kind, Placed, Rect, Scene,
+};
 const GRAB: f32 = 8.0;
 const EDGE: f32 = 6.0;
 
@@ -73,7 +75,7 @@ fn hit_window(p: &Placed, x: f32, y: f32, grab_edges: bool) -> Option<Hit> {
         return None;
     }
     if p.collapsed || y < r.y + HEADER {
-        let from_right = r.right() - BORDER - x;
+        let from_right = r.right() - BTN_INSET - x;
         if from_right >= 0.0 && y >= r.y + BORDER {
             let b = match (from_right / BTN_W) as i32 {
                 0 => Some(Button::Close),

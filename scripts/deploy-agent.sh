@@ -19,7 +19,7 @@ install -m755 "$ROOT/apps/agent/angi-build.sh" "$stage/usr/bin/angi-build"
 install -m755 "$ROOT/apps/agent/angi-update.sh" "$stage/usr/bin/angi-update"
 "$ROOT/output/host/bin/aarch64-linux-gcc" -Os -Wall -Wextra -Werror "$ROOT/apps/agent/angi-root.c" -o "$stage/usr/bin/angi-root"
 install -m644 "$ROOT"/apps/agent/*.py "$stage/usr/libexec/agx-agent/"
-cp -R "$ROOT/apps/agent/skills" "$ROOT/apps/agent/profiles" "$stage/usr/share/agx/agent/"
+cp -RL "$ROOT/apps/agent/skills" "$ROOT/apps/agent/profiles" "$stage/usr/share/agx/agent/"
 install -m644 "$ROOT/apps/agent/herdr.toml" "$ROOT/apps/agent/sdk-env.sh" "$ROOT/apps/agent/LICENSE.herdr" "$ROOT/apps/agent/apps.json" "$stage/usr/share/agx/agent/"
 bash "$ROOT/scripts/stage-monaco.sh" "$stage/usr/share/agx/agent/work-editor"
 tar -cf "$ROOT/.cache/herdr/runtime.tar" -C "$stage" .

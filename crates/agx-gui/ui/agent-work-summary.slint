@@ -33,20 +33,20 @@ export component WorkSummary inherits ScrollView {
     VerticalLayout {
         padding-top: 24px; padding-bottom: 24px; padding-right: 8px;
         spacing: 16px; alignment: start;
-        AgentText { text: AgentWork.record.title; font-size: 26px; font-weight: 700; wrap: word-wrap; }
-        AgentText { text: "Original request"; font-size: 14px; font-weight: 700; }
-        AgentText { text: AgentWork.record.brief; font-size: 14px; color: Theme.fg; wrap: word-wrap; }
+        AgentText { text: AgentWork.record.title; font-size: Theme.text-heading-2; font-weight: 600; wrap: word-wrap; }
+        AgentText { text: "Original request"; font-size: Theme.text-body; font-weight: 600; }
+        AgentText { text: AgentWork.record.brief; font-size: Theme.text-body; color: Theme.ink; wrap: word-wrap; }
         AgentText {
             text: AgentWork.record.summary-label == "" ? "Outcome" : AgentWork.record.summary-label;
-            font-size: 14px; font-weight: 700;
+            font-size: Theme.text-body; font-weight: 600;
         }
         AgentText {
             text: AgentWork.record.summary == "" ? "No outcome was recorded for this run." : AgentWork.record.summary;
-            font-size: 14px; color: Theme.fg; wrap: word-wrap;
+            font-size: Theme.text-body; color: Theme.ink; wrap: word-wrap;
         }
         if AgentWork.record.resources.length > 0: VerticalLayout {
             spacing: 8px; alignment: start;
-            AgentText { text: "Resources"; font-size: 14px; font-weight: 700; }
+            AgentText { text: "Resources"; font-size: Theme.text-body; font-weight: 600; }
             for resource in AgentWork.record.resources: AgentButton {
                 label: resource.label; detail: resource.path; symbol: "↗"; minimum: 53px;
                 action-label: "Open " + resource.label + " in Files: " + resource.path;

@@ -1,6 +1,6 @@
 // Native terminal chrome and coalesced styled glyph runs. No web engine required.
 import { Theme } from "data.slint";
-import { LineEdit } from "std-widgets.slint";
+import { TextField, Icons, Icon } from "pebble/pebble.slint";
 export struct TerminalRun { col: int, cells: int, text: string, fg: color, bg: color, bold: bool, italic: bool, underline: bool, strike: bool }
 export struct TerminalRow { runs: [TerminalRun] }
 export struct TerminalView { rows: [TerminalRow], tabs: [string], active-tab: int, title: string, status: string, error: string, busy: bool, clipboard: string, font-size: float, cursor-col: int, cursor-row: int, cursor-visible: bool, focused: bool, search-visible: bool, query: string, copy-serial: int, paste-serial: int, search-serial: int }
@@ -28,14 +28,21 @@ export global Terminal {
     callback paste(string);
     callback search(string, bool);
 }
+// Round chrome button. Actions: 0 new tab, 5 search, 6 scroll to bottom, 8/9 previous/next match.
 component Tool inherits Rectangle {
     in property <string> label;
     in property <int> action;
-    width: 28px; height: 26px; border-radius: 4px;
-    background: hover.has-hover ? Theme.bg-light : transparent;
-    if root.action == 5: Image { x: 6px; y: 5px; width: 16px; height: 16px; source: @image-url("icons/apps/search.svg"); colorize: Theme.fg; }
-    if root.action != 5: Text { text: root.label; color: Theme.fg; horizontal-alignment: center; vertical-alignment: center; font-size: 15px; }
-    hover := TouchArea { clicked => { Terminal.action(root.action, 0); } }
+    width: 28px; height: 26px; border-radius: 13px;
+    background: hover.has-hover ? Theme.surface-hover : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    Icon {
+        x: 6px; y: 5px; width: 16px; height: 16px;
+        source: root.action == 0 ? Icons.plus : root.action == 5 && root.label == "×" ? Icons.x : root.action == 5 ? Icons.search
+            : root.action == 8 ? Icons.arrow-up : Icons.arrow-down;
+        color: hover.has-hover ? Theme.ink : Theme.ink-muted;
+    }
+    hover := TouchArea { mouse-cursor: MouseCursor.pointer; clicked => { Terminal.action(root.action, 0); } }
 }
 export component TerminalPanel inherits Rectangle {
     in property <bool> active;
@@ -47,17 +54,18 @@ export component TerminalPanel inherits Rectangle {
     property <int> paste-request: root.view.paste-serial;
     changed copy-request => { if (root.active) { clipboard.select-all(); clipboard.copy(); } }
     changed paste-request => { if (root.active) { clipboard.text = ""; clipboard.paste(); Terminal.paste(clipboard.text); } }
-    background: #11141c; clip: true;
+    background: Theme.terminal-ground; clip: true;
     Rectangle {
-        x: 0; y: 0; height: 34px; width: parent.width; background: Theme.bg-dark;
+        x: 0; y: 0; height: 34px; width: parent.width; background: Theme.surface;
+        Rectangle { y: parent.height - 1px; height: 1px; background: Theme.line; }
         for label[index] in root.view.tabs: Rectangle {
             property <length> tab-width: min(180px, max(1px, (parent.width - 108px) / max(1,root.view.tabs.length)));
             x: 4px + index * self.tab-width; y: 4px;
             width: self.tab-width - 3px; height: 26px;
-            background: index == root.view.active-tab ? Theme.bg-light : transparent;
-            border-radius: 4px;
-            Text { x: 8px; width: parent.width - 28px; text: parent.width < 60px ? "" + (index + 1) : label; overflow: elide; color: index == root.view.active-tab ? Theme.accent : Theme.fg-dim; vertical-alignment: center; font-size: 12px; }
-            if self.width > 50px: Text { x: parent.width - 20px; width: 20px; text: "×"; color: Theme.muted; horizontal-alignment: center; vertical-alignment: center; }
+            background: index == root.view.active-tab ? Theme.surface-muted : transparent;
+            border-radius: 13px;
+            Text { x: 12px; width: parent.width - 32px; text: parent.width < 60px ? "" + (index + 1) : label; overflow: elide; color: index == root.view.active-tab ? Theme.ink : Theme.ink-muted; vertical-alignment: center; font-size: Theme.text-small; font-weight: 500; }
+            if self.width > 50px: Icon { x: parent.width - 20px; y: 7px; width: 12px; height: 12px; source: Icons.x; }
         }
         Tool { x: parent.width - 96px; y: 4px; label: "+"; action: 0; }
         Tool { x: parent.width - 64px; y: 4px; label: "⌕"; action: 5; }
@@ -65,12 +73,13 @@ export component TerminalPanel inherits Rectangle {
     }
 
     if root.view.search-visible: Rectangle {
-        y: 34px; height: 36px; width: parent.width; background: Theme.bg-light;
+        y: 34px; height: 36px; width: parent.width; background: Theme.surface;
         property <int> focus-request: root.view.search-serial;
         changed focus-request => { query.focus(); }
         HorizontalLayout {
-            padding: 3px; spacing: 3px;
-            query := LineEdit {
+            padding: 3px; padding-left: 8px; spacing: 3px;
+            query := TextField {
+                height: 30px; font-size: Theme.text-body-sm;
                 text: root.view.query; edited => { Terminal.query = self.text; } placeholder-text: "Search scrollback (regular expression)";
                 accepted => { Terminal.search(self.text,false); }
                 init => { self.focus(); }
@@ -89,25 +98,25 @@ export component TerminalPanel inherits Rectangle {
             for run in row.runs: Rectangle {
                 x: run.col * root.cw; width: run.cells * root.cw; height: root.ch;
                 background: run.bg;
-                Text { text: run.text; color: run.fg; font-family: "JetBrainsMono Nerd Font"; font-size: root.view.font-size * 1px; font-weight: run.bold ? 700 : 400; font-italic: run.italic; vertical-alignment: center; }
+                Text { text: run.text; color: run.fg; font-family: Theme.font-mono; font-size: root.view.font-size * 1px; font-weight: run.bold ? 700 : 400; font-italic: run.italic; vertical-alignment: center; }
                 if run.underline: Rectangle { y: parent.height - 2px; height: 1px; width: parent.width; background: run.fg; }
                 if run.strike: Rectangle { y: parent.height / 2; height: 1px; width: parent.width; background: run.fg; }
             }
         }
         if root.view.cursor-visible: Rectangle {
             x: root.view.cursor-col * root.cw; y: root.view.cursor-row * root.ch;
-            width: root.cw; height: root.ch; border-width: 1px; border-color: Theme.accent;
-            background: root.active ? #b8f66c35 : transparent;
+            width: root.cw; height: root.ch; border-width: 1px; border-color: Theme.terminal-ink;
+            background: root.active ? Theme.terminal-cursor : transparent;
         }
         if root.view.busy && root.view.error == "": Rectangle {
-            background: #11141c;
-            Text { text: "Starting OpenCode…"; color: Theme.fg-dim; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+            background: Theme.terminal-ground;
+            Text { text: "Starting OpenCode…"; color: Theme.terminal-ink-muted; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
         }
-        if root.view.error != "": Text { text: root.view.error; color: Theme.red; wrap: word-wrap; }
+        if root.view.error != "": Text { text: root.view.error; color: Theme.danger; wrap: word-wrap; }
     }
     Text {
         x: 8px; y: parent.height - 23px; width: parent.width - 16px; height: 20px;
-        text: root.view.status; color: Theme.muted; font-size: 10px; overflow: elide; vertical-alignment: center;
+        text: root.view.status; color: Theme.terminal-ink-muted; font-size: Theme.text-caption; overflow: elide; vertical-alignment: center;
     }
     clipboard := TextInput { visible: false; text <=> Terminal.clipboard; }
     function copy() { clipboard.select-all(); clipboard.copy(); }

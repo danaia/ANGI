@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn viewport_matches_frame_and_toolbar_and_bounds_memory() {
         let r = viewport(Rect::new(50., 60., 800., 600.));
-        assert_eq!(r, Rect::new(52., 202., 796., 456.));
+        assert_eq!(r, Rect::new(52., 218., 796., 440.));
         let r = viewport(Rect::new(0., 0., 9000., 9000.));
         assert_eq!((r.w, r.h), (4096., 2160.));
     }

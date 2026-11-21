@@ -1,5 +1,5 @@
 import { Theme } from "data.slint";
-import { Button } from "std-widgets.slint";
+import { Button } from "pebble/pebble.slint";
 
 import { AgentProviders, CardModels, ProviderPanel } from "agent-providers.slint";
 import { AgentScope } from "agent-scope.slint";
@@ -27,8 +27,8 @@ component HerdrCta inherits Rectangle {
     // Stopping ends running work, so the button asks first.
     property <bool> confirming;
     height: 52px;
-    border-radius: 10px; border-width: 1px; background: Theme.bg-light;
-    border-color: root.confirming ? Theme.red : AgentAngi.stopping ? Theme.yellow : Theme.green;
+    border-radius: Theme.radius-md; border-width: 0px; background: Theme.surface-muted;
+    border-color: root.confirming ? Theme.danger : AgentAngi.stopping ? Theme.warning : Theme.success;
     HorizontalLayout {
         padding-left: 14px; padding-right: 8px; padding-top: 8px; padding-bottom: 8px; spacing: 12px;
         VerticalLayout {
@@ -36,14 +36,14 @@ component HerdrCta inherits Rectangle {
             Text {
                 text: AgentAngi.stopping ? "Stopping agents…" : root.confirming ? "Stop all \{AgentAngi.running-agents}?"
                     : AgentAngi.running-agents == 1 ? "1 agent running" : "\{AgentAngi.running-agents} agents running";
-                color: AgentAngi.stopping ? Theme.yellow : root.confirming ? Theme.red : Theme.green;
-                font-size: 13px; font-weight: 700; overflow: elide;
+                color: AgentAngi.stopping ? Theme.warning : root.confirming ? Theme.danger : Theme.success;
+                font-size: Theme.text-body-sm; font-weight: 600; overflow: elide;
             }
             if root.confirming && !AgentAngi.stopping: Text {
-                text: "Ends their work. Files stay."; color: Theme.fg-dim; font-size: 10px; overflow: elide;
+                text: "Ends their work. Files stay."; color: Theme.ink-muted; font-size: Theme.text-caption; overflow: elide;
             }
             if !root.confirming && !AgentAngi.stopping && AgentAngi.running-swarms > 1: Text {
-                text: "\{AgentAngi.running-swarms} sessions · Herdr shows the newest"; color: Theme.fg-dim; font-size: 10px; overflow: elide;
+                text: "\{AgentAngi.running-swarms} sessions · Herdr shows the newest"; color: Theme.ink-muted; font-size: Theme.text-caption; overflow: elide;
             }
         }
         if !root.confirming && !AgentAngi.stopping: HorizontalLayout {
@@ -62,7 +62,7 @@ component HerdrCta inherits Rectangle {
 export component AgentPanel inherits Rectangle {
     in property <bool> active;
     callback pointer-moved(length, length);
-    background: Theme.bg-dark;
+    background: Theme.surface;
     property <length> drawer-width: min(420px, root.width - 12px);
     property <bool> docked-drawer: root.width >= 840px;
     property <bool> drawer-open: AgentProviders.open || AgentHistory.open;
@@ -89,7 +89,7 @@ export component AgentPanel inherits Rectangle {
     }
     if !AgentWork.open && root.drawer-open && !root.docked-drawer: Rectangle {
         y: workspace.header-height; height: root.height - self.y;
-        width: root.width; background: Theme.bg-dark.with-alpha(0.68);
+        width: root.width; background: Theme.scrim;
         TouchArea { clicked => { AgentProviders.open = false; AgentHistory.open = false; } }
     }
     if AgentHistory.open: HistoryPanel {

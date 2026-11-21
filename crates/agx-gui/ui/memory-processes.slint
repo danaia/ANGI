@@ -1,5 +1,6 @@
 import { Theme, Sys } from "data.slint";
-import { Button, ListView } from "std-widgets.slint";
+import { ListView } from "std-widgets.slint";
+import { Button } from "pebble/pebble.slint";
 
 export struct ProcessRow {
     pid: int,
@@ -29,8 +30,8 @@ export global MemoryProcesses {
 }
 
 component Cell inherits Text {
-    color: Theme.fg-bright;
-    font-size: 13px;
+    color: Theme.ink;
+    font-size: Theme.text-body-sm;
     vertical-alignment: center;
     overflow: elide;
 }
@@ -53,7 +54,7 @@ export component MemoryProcessDialog inherits FocusScope {
         reject
     }
     Rectangle {
-        background: #000000aa;
+        background: Theme.scrim;
         TouchArea {
             moved => { root.pointer-moved(self.mouse-x, self.mouse-y); }
         }
@@ -62,28 +63,28 @@ export component MemoryProcessDialog inherits FocusScope {
             height: min(680px, parent.height - 32px);
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            border-color: Theme.muted;
+            border-color: Theme.line-strong;
             border-width: 1px;
-            border-radius: 8px;
-            background: Theme.bg;
+            border-radius: Theme.radius-xl;
+            background: Theme.surface;
             clip: true;
             VerticalLayout {
-                padding: 16px;
+                padding: Theme.space-6;
                 spacing: 10px;
                 HorizontalLayout {
                     alignment: stretch;
                     spacing: 12px;
-                    Text { text: "Memory processes"; color: Theme.fg-bright; font-size: 20px; font-weight: 700; vertical-alignment: center; horizontal-stretch: 1; }
+                    Text { text: "Memory processes"; color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; vertical-alignment: center; horizontal-stretch: 1; }
                     close-button := Button { text: "Close"; clicked => { root.close(); } }
                 }
                 Text {
                     text: Sys.mem-detail + " used · " + MemoryProcesses.count + " processes";
-                    color: Theme.fg-dim;
-                    font-size: 13px;
+                    color: Theme.ink-muted;
+                    font-size: Theme.text-body-sm;
                 }
                 Rectangle {
                     height: 34px;
-                    background: Theme.bg-light;
+                    background: Theme.surface-muted;
                     HorizontalLayout {
                         padding-left: 10px; padding-right: 12px; spacing: 8px;
                         Cell { text: "PID"; width: 56px; }
@@ -101,15 +102,15 @@ export component MemoryProcessDialog inherits FocusScope {
                     vertical-stretch: 1;
                     for row[i] in MemoryProcesses.rows: Rectangle {
                         height: 29px;
-                        background: MemoryProcesses.selected-pid == row.pid ? Theme.bg-light : mod(i, 2) == 0 ? Theme.bg-dark : Theme.bg;
+                        background: MemoryProcesses.selected-pid == row.pid ? Theme.surface-muted : mod(i, 2) == 0 ? Theme.background : Theme.surface;
                         HorizontalLayout {
                             padding-left: 10px; padding-right: 12px; spacing: 8px;
-                            Cell { text: "\{row.pid}"; width: 56px; color: Theme.fg-dim; }
+                            Cell { text: "\{row.pid}"; width: 56px; color: Theme.ink-muted; }
                             Cell { text: row.name; horizontal-stretch: 1; }
                             Cell { text: row.memory; width: 112px; }
                             Cell {
                                 text: row.risk; width: 94px;
-                                color: row.level == 0 ? Theme.green : row.level == 1 ? Theme.yellow : Theme.fg-dim;
+                                color: row.level == 0 ? Theme.success : row.level == 1 ? Theme.warning : Theme.ink-muted;
                             }
                         }
                         TouchArea {
@@ -122,13 +123,13 @@ export component MemoryProcessDialog inherits FocusScope {
                 Text {
                     height: 36px;
                     text: MemoryProcesses.detail;
-                    color: Theme.fg-dim;
-                    font-size: 13px;
+                    color: Theme.ink-muted;
+                    font-size: Theme.text-body-sm;
                     wrap: word-wrap;
                 }
                 HorizontalLayout {
                     spacing: 10px;
-                    Cell { horizontal-stretch: 1; text: MemoryProcesses.message; color: Theme.fg-dim; }
+                    Cell { horizontal-stretch: 1; text: MemoryProcesses.message; color: Theme.ink-muted; }
                     Button {
                         text: "End process…";
                         enabled: MemoryProcesses.can-end && !MemoryProcesses.ending;
@@ -137,24 +138,24 @@ export component MemoryProcessDialog inherits FocusScope {
                 }
             }
             if MemoryProcesses.confirmation != "": Rectangle {
-                background: #000000bb;
+                background: Theme.scrim;
                 TouchArea { }
                 Rectangle {
                     width: min(520px, parent.width - 20px);
                     height: confirmation-layout.preferred-height;
                     x: (parent.width - self.width) / 2;
                     y: (parent.height - self.height) / 2;
-                    background: Theme.bg;
+                    background: Theme.surface;
                     border-width: 1px;
-                    border-color: Theme.yellow;
-                    border-radius: 6px;
+                    border-color: Theme.line-strong;
+                    border-radius: Theme.radius-lg;
                     confirmation-layout := VerticalLayout {
-                        padding: 16px;
+                        padding: Theme.space-6;
                         spacing: 12px;
-                        Text { text: MemoryProcesses.confirmation; color: Theme.fg-bright; wrap: word-wrap; }
+                        Text { text: MemoryProcesses.confirmation; color: Theme.ink; wrap: word-wrap; }
                         Text {
                             text: "End asks the process to stop. Force stop ends it immediately without cleanup.";
-                            color: Theme.fg-dim; font-size: 13px; wrap: word-wrap;
+                            color: Theme.ink-muted; font-size: Theme.text-body-sm; wrap: word-wrap;
                         }
                         HorizontalLayout {
                             spacing: 8px;

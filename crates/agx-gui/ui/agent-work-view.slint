@@ -7,14 +7,14 @@ export component AgentWorkView inherits Rectangle {
     in property <bool> active;
     callback activate();
     callback pointer-moved(length, length);
-    background: Theme.bg-dark;
+    background: Theme.surface;
     clip: true;
 
     VerticalLayout {
         Rectangle {
             height: 54px;
-            background: Theme.bg;
-            Rectangle { y: parent.height - 1px; width: parent.width; height: 1px; background: Theme.muted; }
+            background: Theme.surface;
+            Rectangle { y: parent.height - 1px; width: parent.width; height: 1px; background: Theme.line-strong; }
             HorizontalLayout {
                 padding-left: 12px; padding-right: 12px; padding-top: 7px; padding-bottom: 7px;
                 spacing: 12px;
@@ -24,7 +24,7 @@ export component AgentWorkView inherits Rectangle {
                 }
                 AgentText {
                     text: AgentWork.record.title;
-                    font-size: 15px; font-weight: 700; vertical-alignment: center; overflow: elide;
+                    font-size: Theme.text-label; font-weight: 500; vertical-alignment: center; overflow: elide;
                     horizontal-stretch: 1;
                 }
             }
@@ -46,7 +46,7 @@ export component AgentWorkView inherits Rectangle {
             }
             if AgentWork.error != "": VerticalLayout {
                 padding: 14px; spacing: 10px;
-                AgentText { text: AgentWork.error; color: Theme.red; wrap: word-wrap; }
+                AgentText { text: AgentWork.error; color: Theme.danger; wrap: word-wrap; }
                 WorkSummary { vertical-stretch: 1; }
             }
             if AgentWork.ready && AgentWork.error == "": Image {
@@ -78,7 +78,7 @@ export component AgentWorkView inherits Rectangle {
         }
     }
     if AgentWork.dialog != "": Rectangle {
-        background: #05070c99;
+        background: Theme.scrim;
         TouchArea {}
         dialog-keys := FocusScope {
             init => { self.focus(); }
@@ -90,7 +90,7 @@ export component AgentWorkView inherits Rectangle {
             Rectangle {
                 width: min(parent.width - 26px, 390px); height: min(parent.height, 146px);
                 x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
-                background: Theme.bg; border-width: 1px; border-color: Theme.muted; border-radius: 10px;
+                background: Theme.surface; border-width: 1px; border-color: Theme.line-strong; border-radius: Theme.radius-xl;
                 VerticalLayout {
                     padding: 14px; spacing: 10px;
                     AgentText { text: AgentWork.dialog; wrap: word-wrap; vertical-stretch: 1; }

@@ -3,7 +3,7 @@ import { Theme } from "data.slint";
 // Shared overlay for software rendering and LinuxKMS move/resize feedback.
 export component Cursor inherits Rectangle {
     in property <int> shape;
-    in property <bool> light-surface: Theme.bg.red * 0.2126 + Theme.bg.green * 0.7152 + Theme.bg.blue * 0.0722 > 145;
+    in property <bool> light-surface: Theme.surface.red * 0.2126 + Theme.surface.green * 0.7152 + Theme.surface.blue * 0.0722 > 145;
     // Preview uses the same asset and geometry at 3×; desktop remains 1×.
     in property <float> magnification: 1;
     width: 22px;

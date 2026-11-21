@@ -28,24 +28,25 @@ export component ModeSwitch inherits Rectangle {
     out property <int> hint: -1;
     callback selected();
     property <[string]> modes: ["os", "project", "chat"];
-    width: 240px; height: 32px;
-    border-radius: 8px; border-width: 1px;
-    border-color: Theme.muted;
-    background: Theme.bg-dark;
+    // Pebble Line segmented control: a `surface-muted` trough, the chosen segment a raised `surface` pill.
+    width: 252px; height: 38px;
+    border-radius: self.height / 2; border-width: Theme.stroke-hair;
+    border-color: Theme.line;
+    background: Theme.surface-muted;
     for label[index] in ["OS", "Project", "Chat"] : segment := Rectangle {
-        x: index * parent.width / 3; width: parent.width / 3; height: parent.height;
+        x: 3px + index * (parent.width - 6px) / 3; y: 3px; width: (parent.width - 6px) / 3; height: parent.height - 6px;
         property <bool> selected: AgentScope.mode == root.modes[index];
         function select-mode() { AgentScope.mode = root.modes[index]; dwell.dismiss(); root.selected(); }
-        border-radius: 7px;
-        background: selected ? Theme.accent : transparent;
-        border-width: focus.has-focus ? 1px : 0px;
-        border-color: Theme.accent;
+        border-radius: self.height / 2;
+        background: selected ? Theme.surface : transparent;
+        border-width: focus.has-focus ? Theme.stroke-focus : selected ? Theme.stroke-hair : 0px;
+        border-color: focus.has-focus ? Theme.focus : Theme.line-strong;
         accessible-role: button;
         accessible-label: label;
         accessible-action-default => { self.select-mode(); }
         AgentText {
-            text: label; font-size: 12px; font-weight: selected ? 700 : 400;
-            color: selected ? Theme.bg-dark : Theme.fg;
+            text: label; font-family: Theme.font-sans; font-size: Theme.text-body-sm; font-weight: 500; horizontal-alignment: center; vertical-alignment: center;
+            color: selected || pointer.has-hover ? Theme.ink : Theme.ink-muted;
         }
         focus := FocusScope {
             key-pressed(event) => {

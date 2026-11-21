@@ -1,0 +1,147 @@
+// Appearance page of Settings: the Pebble Line light or dark theme for this account.
+// src/appearance.rs loads and saves the choice; `Theme.dark` switches every token live.
+import { Theme, Icons, Heading2, Hint, Label, Caption, SegmentedControl } from "pebble/pebble.slint";
+
+export global AppearanceSettings {
+    in-out property <string> status: "Changes apply immediately and are saved for your account";
+    callback changed();
+}
+
+// A small picture of the desktop in one theme, drawn from that theme's literal token values.
+component ThemePreview inherits Rectangle {
+    in property <bool> dark;
+    in property <bool> chosen;
+    in property <string> name;
+    callback picked();
+    callback pointer-moved(length, length);
+    private property <color> ground: root.dark ? #141414 : #f5f5f4;
+    private property <color> tile: root.dark ? #1b1b1b : #ffffff;
+    private property <color> stroke: root.dark ? #2c2c2c : #e3e3e1;
+    private property <color> well: root.dark ? #242424 : #efefee;
+    private property <color> ink: root.dark ? #ececea : #2b2b2b;
+    accessible-role: radio-button;
+    accessible-label: root.name + " theme";
+    accessible-checkable: true;
+    accessible-checked: root.chosen;
+    accessible-action-default => { root.picked(); }
+    min-width: 160px;
+    height: 176px;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover && !root.chosen ? Theme.surface-hover : Theme.surface;
+    border-width: root.chosen ? Theme.stroke-rule : Theme.stroke-hair;
+    border-color: root.chosen ? Theme.ink : touch.has-hover ? Theme.line-strong : Theme.line;
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
+        Rectangle {
+            vertical-stretch: 1;
+            border-radius: Theme.radius-sm;
+            background: root.ground;
+            border-width: 1px; border-color: root.stroke;
+            clip: true;
+            // Top bar pill.
+            Rectangle {
+                x: 8px; y: 8px; width: parent.width - 16px; height: 14px;
+                border-radius: 7px; background: root.tile; border-width: 1px; border-color: root.stroke;
+                Rectangle { x: 4px; y: 3px; width: 22px; height: 8px; border-radius: 4px; background: root.well; }
+            }
+            // Two window tiles; the right one is focused (1.5px ink stroke).
+            Rectangle {
+                x: 8px; y: 30px; width: (parent.width - 22px) * 0.55; height: parent.height - 38px;
+                border-radius: 10px; background: root.tile; border-width: 1px; border-color: root.stroke;
+                Rectangle { x: 8px; y: 10px; width: parent.width * 0.5; height: 5px; border-radius: 2px; background: root.ink; }
+                Rectangle { x: 8px; y: 22px; width: parent.width - 16px; height: 4px; border-radius: 2px; background: root.well; }
+                Rectangle { x: 8px; y: 32px; width: parent.width * 0.6; height: 4px; border-radius: 2px; background: root.well; }
+            }
+            Rectangle {
+                x: 14px + (parent.width - 22px) * 0.55; y: 30px; width: (parent.width - 22px) * 0.45; height: parent.height - 38px;
+                border-radius: 10px; background: root.tile; border-width: 1.5px; border-color: root.ink;
+                Rectangle { x: 8px; y: 10px; width: parent.width * 0.5; height: 5px; border-radius: 2px; background: root.ink; }
+                Rectangle { x: 8px; y: 24px; width: parent.width - 16px; height: 4px; border-radius: 2px; background: root.ink; }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Label { text: root.name; vertical-alignment: center; horizontal-stretch: 1; }
+            // Radio dot: ring in line-bold, inner dot when chosen.
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 18px; height: 18px; border-radius: 9px;
+                    background: Theme.surface;
+                    border-width: Theme.stroke-rule;
+                    border-color: root.chosen ? Theme.accent : Theme.line-bold;
+                    if root.chosen: Rectangle { x: 5px; y: 5px; width: 8px; height: 8px; border-radius: 4px; background: Theme.accent; }
+                }
+            }
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.picked(); }
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+}
+
+export component AppearancePage inherits Rectangle {
+    in property <bool> compact;
+    callback pointer-moved(length, length);
+    callback activate();
+    public function focus-theme() { theme-choice.focus(); }
+    function choose(dark: bool) {
+        root.activate();
+        if (Theme.dark != dark) {
+            Theme.dark = dark;
+            AppearanceSettings.changed();
+        }
+    }
+    VerticalLayout {
+        padding-left: root.compact ? Theme.space-4 : Theme.space-8;
+        padding-right: self.padding-left;
+        padding-top: root.compact ? Theme.space-4 : 28px;
+        padding-bottom: Theme.space-4;
+        spacing: Theme.space-1;
+        Heading2 { text: "Appearance"; }
+        Hint { text: "Choose how ANGI looks. Every window and app follows this theme."; }
+        Rectangle { height: Theme.space-3; }
+        Rectangle { height: 1px; background: Theme.line; }
+        HorizontalLayout {
+            padding-top: Theme.space-5; padding-bottom: Theme.space-5;
+            spacing: Theme.space-8;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 2px;
+                alignment: center;
+                Label { text: "Theme"; }
+                Hint { text: "Light suits bright rooms. Dark is easier on the eyes at night."; }
+            }
+            VerticalLayout {
+                alignment: center;
+                theme-choice := SegmentedControl {
+                    label: "Theme";
+                    options: ["Light", "Dark"];
+                    current-index: Theme.dark ? 1 : 0;
+                    selected(index) => { root.choose(index == 1); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.space-4;
+            ThemePreview {
+                name: "Light"; dark: false; chosen: !Theme.dark;
+                picked => { root.choose(false); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            ThemePreview {
+                name: "Dark"; dark: true; chosen: Theme.dark;
+                picked => { root.choose(true); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+        Rectangle { height: Theme.space-5; }
+        Caption { text: "PEBBLE LINE"; }
+        Hint { text: "Flat surfaces, faint 1px strokes and one inverted accent. Terminal and web pages keep their own colours."; }
+        Rectangle { vertical-stretch: 1; }
+    }
+}

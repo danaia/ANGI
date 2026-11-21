@@ -1,5 +1,5 @@
 import { Theme } from "data.slint";
-import { Button, ComboBox } from "std-widgets.slint";
+import { Button, Select } from "pebble/pebble.slint";
 
 export global DriveMount {
     in-out property <bool> open;
@@ -30,19 +30,19 @@ export component DriveMountDialog inherits Rectangle {
         y: (parent.height - self.height) / 2;
         width: min(540px, parent.width - 32px);
         height: layout.preferred-height;
-        background: Theme.bg;
+        background: Theme.surface;
         border-width: 1px;
-        border-color: root.confirming ? Theme.red : Theme.muted;
-        border-radius: 8px;
+        border-color: Theme.line-strong;
+        border-radius: Theme.radius-xl;
         layout := VerticalLayout {
             padding: 18px;
             spacing: 12px;
             Text {
                 text: root.confirming ? "Erase and Mount NVMe Drive" :
                       root.formatting ? "Quick Format NVMe Drive" : "Mount External Drive";
-                font-size: 18px;
-                font-weight: 700;
-                color: Theme.fg-bright;
+                font-size: Theme.text-title;
+                font-weight: 500;
+                color: Theme.ink;
             }
             Text {
                 text: root.confirming ?
@@ -51,9 +51,9 @@ export component DriveMountDialog inherits Rectangle {
                     "Choose the NVMe drive to erase and prepare for ANGI storage." :
                     "Choose an existing ext4 NVMe partition. ANGI will also mount it at startup.";
                 wrap: word-wrap;
-                color: Theme.fg;
+                color: Theme.ink;
             }
-            selection := ComboBox {
+            selection := Select {
                 visible: !root.confirming;
                 accessible-label: root.formatting ? "NVMe drive" : "NVMe partition";
                 model: root.formatting ? DriveMount.drives : DriveMount.partitions;
@@ -63,7 +63,7 @@ export component DriveMountDialog inherits Rectangle {
             if DriveMount.message != "" && (!root.formatting || root.confirming): Text {
                 text: DriveMount.message;
                 wrap: word-wrap;
-                color: Theme.fg-bright;
+                color: Theme.ink;
             }
             HorizontalLayout {
                 spacing: 8px;

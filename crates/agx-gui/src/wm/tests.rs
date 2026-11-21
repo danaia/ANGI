@@ -179,8 +179,8 @@ fn initial_windows_follow_display_size_but_custom_positions_survive() {
         Rect::new(0., 0., 1920., 1080.),
         Rect::new(0., 34., 1920., 1020.),
     );
-    assert!((rect(&d, Kind::Memory).right() - 1910.).abs() < 0.01);
-    assert!((rect(&d, Kind::Settings).bottom() - 1044.).abs() < 0.01);
+    assert!((rect(&d, Kind::Memory).right() - (1920. - GAP_OUT)).abs() < 0.01);
+    assert!((rect(&d, Kind::Settings).bottom() - (1054. - GAP_OUT)).abs() < 0.01);
     d.move_floating(Kind::Overview, 30., 40.);
     let custom = rect(&d, Kind::Overview);
     d.set_area(
@@ -188,7 +188,7 @@ fn initial_windows_follow_display_size_but_custom_positions_survive() {
         Rect::new(0., 34., 2560., 1380.),
     );
     assert_eq!(rect(&d, Kind::Overview), custom);
-    assert!((rect(&d, Kind::Memory).right() - 2550.).abs() < 0.01);
+    assert!((rect(&d, Kind::Memory).right() - (2560. - GAP_OUT)).abs() < 0.01);
 }
 
 #[test]
@@ -341,7 +341,12 @@ fn fullscreen_modes() {
     d.toggle_fullscreen(Full::Maximized);
     assert_eq!(
         d.scene().windows[0].rect,
-        Rect::new(10.0, 44.0, 1180.0, 720.0)
+        Rect::new(
+            GAP_OUT,
+            34.0 + GAP_OUT,
+            1200.0 - 2.0 * GAP_OUT,
+            740.0 - 2.0 * GAP_OUT
+        )
     );
 }
 
@@ -412,7 +417,7 @@ fn hit_testing_finds_buttons_headers_and_bodies() {
         d.hit(o.x + 40.0, o.y + 200.0),
         Hit::Body(Kind::Overview)
     ));
-    let close_x = o.right() - BORDER - 5.0;
+    let close_x = o.right() - BTN_INSET - 5.0;
     assert!(matches!(
         d.hit(close_x, o.y + 10.0),
         Hit::Button(Kind::Overview, Button::Close)

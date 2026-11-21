@@ -1,5 +1,6 @@
 import { Theme } from "data.slint";
-import { LineEdit, ListView } from "std-widgets.slint";
+import { ListView } from "std-widgets.slint";
+import { TextField } from "pebble/pebble.slint";
 import { AgentButton, AgentText } from "agent-controls.slint";
 import { AgentChat } from "agent-chat.slint";
 
@@ -47,15 +48,15 @@ export component HistoryPanel inherits FocusScope {
         reject
     }
     Rectangle {
-        background: Theme.bg;
+        background: Theme.surface;
         clip: true;
         TouchArea { }
-        Rectangle { x: parent.width - 1px; width: 1px; height: parent.height; background: Theme.muted; }
+        Rectangle { x: parent.width - 1px; width: 1px; height: parent.height; background: Theme.line-strong; }
         VerticalLayout {
             padding: 18px; spacing: 14px;
             HorizontalLayout {
                 spacing: 10px;
-                AgentText { text: "History"; font-size: 19px; font-weight: 700; vertical-alignment: center; }
+                AgentText { text: "History"; font-size: Theme.text-title; font-weight: 600; vertical-alignment: center; }
                 Rectangle { horizontal-stretch: 1; }
                 close-button := AgentButton {
                     width: 36px; icon-only: true; symbol: "×"; label: "Close history";
@@ -63,11 +64,11 @@ export component HistoryPanel inherits FocusScope {
                 }
             }
             if AgentHistory.error != "": AgentText {
-                text: AgentHistory.error; color: Theme.red; font-size: 13px; wrap: word-wrap;
+                text: AgentHistory.error; color: Theme.danger; font-size: Theme.text-body-sm; wrap: word-wrap;
             }
             if AgentHistory.entries.length == 0 && AgentHistory.error == "": AgentText {
                 text: AgentHistory.loading ? "Loading history…" : "Your chats and builds will appear here.";
-                color: Theme.fg; font-size: 13px; wrap: word-wrap;
+                color: Theme.ink; font-size: Theme.text-body-sm; wrap: word-wrap;
             }
             ListView {
                 vertical-stretch: 1;
@@ -78,7 +79,7 @@ export component HistoryPanel inherits FocusScope {
                         label: entry.title;
                         badge: entry.mode == "os" ? "OS update" : entry.mode == "project" ? "Project" : "Chat";
                         action-label: entry.title + " · " + self.badge;
-                        badge-color: entry.mode == "os" ? Theme.accent : entry.mode == "project" ? Theme.cyan : Theme.green;
+                        badge-color: entry.mode == "os" ? Theme.accent : entry.mode == "project" ? Theme.ink : Theme.success;
                         highlighted: entry.id == AgentChat.session-id;
                         enabled: !AgentHistory.loading && !AgentChat.busy;
                         activated => { AgentHistory.choose(entry.id); }
@@ -98,7 +99,7 @@ export component HistoryPanel inherits FocusScope {
             width: min(176px, root.width - 16px); height: 90px;
             x: clamp(root.menu-x, 8px, root.width - self.width - 8px);
             y: clamp(root.menu-y, 8px, root.height - self.height - 8px);
-            background: Theme.bg; border-width: 1px; border-color: Theme.muted; border-radius: 10px;
+            background: Theme.surface; border-width: 1px; border-color: Theme.line-strong; border-radius: Theme.radius-md;
             TouchArea { }
             VerticalLayout {
                 padding: 6px; spacing: 6px;
@@ -120,12 +121,12 @@ export component HistoryPanel inherits FocusScope {
         if root.action == "rename": Rectangle {
             width: min(340px, root.width - 24px); height: 142px;
             x: (root.width - self.width) / 2; y: max(8px, (root.height - self.height) / 2);
-            background: Theme.bg; border-width: 1px; border-color: Theme.muted; border-radius: 10px;
+            background: Theme.surface; border-width: 1px; border-color: Theme.line-strong; border-radius: Theme.radius-md;
             TouchArea { }
             VerticalLayout {
                 padding: 12px; spacing: 8px;
-                AgentText { text: "Rename history entry"; font-size: 16px; font-weight: 700; }
-                LineEdit {
+                AgentText { text: "Rename history entry"; font-size: Theme.text-label; font-weight: 600; }
+                TextField {
                     init => { self.focus(); }
                     text <=> root.title-draft;
                     accessible-label: "History title";

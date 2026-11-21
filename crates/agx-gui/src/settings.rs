@@ -74,11 +74,15 @@ thread_local! {
     static DEVICES: RefCell<Vec<input::Device>> = const { RefCell::new(Vec::new()) };
 }
 fn path() -> Option<PathBuf> {
+    config_file("mouse.conf")
+}
+/// A file in the account's ANGI configuration directory (`$XDG_CONFIG_HOME/agx` or `~/.config/agx`).
+pub(crate) fn config_file(name: &str) -> Option<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
         .filter(|p| Path::new(p).is_absolute())
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .map(|base| base.join("agx/mouse.conf"))
+        .map(|base| base.join("agx").join(name))
 }
 pub fn initialize() {
     if let Some(path) = path() {
@@ -93,6 +97,10 @@ pub fn initialize() {
     }
 }
 fn save(path: &Path, mouse: &Mouse) -> io::Result<()> {
+    write_private(path, &mouse.encode())
+}
+/// Atomically replace a per-account preference file, readable only by its owner.
+pub(crate) fn write_private(path: &Path, contents: &str) -> io::Result<()> {
     use std::io::Write;
     use std::os::unix::fs::OpenOptionsExt;
     fs::create_dir_all(
@@ -106,7 +114,7 @@ fn save(path: &Path, mouse: &Mouse) -> io::Result<()> {
             .create_new(true)
             .mode(0o600)
             .open(&temporary)?;
-        file.write_all(mouse.encode().as_bytes())?;
+        file.write_all(contents.as_bytes())?;
         file.sync_all()?;
         fs::rename(&temporary, path)
     })();

@@ -1,4 +1,5 @@
 import { Theme } from "data.slint";
+import { FocusRing } from "pebble/pebble.slint";
 
 // Fixed geometry keeps the glyph and hit target centered, independent of row height.
 export component UpdateButton inherits Rectangle {
@@ -11,12 +12,12 @@ export component UpdateButton inherits Rectangle {
     callback clicked();
     width: root.icon-only ? 32px : 180px;
     height: 32px;
-    border-radius: 5px;
-    background: !root.enabled ? transparent : touch.pressed ? Theme.muted
-        : touch.has-hover ? Theme.bg-light : root.primary ? Theme.accent.with-alpha(0.12) : transparent;
-    border-width: focus.has-focus ? 2px : 1px;
-    border-color: !root.enabled ? Theme.muted.with-alpha(0.35)
-        : focus.has-focus || touch.has-hover ? Theme.accent : root.primary ? Theme.accent.with-alpha(0.5) : Theme.muted;
+    // Pebble Line button: outlined pill, solid `accent` when primary, focus ring when focused.
+    border-radius: self.height / 2;
+    background: !root.enabled ? Theme.surface-muted : root.primary ? (touch.has-hover ? Theme.accent-hover : Theme.accent)
+        : touch.pressed ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : Theme.surface;
+    border-width: root.primary && root.enabled ? 0px : Theme.stroke-hair;
+    border-color: !root.enabled ? transparent : touch.has-hover ? Theme.line-strong : Theme.line;
     accessible-role: button;
     accessible-label: root.label;
     accessible-enabled: root.enabled;
@@ -25,17 +26,18 @@ export component UpdateButton inherits Rectangle {
         x: root.icon-only ? (parent.width - self.width) / 2 : 12px;
         y: (parent.height - self.height) / 2; width: 16px; height: 16px;
         source: root.icon;
-        colorize: root.enabled ? Theme.accent : Theme.fg-dim;
+        colorize: !root.enabled ? Theme.ink-subtle : root.primary ? Theme.on-accent : Theme.ink-muted;
     }
     if !root.icon-only: Text {
         x: root.show-icon ? 36px : 10px; width: parent.width - (root.show-icon ? 44px : 20px); height: parent.height;
         horizontal-alignment: root.show-icon ? left : center;
-        text: root.label; color: root.enabled ? Theme.fg-bright : Theme.fg-dim;
-        font-size: 12px; vertical-alignment: center;
+        text: root.label; color: !root.enabled ? Theme.ink-subtle : root.primary ? Theme.on-accent : Theme.ink;
+        font-size: Theme.text-body-sm; font-weight: 500; vertical-alignment: center;
     }
     public function focus-button() { focus.focus(); }
     out property <bool> hovered: touch.has-hover;
     out property <bool> focused: focus.has-focus;
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: focus.has-focus; radius: root.border-radius; }
     focus := FocusScope {
         enabled: root.enabled;
         key-pressed(e) => {

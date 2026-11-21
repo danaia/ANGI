@@ -1,6 +1,7 @@
 import { Theme } from "data.slint";
 import { BluetoothPage, BluetoothSettings } from "bluetooth.slint";
-import { Button, ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Button, Select, TextField } from "pebble/pebble.slint";
 
 export struct WifiChoice { id: string, security: int }
 
@@ -31,7 +32,7 @@ component WifiStep inherits VerticalLayout {
     spacing: 8px;
     HorizontalLayout {
         spacing: 8px;
-        region := LineEdit {
+        region := TextField {
             text <=> root.country;
             placeholder-text: "Two-letter Wi-Fi country code";
             accessible-label: "Wi-Fi country code";
@@ -45,7 +46,7 @@ component WifiStep inherits VerticalLayout {
             clicked => { GreeterSetup.scan(root.country); }
         }
     }
-    if !root.manual: ComboBox {
+    if !root.manual: Select {
         accessible-label: "Nearby Wi-Fi networks";
         model: GreeterSetup.networks;
         current-index <=> root.selected;
@@ -57,19 +58,19 @@ component WifiStep inherits VerticalLayout {
         enabled: !GreeterSetup.busy;
         clicked => { root.manual = !root.manual; root.wifi-password = ""; }
     }
-    if root.manual: LineEdit {
+    if root.manual: TextField {
         text <=> root.manual-ssid;
         placeholder-text: "Network name (SSID)";
         enabled: !GreeterSetup.busy;
         init => { self.focus(); }
     }
-    if root.manual: ComboBox {
+    if root.manual: Select {
         accessible-label: "Wi-Fi security";
         model: ["Open", "WPA / WPA2", "WPA3", "Enhanced open"];
         current-index <=> root.manual-security;
         enabled: !GreeterSetup.busy;
     }
-    if root.password-needed && (root.manual || root.selected >= 0): LineEdit {
+    if root.password-needed && (root.manual || root.selected >= 0): TextField {
         text <=> root.wifi-password;
         placeholder-text: "Wi-Fi password";
         input-type: InputType.password;
@@ -88,15 +89,15 @@ component WifiStep inherits VerticalLayout {
 
 component AccountStep inherits VerticalLayout {
     spacing: 8px;
-    name := LineEdit { placeholder-text: "Your name"; enabled: !GreeterSetup.busy; init => { self.focus(); } }
-    username := LineEdit { placeholder-text: "Username"; enabled: !GreeterSetup.busy; }
-    LineEdit { accessible-label: "Hostname"; placeholder-text: "Hostname"; text <=> GreeterSetup.hostname; enabled: !GreeterSetup.busy; }
-    password := LineEdit { placeholder-text: "Password"; input-type: InputType.password; enabled: !GreeterSetup.busy; }
-    confirm := LineEdit { placeholder-text: "Confirm password"; input-type: InputType.password; enabled: !GreeterSetup.busy; }
+    name := TextField { placeholder-text: "Your name"; enabled: !GreeterSetup.busy; init => { self.focus(); } }
+    username := TextField { placeholder-text: "Username"; enabled: !GreeterSetup.busy; }
+    TextField { accessible-label: "Hostname"; placeholder-text: "Hostname"; text <=> GreeterSetup.hostname; enabled: !GreeterSetup.busy; }
+    password := TextField { placeholder-text: "Password"; input-type: InputType.password; enabled: !GreeterSetup.busy; }
+    confirm := TextField { placeholder-text: "Confirm password"; input-type: InputType.password; enabled: !GreeterSetup.busy; }
     Text {
         text: "Passwords do not match.";
         visible: confirm.text != "" && confirm.text != password.text;
-        color: Theme.red;
+        color: Theme.danger;
         wrap: word-wrap;
     }
     Button {
@@ -119,21 +120,21 @@ export component FirstBootPanel inherits Rectangle {
         height: min(600px, parent.height - 32px);
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
-        background: Theme.bg;
+        background: Theme.surface;
         border-width: 1px;
-        border-color: Theme.bg-light;
-        border-radius: 12px;
+        border-color: Theme.line;
+        border-radius: Theme.radius-xl;
         VerticalLayout {
-            padding: 20px;
-            spacing: 10px;
+            padding: Theme.space-10;
+            spacing: Theme.space-3;
             HorizontalLayout {
                 alignment: space-between;
                 Text {
                     text: GreeterSetup.step == 1 ? "Connect to Wi-Fi" : GreeterSetup.step == 2 ? "Pair Bluetooth devices"
                         : GreeterSetup.step == 3 ? "Create your administrator account" : "Checking this installation";
-                    color: Theme.fg-bright;
-                    font-size: 21px;
-                    font-weight: 700;
+                    color: Theme.ink;
+                    font-size: Theme.text-heading-2;
+                    font-weight: 500;
                     vertical-alignment: center;
                 }
                 Image {
@@ -158,10 +159,10 @@ export component FirstBootPanel inherits Rectangle {
                     if GreeterSetup.step == 1: WifiStep {}
                     if GreeterSetup.step == 3: AccountStep {}
                     if GreeterSetup.status != "": Text {
-                        text: GreeterSetup.status; color: Theme.fg; wrap: word-wrap;
+                        text: GreeterSetup.status; color: Theme.ink; wrap: word-wrap;
                     }
                     if GreeterSetup.error != "": Text {
-                        text: GreeterSetup.error; color: Theme.red; wrap: word-wrap;
+                        text: GreeterSetup.error; color: Theme.danger; wrap: word-wrap;
                     }
                 }
             }

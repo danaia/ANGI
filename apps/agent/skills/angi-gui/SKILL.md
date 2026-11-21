@@ -10,6 +10,22 @@ Rust in `src/`, Slint UI in `ui/`. Read the checkout's `AGENTS.md` and
 `docs/code-structure.md` before editing (file-size and module rules). User-visible text says
 ANGI; technical names stay `agx`.
 
+## Design rules (Pebble Line)
+
+Every screen and app in ANGI uses the Pebble Line design system. Before you design or change any UI,
+read `docs/design-system.md` and `.agents/skills/angi-design-system/SKILL.md` in the checkout, then:
+
+- Use only `Theme` tokens (`ui/pebble/tokens.slint`) and the components in `ui/pebble/pebble.slint`
+  (`Button`, `TextField`, `Select`, `SegmentedControl`, `Slider`, `Switch`, `Badge`, `Progress`, `Card`,
+  `Dialog`, `Icon`, the type components and so on). No hex colours, no std-widgets controls (apart from
+  `ScrollView` and `ListView`), no Nerd Font icons in chrome, no font weight 700.
+- Keep it flat: outlined `surface` or a filled shape, never both. Use pills for controls, `radius-lg`
+  for cards and `radius-xl` for dialogs. The single primary action is solid `accent`.
+- The person chooses Light or Dark in Settings › Appearance. Your screen must work in both; check
+  it in both over VNC before you report it done.
+- Web apps that ANGI serves use `brand/pebble-line/tokens.css` and `brand/pebble-line/web/`.
+- Finish with the checklist at the end of `docs/design-system.md`.
+
 For desktop tooltips, read `.agents/skills/angi-desktop-tooltips/SKILL.md` in the
 checkout. Use its shared Slint components from Agent Angi's OS and Project toggle.
 

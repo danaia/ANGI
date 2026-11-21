@@ -1,0 +1,387 @@
+// Pebble Line inputs: TextField, Select, Slider, Switch, Checkbox, SegmentedControl.
+// Controls are pills on `surface` with a 1px `line` stroke; hover darkens the stroke to
+// `line-strong`; focus turns it `ink` with a 2px focus ring. Selection changes fill, never only stroke.
+import { Theme } from "tokens.slint";
+import { Icons } from "icons.slint";
+import { Icon } from "type.slint";
+import { FocusRing } from "actions.slint";
+
+// Single-line text field. Mirrors the parts of std LineEdit the desktop uses.
+export component TextField inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder-text;
+    in property <InputType> input-type: InputType.text;
+    in property <bool> enabled: true;
+    in property <bool> read-only: false;
+    in property <length> font-size: Theme.text-body;
+    in property <image> icon;
+    // `quiet` drops the outline, for fields set inside another outlined control.
+    in property <bool> quiet: false;
+    out property <bool> has-focus: input.has-focus;
+    callback edited(string);
+    callback accepted(string);
+    callback key-pressed(KeyEvent) -> EventResult;
+    callback pointer-moved(length, length);
+    forward-focus: input;
+    public function select-all() { input.select-all(); }
+    public function clear-selection() { input.clear-selection(); }
+    accessible-role: text-input;
+    accessible-value: root.input-type == InputType.password ? "" : root.text;
+    accessible-placeholder-text: root.placeholder-text;
+    min-width: 80px;
+    preferred-height: 40px;
+    vertical-stretch: 0;
+    border-radius: Theme.radius-pill;
+    background: !root.enabled ? Theme.surface-muted : root.quiet ? transparent : Theme.surface;
+    border-width: root.quiet ? 0px : input.has-focus ? Theme.stroke-rule : Theme.stroke-hair;
+    border-color: input.has-focus ? Theme.ink : touch.has-hover ? Theme.line-strong : Theme.line;
+    opacity: root.enabled ? 1 : 0.55;
+    clip: true;
+    private property <length> lead: root.icon.width > 0 ? 44px : (root.quiet ? 4px : Theme.space-5);
+    if root.icon.width > 0: Icon {
+        source: root.icon; x: Theme.space-4; y: (parent.height - self.height) / 2; width: 16px; height: 16px;
+    }
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.text;
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+    if input.text == "": Text {
+        x: root.lead; width: parent.width - root.lead - Theme.space-4; height: parent.height;
+        vertical-alignment: center; overflow: elide;
+        text: root.placeholder-text; font-size: root.font-size; color: Theme.ink-muted;
+    }
+    input := TextInput {
+        x: root.lead; width: parent.width - root.lead - Theme.space-4; height: parent.height;
+        single-line: true; vertical-alignment: center;
+        enabled: root.enabled; read-only: root.read-only; input-type: root.input-type;
+        font-size: root.font-size; color: Theme.ink;
+        selection-background-color: Theme.selection; selection-foreground-color: Theme.ink;
+        edited => { root.edited(self.text); }
+        accepted => { root.accepted(self.text); }
+        key-pressed(e) => { root.key-pressed(e) }
+    }
+}
+
+// Dropdown. Same callback shape as std ComboBox: `selected(value)` after `current-index` changes.
+export component Select inherits Rectangle {
+    in property <[string]> model;
+    in-out property <int> current-index: 0;
+    out property <string> current-value: root.model[root.current-index];
+    in property <bool> enabled: true;
+    out property <bool> has-focus: keys.has-focus;
+    callback selected(string);
+    callback pointer-moved(length, length);
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+    function choose(index: int) {
+        if (index < 0 || index >= root.model.length || index == root.current-index) { return; }
+        root.current-index = index;
+        root.selected(root.model[index]);
+    }
+    accessible-role: combobox;
+    accessible-value: root.current-value;
+    accessible-enabled: root.enabled;
+    min-width: 120px;
+    height: 40px;
+    border-radius: Theme.radius-pill;
+    background: root.enabled ? Theme.surface : Theme.surface-muted;
+    border-width: Theme.stroke-hair;
+    border-color: keys.has-focus ? Theme.ink : touch.has-hover ? Theme.line-strong : Theme.line;
+    opacity: root.enabled ? 1 : 0.55;
+    Text {
+        x: Theme.space-5; width: parent.width - 52px; height: parent.height;
+        text: root.current-value; color: Theme.ink; font-size: Theme.text-body;
+        vertical-alignment: center; overflow: elide;
+    }
+    Icon { source: Icons.chevron-down; x: parent.width - 34px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.pointer-focus = true; keys.focus(); popup.show(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == Key.UpArrow) { root.choose(root.current-index - 1); return accept; }
+            if (e.text == Key.DownArrow) { root.choose(root.current-index + 1); return accept; }
+            if (e.text == Key.Return || e.text == " ") { popup.show(); return accept; }
+            reject
+        }
+    }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }
+    popup := PopupWindow {
+        x: 0; y: root.height + 6px;
+        width: root.width;
+        height: root.model.length * 40px + 2 * Theme.space-2 + 2px;
+        Rectangle {
+            background: Theme.surface;
+            border-radius: Theme.radius-md;
+            border-width: Theme.stroke-hair;
+            border-color: Theme.line-strong;
+            VerticalLayout {
+                padding: Theme.space-2;
+                for item[i] in root.model: Rectangle {
+                    height: 40px;
+                    border-radius: Theme.radius-xs;
+                    background: row.has-hover ? Theme.surface-hover : transparent;
+                    accessible-role: list-item;
+                    accessible-label: item;
+                    Text { x: Theme.space-3; width: parent.width - 48px; height: parent.height; text: item; color: Theme.ink; font-size: Theme.text-body; vertical-alignment: center; overflow: elide; }
+                    if i == root.current-index: Icon { source: Icons.check; color: Theme.ink; x: parent.width - 30px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; }
+                    row := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => { root.choose(i); popup.close(); }
+                        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Horizontal slider: 4px rail on `surface-muted`, `accent` fill, 22px outlined thumb.
+// Same shape as std Slider: `value` two-way, `changed(value)` on each user step.
+export component Slider inherits Rectangle {
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in property <float> step: 1;
+    in-out property <float> value: 0;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: keys.has-focus;
+    callback changed(float);
+    callback pointer-moved(length, length);
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+    private property <length> thumb: 22px;
+    private property <float> ratio: root.maximum > root.minimum ? clamp((root.value - root.minimum) / (root.maximum - root.minimum), 0, 1) : 0;
+    function set(v: float) {
+        let snapped = root.step > 0 ? root.minimum + round((v - root.minimum) / root.step) * root.step : v;
+        let bounded = clamp(snapped, root.minimum, root.maximum);
+        if (bounded != root.value) { root.value = bounded; root.changed(bounded); }
+    }
+    function set-from(x: length) {
+        root.set(root.minimum + clamp((x - root.thumb / 2) / max(1px, root.width - root.thumb), 0, 1) * (root.maximum - root.minimum));
+    }
+    accessible-role: slider;
+    accessible-value: round(root.value);
+    accessible-value-minimum: root.minimum;
+    accessible-value-maximum: root.maximum;
+    accessible-value-step: root.step;
+    accessible-action-increment => { root.set(root.value + root.step); }
+    accessible-action-decrement => { root.set(root.value - root.step); }
+    min-width: 120px;
+    height: 28px;
+    opacity: root.enabled ? 1 : 0.5;
+    Rectangle {
+        y: (parent.height - self.height) / 2; height: 4px;
+        border-radius: 2px;
+        background: Theme.surface-muted;
+        border-width: Theme.stroke-hair; border-color: Theme.line;
+    }
+    Rectangle {
+        x: 0px; y: (parent.height - self.height) / 2; height: 4px;
+        width: root.thumb / 2 + root.ratio * (parent.width - root.thumb);
+        border-radius: 2px;
+        background: Theme.accent;
+    }
+    knob := Rectangle {
+        x: root.ratio * (parent.width - self.width);
+        y: (parent.height - self.height) / 2;
+        width: root.thumb; height: root.thumb;
+        border-radius: self.width / 2;
+        background: Theme.surface;
+        border-width: Theme.stroke-rule; border-color: Theme.ink;
+        FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: knob.border-radius; }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == Key.LeftArrow || e.text == Key.DownArrow) { root.set(root.value - root.step); return accept; }
+            if (e.text == Key.RightArrow || e.text == Key.UpArrow) { root.set(root.value + root.step); return accept; }
+            if (e.text == Key.Home) { root.set(root.minimum); return accept; }
+            if (e.text == Key.End) { root.set(root.maximum); return accept; }
+            reject
+        }
+    }
+    TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) { root.pointer-focus = true; keys.focus(); root.set-from(self.mouse-x); }
+            root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+        }
+        moved => { if (self.pressed) { root.set-from(self.mouse-x); } }
+    }
+}
+
+// On/off switch: 48×28 track, `accent` fill when on.
+export component Switch inherits Rectangle {
+    in-out property <bool> checked;
+    in property <string> label;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+    callback pointer-moved(length, length);
+    out property <bool> has-focus: keys.has-focus;
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+    function flip() { if (root.enabled) { root.checked = !root.checked; root.toggled(root.checked); } }
+    accessible-role: switch;
+    accessible-label: root.label;
+    accessible-checkable: true;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.flip(); }
+    width: 48px; height: 28px;
+    border-radius: 14px;
+    background: root.checked ? Theme.accent : Theme.surface-muted;
+    border-width: Theme.stroke-hair;
+    border-color: root.checked ? Theme.accent : Theme.line-strong;
+    opacity: root.enabled ? 1 : 0.5;
+    animate background { duration: 200ms; }
+    Rectangle {
+        x: root.checked ? 23px : 3px; y: 3px; width: 20px; height: 20px;
+        border-radius: 10px;
+        background: root.checked ? Theme.on-accent : Theme.surface;
+        border-width: Theme.stroke-hair;
+        border-color: root.checked ? Theme.on-accent : Theme.line-strong;
+        animate x { duration: 200ms; easing: cubic-bezier(0.3, 0.7, 0.4, 1); }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => { if (e.text == Key.Return || e.text == " ") { root.flip(); return accept; } reject }
+    }
+    TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.pointer-focus = true; keys.focus(); root.flip(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }
+}
+
+// Checkbox with label. The 20px box has a 1.5px `line-bold` ring (3:1+) and fills `accent` when checked.
+export component Checkbox inherits Rectangle {
+    in-out property <bool> checked;
+    in property <string> text;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+    callback pointer-moved(length, length);
+    out property <bool> has-focus: keys.has-focus;
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+    function flip() { if (root.enabled) { root.checked = !root.checked; root.toggled(root.checked); } }
+    accessible-role: checkbox;
+    accessible-label: root.text;
+    accessible-checkable: true;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.flip(); }
+    min-height: 24px;
+    opacity: root.enabled ? 1 : 0.5;
+    HorizontalLayout {
+        spacing: Theme.space-3;
+        VerticalLayout {
+            alignment: center;
+            box := Rectangle {
+                width: 20px; height: 20px;
+                border-radius: Theme.radius-xs;
+                background: root.checked ? Theme.accent : Theme.surface;
+                border-width: Theme.stroke-rule;
+                border-color: root.checked ? Theme.accent : touch.has-hover ? Theme.ink : Theme.line-bold;
+                if root.checked: Icon { source: Icons.check; color: Theme.on-accent; width: 14px; height: 14px; x: 3px; y: 3px; }
+                FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: Theme.radius-xs; }
+            }
+        }
+        if root.text != "": Text { text: root.text; color: Theme.ink; font-size: Theme.text-body; vertical-alignment: center; wrap: word-wrap; }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => { if (e.text == Key.Return || e.text == " ") { root.flip(); return accept; } reject }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.pointer-focus = true; keys.focus(); root.flip(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+}
+
+// Segmented control: a `surface-muted` trough holding pills; the chosen one is `surface` with a
+// `line-strong` stroke. Use it for 2–5 mutually exclusive options that fit on one line.
+export component SegmentedControl inherits Rectangle {
+    in property <[string]> options;
+    in-out property <int> current-index: 0;
+    in property <string> label;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: keys.has-focus;
+    callback selected(int);
+    callback pointer-moved(length, length);
+    forward-focus: keys;
+    // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
+    private property <bool> pointer-focus: false;
+    changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
+    function choose(index: int) {
+        if (!root.enabled || index < 0 || index >= root.options.length || index == root.current-index) { return; }
+        root.current-index = index;
+        root.selected(index);
+    }
+    accessible-role: tab-list;
+    accessible-label: root.label;
+    height: 42px;
+    border-radius: self.height / 2;
+    background: Theme.surface-muted;
+    border-width: Theme.stroke-hair;
+    border-color: Theme.line;
+    opacity: root.enabled ? 1 : 0.5;
+    HorizontalLayout {
+        padding: 3px;
+        spacing: Theme.space-1;
+        for option[i] in root.options: Rectangle {
+            border-radius: self.height / 2;
+            background: i == root.current-index ? Theme.surface : transparent;
+            border-width: Theme.stroke-hair;
+            border-color: i == root.current-index ? Theme.line-strong : transparent;
+            accessible-role: tab;
+            accessible-label: option;
+            accessible-item-selected: i == root.current-index;
+            accessible-action-default => { root.choose(i); }
+            HorizontalLayout {
+                padding-left: Theme.space-5; padding-right: Theme.space-5;
+                Text {
+                    text: option;
+                    color: i == root.current-index || segment.has-hover ? Theme.ink : Theme.ink-muted;
+                    font-size: Theme.text-body-sm; font-weight: 500;
+                    horizontal-alignment: center; vertical-alignment: center;
+                }
+            }
+            segment := TouchArea {
+                enabled: root.enabled;
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { root.pointer-focus = true; keys.focus(); root.choose(i); }
+                // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+            }
+        }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == Key.LeftArrow) { root.choose(root.current-index - 1); return accept; }
+            if (e.text == Key.RightArrow) { root.choose(root.current-index + 1); return accept; }
+            reject
+        }
+    }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }
+}

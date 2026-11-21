@@ -1,5 +1,5 @@
 //! Window creation, callback wiring, timers and background system sampling.
-use crate::system_ui::{apply, apply_network_safety, apply_omarchy_theme, local_time};
+use crate::system_ui::{apply, apply_network_safety, local_time};
 use crate::{
     App, AppWindow, Sys, browser, graphics, keymap::Cmd, mods, remote, session_action, terminal,
 };
@@ -12,7 +12,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let _settings_save = crate::settings::install(&ui);
     let _process_watch = crate::memory_processes::install(&ui);
     let _storage_watch = crate::storage::install(&ui);
-    apply_omarchy_theme(&ui);
+    crate::appearance::install(&ui);
     ui.global::<Sys>().set_mode_note(
         if cfg!(feature = "kms") {
             "DRM/KMS appliance, no display server"
@@ -175,6 +175,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
         let tick = move || {
             if let Some(ui) = weak.upgrade() {
                 ui.set_clock(local_time().into());
+                ui.set_date(crate::system_ui::local_date().into());
             }
         };
         tick();

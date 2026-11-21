@@ -1,8 +1,7 @@
 //! System snapshot presentation, units, clock and optional preview palette.
-use crate::{AppWindow, HwRow, NetRow, Sys, Theme};
+use crate::{AppWindow, HwRow, NetRow, Sys};
 use agx_core::Snapshot;
 use slint::{ComponentHandle, ModelRc, VecModel};
-use std::fs;
 pub(super) fn apply(ui: &AppWindow, s: &Snapshot, temperature: Option<f64>) {
     let sys = ui.global::<Sys>();
     sys.set_hostname(s.hostname.clone().into());
@@ -112,6 +111,25 @@ fn duration(secs: u64) -> String {
     }
 }
 
+/// Short date for the top bar, such as "Sat 21 Nov".
+pub(super) fn local_date() -> String {
+    const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    // SAFETY: localtime_r writes only into the zeroed tm we pass.
+    unsafe {
+        let now = libc::time(std::ptr::null_mut());
+        let mut tm: libc::tm = std::mem::zeroed();
+        if libc::localtime_r(&now, &mut tm).is_null() {
+            return String::new();
+        }
+        let day = DAYS.get(tm.tm_wday as usize).copied().unwrap_or("");
+        let month = MONTHS.get(tm.tm_mon as usize).copied().unwrap_or("");
+        format!("{day} {} {month}", tm.tm_mday)
+    }
+}
+
 pub(super) fn local_time() -> String {
     // SAFETY: localtime_r writes only into the zeroed tm we pass.
     unsafe {
@@ -122,57 +140,4 @@ pub(super) fn local_time() -> String {
         }
         format!("{:02}:{:02}", tm.tm_hour, tm.tm_min)
     }
-}
-
-/// Follow Omarchy's active theme when its palette file is present, so the
-/// GUI matches a desktop it is previewed on. The appliance falls back to the
-/// built-in Tokyo Night defaults.
-pub(super) fn apply_omarchy_theme(ui: &AppWindow) {
-    let Some(home) = std::env::var_os("HOME") else {
-        return;
-    };
-    let path = std::path::Path::new(&home).join(".config/omarchy/current/theme/colors.toml");
-    let Ok(text) = fs::read_to_string(path) else {
-        return;
-    };
-    let color = |key: &str| -> Option<slint::Color> {
-        let line = text
-            .lines()
-            .find(|l| l.split('=').next().map(str::trim) == Some(key))?;
-        let hex = line
-            .split('=')
-            .nth(1)?
-            .trim()
-            .trim_matches('"')
-            .trim_start_matches('#');
-        let n = u32::from_str_radix(hex, 16)
-            .ok()
-            .filter(|_| hex.len() == 6)?;
-        Some(slint::Color::from_rgb_u8(
-            (n >> 16) as u8,
-            (n >> 8) as u8,
-            n as u8,
-        ))
-    };
-    let t = ui.global::<Theme>();
-    macro_rules! set {
-        ($setter:ident, $key:expr) => {
-            if let Some(c) = color($key) {
-                t.$setter(c);
-            }
-        };
-    }
-    set!(set_bg, "background");
-    set!(set_bg_dark, "dark_background");
-    set!(set_bg_light, "lighter_background");
-    set!(set_fg, "foreground");
-    set!(set_fg_bright, "bright_foreground");
-    set!(set_fg_dim, "dark_foreground");
-    set!(set_muted, "muted");
-    set!(set_accent, "accent");
-    set!(set_green, "green");
-    set!(set_yellow, "yellow");
-    set!(set_red, "red");
-    set!(set_cyan, "bright_cyan");
-    set!(set_magenta, "bright_magenta");
 }

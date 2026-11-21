@@ -47,7 +47,8 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
         });
     };
     render();
-    click(1246.0, 17.0);
+    // The session button sits at the right end of the top bar pill.
+    click(1240.0, 34.0);
     assert!(
         ui.get_session_open(),
         "header button must open the dropdown"
@@ -59,11 +60,12 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
     });
     assert_eq!(ui.get_cursor_x(), 1150.0);
     assert_eq!(ui.get_cursor_y(), 115.0);
-    click(1150.0, 155.0);
+    click(1150.0, 172.0);
     assert!(!ui.get_session_open());
     assert_eq!(*selected.borrow(), vec![1], "third row enters the TUI");
     render();
-    click(1246.0, 17.0);
+    // The session button sits at the right end of the top bar pill.
+    click(1240.0, 34.0);
     assert!(ui.get_session_open());
     ui.window().dispatch_event(WindowEvent::KeyPressed {
         text: slint::platform::Key::Escape.into(),
@@ -74,7 +76,8 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
     );
     assert_eq!(*selected.borrow(), vec![1]);
     render();
-    click(1246.0, 17.0);
+    // The session button sits at the right end of the top bar pill.
+    click(1240.0, 34.0);
     render();
     {
         let mut terminals = App::new();
@@ -110,7 +113,7 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
             );
         });
     }
-    click(1150.0, 70.0);
+    click(1150.0, 92.0);
     assert!(
         settings_app.borrow().desk.is_open(Kind::Settings),
         "Settings opens as a tile from the first menu row"
@@ -286,12 +289,12 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
     let category = Rc::new(RefCell::new(None));
     let received = category.clone();
     storage.on_select_category(move |index| *received.borrow_mut() = Some(index));
-    // The icon strip starts at the panel's left edge and leaves 20 px between buttons.
+    // A short Overview tile starts with the icon strip: 24 px padding, 32 px buttons, 16 px apart.
     for index in 0..8 {
-        click(overview.x + 32. + 48. * index as f32, overview.y + 180.);
+        click(overview.x + 42. + 48. * index as f32, overview.y + 75.);
         assert_eq!(*category.borrow(), Some(index));
     }
-    click(overview.x + 25., overview.y + 234.);
+    click(overview.x + 32., overview.y + 146.);
     assert_eq!(*selected.borrow(), vec![(0, 0)]);
     assert!(storage.get_selected_open());
     render();

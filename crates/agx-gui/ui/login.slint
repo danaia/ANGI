@@ -1,13 +1,13 @@
 import { Theme } from "data.slint";
 import { Cursor } from "cursor.slint";
 import { FirstBootPanel, GreeterSetup } from "first-boot.slint";
-import { Button, LineEdit } from "std-widgets.slint";
+import { Button, ButtonVariant, ControlSize, TextField, Icons, Heading2, Hint } from "pebble/pebble.slint";
 
 export component LoginWindow inherits Window {
     title: GreeterSetup.step == 0 ? "ANGI · Sign in" : "Set up ANGI";
-    background: Theme.bg-dark;
-    default-font-family: "JetBrainsMono Nerd Font";
-    default-font-size: 16px;
+    background: Theme.background;
+    default-font-family: "Poppins";
+    default-font-size: 14px;
     preferred-width: 1280px;
     preferred-height: 720px;
     min-width: 640px;
@@ -35,45 +35,53 @@ export component LoginWindow inherits Window {
         if GreeterSetup.step != 0: FirstBootPanel { width: parent.width; height: parent.height; }
         Rectangle {
             visible: GreeterSetup.step == 0;
+            // Pebble Line login: a radius-xl outlined card, icon fields and one primary pill.
             width: min(440px, parent.width - 48px);
-            height: 366px;
+            height: 452px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
-            background: Theme.bg;
-            border-width: 1px;
-            border-color: Theme.accent;
+            background: Theme.surface;
+            border-radius: Theme.radius-xl;
+            border-width: Theme.stroke-hair;
+            border-color: Theme.line;
             VerticalLayout {
-                padding: 30px;
-                spacing: 14px;
-                Rectangle {
-                    height: 60px;
-                    Image {
-                        x: parent.width - self.width;
-                        width: 104px;
-                        height: 40px;
-                        source: @image-url("../../../brand/brand-mark-text.svg");
-                        image-fit: contain;
-                        accessible-label: "ANGI";
-                    }
+                padding: Theme.space-10;
+                spacing: Theme.space-3;
+                Image {
+                    height: 44px;
+                    source: @image-url("../../../brand/brand-mark-text.svg");
+                    image-fit: contain;
+                    colorize: Theme.ink;
+                    accessible-label: "ANGI";
                 }
-                Text { text: "Sign in to your desktop"; color: Theme.fg; }
-                username := LineEdit {
+                Rectangle { height: Theme.space-2; }
+                Heading2 { text: "Sign in"; horizontal-alignment: center; }
+                Hint { text: "Welcome back to your desktop."; horizontal-alignment: center; }
+                Rectangle { height: Theme.space-2; }
+                username := TextField {
+                    height: 46px;
+                    icon: Icons.user;
                     placeholder-text: "Username";
                     enabled: !root.busy;
                     accepted => { password.focus(); }
                 }
-                password := LineEdit {
+                password := TextField {
+                    height: 46px;
+                    icon: Icons.lock;
                     placeholder-text: "Password";
                     input-type: InputType.password;
                     enabled: !root.busy;
                     accepted => { root.submit(); }
                 }
                 Button {
+                    variant: ButtonVariant.primary;
+                    size: ControlSize.md;
+                    horizontal-stretch: 1;
                     text: root.busy ? "Signing in…" : "Sign in";
                     enabled: !root.busy;
                     clicked => { root.submit(); }
                 }
-                Text { text: root.error-text; color: Theme.red; wrap: word-wrap; font-size: 12px; min-height: 32px; }
+                Text { text: root.error-text; color: Theme.danger; wrap: word-wrap; font-size: Theme.text-body-sm; horizontal-alignment: center; min-height: 32px; }
             }
         }
     }

@@ -1,0 +1,105 @@
+// Pebble Line design tokens for the ANGI desktop.
+//
+// Source of truth: brand/pebble-line/tokens.json. Every colour has a light and a dark value and
+// switches with `Theme.dark`, which src/appearance.rs sets from the account's saved preference.
+// Components reference these tokens only: never write a hex colour in a feature file.
+// See docs/design-system.md for the rules.
+import "../fonts/Poppins-Light.ttf";
+import "../fonts/Poppins-Regular.ttf";
+import "../fonts/Poppins-Medium.ttf";
+import "../fonts/Poppins-SemiBold.ttf";
+import "../fonts/JetBrainsMonoNerdFont-Regular.ttf";
+import "../fonts/JetBrainsMonoNerdFont-Bold.ttf";
+
+export global Theme {
+    // Dark is the default until the account's preference loads.
+    in-out property <bool> dark: true;
+
+    // ── Colour: ground ──────────────────────────────────────────────────────────────────────
+    out property <color> background: dark ? #141414 : #f5f5f4;
+    out property <color> surface: dark ? #1b1b1b : #ffffff;
+    out property <color> surface-muted: dark ? #242424 : #efefee;
+    out property <color> surface-hover: dark ? #2b2b2b : #e9e9e8;
+    // ── Colour: strokes ─────────────────────────────────────────────────────────────────────
+    out property <color> line: dark ? #2c2c2c : #e3e3e1;
+    out property <color> line-strong: dark ? #454545 : #c4c4c1;
+    out property <color> line-bold: dark ? #74746f : #8e8e8a;
+    // ── Colour: text ────────────────────────────────────────────────────────────────────────
+    out property <color> ink: dark ? #ececea : #2b2b2b;
+    out property <color> ink-muted: dark ? #a1a19d : #62625f;
+    out property <color> ink-subtle: dark ? #62625f : #a8a8a5;
+    // ── Colour: accent (inverted by theme) ──────────────────────────────────────────────────
+    out property <color> accent: dark ? #ececea : #333333;
+    out property <color> accent-hover: dark ? #ffffff : #1f1f1f;
+    out property <color> on-accent: dark ? #161616 : #ffffff;
+    out property <color> accent-soft: dark ? #2a2a2a : #ebebea;
+    out property <color> focus: dark ? #ececea : #2b2b2b;
+    // ── Colour: status ──────────────────────────────────────────────────────────────────────
+    out property <color> success: dark ? #5cc792 : #2f7a52;
+    out property <color> success-soft: dark ? #18291f : #e3f1e8;
+    out property <color> success-ink: dark ? #7fd6aa : #256342;
+    out property <color> warning: dark ? #e0a94a : #8a5f12;
+    out property <color> warning-soft: dark ? #2e2616 : #f6ecd8;
+    out property <color> warning-ink: dark ? #ecbd6b : #6f4b0c;
+    out property <color> danger: dark ? #f0766c : #b23b31;
+    out property <color> danger-soft: dark ? #33201e : #f8e3e0;
+    out property <color> danger-ink: dark ? #ff9d94 : #952f27;
+    // Flat overlay behind dialogs. No blur.
+    out property <color> scrim: dark ? #0a0a0ab8 : #f5f5f4b8;
+    // Terminal cell ground and cursor tint: fixed Pebble dark in both themes (the ANSI palette in
+    // src/terminal/render.rs is tuned for a dark ground). The terminal's chrome follows the theme.
+    out property <color> terminal-ground: #141414;
+    out property <color> terminal-cursor: #ececea40;
+    out property <color> terminal-ink: #ececea;
+    out property <color> terminal-ink-muted: #a1a19d;
+    // Focused-window stroke: a vertical fade from `ink-muted` at the top corners to `line` at the
+    // bottom, so the active tile reads clearly without a hard outline.
+    out property <brush> focus-stroke: @linear-gradient(180deg, ink-muted 0%, line-strong 55%, line 100%);
+    // Selection highlight for text and rows that need a tint rather than a fill change.
+    out property <color> selection: dark ? #ececea33 : #2b2b2b26;
+
+    // ── Space (4·8·12·16·20·24·32·40·48) ────────────────────────────────────────────────────
+    out property <length> space-1: 4px;
+    out property <length> space-2: 8px;
+    out property <length> space-3: 12px;
+    out property <length> space-4: 16px;
+    out property <length> space-5: 20px;
+    out property <length> space-6: 24px;
+    out property <length> space-8: 32px;
+    out property <length> space-10: 40px;
+    out property <length> space-12: 48px;
+    // ── Radius ──────────────────────────────────────────────────────────────────────────────
+    out property <length> radius-xs: 6px;
+    out property <length> radius-sm: 12px;
+    out property <length> radius-md: 20px;
+    out property <length> radius-lg: 28px;
+    out property <length> radius-xl: 40px;
+    out property <length> radius-pill: 999px;
+    // ── Stroke ──────────────────────────────────────────────────────────────────────────────
+    out property <length> stroke-hair: 1px;
+    out property <length> stroke-rule: 1.5px;
+    out property <length> stroke-focus: 2px;
+    // ── Type ────────────────────────────────────────────────────────────────────────────────
+    out property <string> font-sans: "Poppins";
+    // Terminal output, paths, logs and code only.
+    out property <string> font-mono: "JetBrainsMono Nerd Font";
+    out property <length> text-display: 56px;
+    out property <length> text-numeral: 32px;
+    out property <length> text-heading-1: 32px;
+    out property <length> text-heading-2: 22px;
+    out property <length> text-title: 18px;
+    out property <length> text-label: 15px;
+    out property <length> text-body: 14px;
+    out property <length> text-body-sm: 13px;
+    out property <length> text-small: 12px;
+    out property <length> text-caption: 11px;
+
+    // ── Desktop chrome. These mirror src/wm.rs and src/main.rs; change both together. ──────
+    out property <length> header: 44px;        // wm::HEADER
+    out property <length> frame-inset: 2px;    // wm::BORDER
+    out property <length> header-button: 32px; // wm::BTN_W
+    out property <length> header-inset: 10px;  // wm::BTN_INSET
+    out property <length> top-bar: 60px;       // main.rs TOP
+    out property <length> hint-bar: 30px;      // main.rs BOTTOM
+    out property <length> gap-out: 16px;       // wm::GAP_OUT
+}

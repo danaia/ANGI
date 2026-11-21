@@ -1,4 +1,4 @@
-import { Theme } from "data.slint";
+import { Theme } from "pebble/tokens.slint";
 
 export component HoverDwell inherits Rectangle {
     in property <bool> hovered;
@@ -20,23 +20,24 @@ export component HoverDwell inherits Rectangle {
     }
 }
 
+// Pebble Line tooltip: solid `accent` with `on-accent` 12/500 text and a radius-xs corner. Flat, no
+// stroke or shadow. See .agents/skills/angi-desktop-tooltips/SKILL.md for placement and timing.
 export component HoverTip inherits Rectangle {
     in property <string> text;
     in property <bool> shown;
     visible: root.shown;
     width: 300px;
-    height: words.preferred-height + 22px;
-    background: Theme.bg-light;
-    border-color: Theme.accent;
-    border-width: 1px;
-    border-radius: 8px;
+    height: words.preferred-height + 2 * 8px;
+    background: Theme.accent;
+    border-radius: Theme.radius-xs;
     words := Text {
-        x: 13px;
-        y: 11px;
-        width: max(0px, parent.width - 26px);
+        x: 12px;
+        y: 8px;
+        width: max(0px, parent.width - 24px);
         wrap: word-wrap;
-        font-size: 12px;
-        color: Theme.fg-bright;
+        font-size: Theme.text-small;
+        font-weight: 500;
+        color: Theme.on-accent;
         text: root.text;
     }
 }

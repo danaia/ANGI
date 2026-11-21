@@ -11,6 +11,7 @@ config BR2_PACKAGE_AGX_AGENT
 	select BR2_PACKAGE_PYTHON3
 	select BR2_PACKAGE_PYTHON3_CURSES
 	select BR2_PACKAGE_PYTHON3_SQLITE
+	select BR2_PACKAGE_PYTHON3_ZLIB
 	help
 	  Herdr with three OpenCode roles, a build-brief TUI and admin helper.
 	  Native development SDK and source are provisioned separately on NVMe.

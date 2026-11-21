@@ -32,6 +32,7 @@ mod network_safety;
 mod pointer_tests;
 mod runtime;
 mod services;
+mod appearance;
 mod settings;
 mod session_refresh;
 mod system_ui;
@@ -54,8 +55,9 @@ use {
     wm::Kind,
 };
 slint::include_modules!();
-const TOP: f32 = 34.0;
-const BOTTOM: f32 = 26.0;
+// Room for the Pebble Line top bar pill and hint line; ui/pebble/tokens.slint mirrors these.
+const TOP: f32 = 60.0;
+const BOTTOM: f32 = 30.0;
 static EXIT_CODE: AtomicI32 = AtomicI32::new(0);
 fn mods(ctrl: bool, alt: bool, shift: bool, meta: bool) -> Mods {
     Mods {

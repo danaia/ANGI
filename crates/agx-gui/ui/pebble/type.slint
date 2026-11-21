@@ -1,0 +1,68 @@
+// Pebble Line type scale (Poppins). Use these instead of setting font sizes by hand.
+// Voice: short, calm, literal. Labels are nouns, buttons are verbs, no exclamation marks.
+import { Theme } from "tokens.slint";
+import { Icons } from "icons.slint";
+
+// 56/600: hero figures only (the device name on Overview).
+export component Display inherits Text {
+    color: Theme.ink; font-size: Theme.text-display; font-weight: 600; letter-spacing: -1px;
+}
+// 32/300 tabular figures: big numbers on stat tiles.
+export component Numeral inherits Text {
+    color: Theme.ink; font-size: Theme.text-numeral; font-weight: 300;
+}
+// 32/600: page titles in large app windows.
+export component Heading1 inherits Text {
+    color: Theme.ink; font-size: Theme.text-heading-1; font-weight: 600; wrap: word-wrap;
+}
+// 22/500: section and page headings inside a window ("Mouse & pointer").
+export component Heading2 inherits Text {
+    color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; wrap: word-wrap;
+}
+// 18/500: card titles and dialog titles in compact windows.
+export component Title inherits Text {
+    color: Theme.ink; font-size: Theme.text-title; font-weight: 500; wrap: word-wrap;
+}
+// 15/500: setting names, list primaries.
+export component Label inherits Text {
+    color: Theme.ink; font-size: Theme.text-label; font-weight: 500; wrap: word-wrap;
+}
+// 14/400: running text.
+export component Body inherits Text {
+    color: Theme.ink; font-size: Theme.text-body; wrap: word-wrap;
+}
+// 13/400 muted: descriptions under a label, help text.
+export component Hint inherits Text {
+    color: Theme.ink-muted; font-size: Theme.text-body-sm; wrap: word-wrap;
+}
+// 11/400 uppercase muted: small captions above a group, under a rule.
+export component Caption inherits Text {
+    color: Theme.ink-muted; font-size: Theme.text-caption; letter-spacing: 0.5px;
+}
+// Monospace for terminal output, paths, logs and code.
+export component Mono inherits Text {
+    color: Theme.ink; font-size: Theme.text-body-sm; font-family: Theme.font-mono;
+}
+
+// Outline icon from `Icons`, tinted with `color` (ink-muted at rest, ink on hover,
+// on-accent inside filled shapes).
+export component Icon inherits Image {
+    in property <color> color: Theme.ink-muted;
+    width: 18px; height: 18px;
+    colorize: root.color;
+    image-fit: contain;
+    accessible-role: none;
+}
+
+// Small keyboard key, as in "PgUp".
+export component Kbd inherits Rectangle {
+    in property <string> text;
+    height: 20px;
+    border-radius: Theme.radius-xs;
+    border-width: Theme.stroke-hair;
+    border-color: Theme.line-strong;
+    HorizontalLayout {
+        padding-left: 6px; padding-right: 6px;
+        Text { text: root.text; color: Theme.ink; font-size: Theme.text-small; vertical-alignment: center; }
+    }
+}

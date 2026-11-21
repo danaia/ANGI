@@ -292,18 +292,20 @@ pub(super) fn cells(files: &[scan::File]) -> Vec<StorageCell> {
     files.iter().map(cell).collect()
 }
 
+/// File-size heat from Pebble Line's status hues (success, warning, danger). Each stop sits midway
+/// between the light and dark theme values so tiles read on either ground.
+const COOL: [f64; 3] = [68., 160., 114.];
+const WARM: [f64; 3] = [181., 132., 46.];
+const HOT: [f64; 3] = [209., 89., 79.];
+
 pub(super) fn size_color(bytes: u64) -> slint::Color {
     let mib = bytes as f64 / 1_048_576.;
     let (from, to, heat) = if mib <= 10. {
-        ([54., 112., 74.], [54., 112., 74.], 0.)
+        (COOL, COOL, 0.)
     } else if mib < 100. {
-        ([54., 112., 74.], [168., 128., 54.], (mib / 10.).log10())
+        (COOL, WARM, (mib / 10.).log10())
     } else {
-        (
-            [168., 128., 54.],
-            [184., 65., 56.],
-            (mib / 100.).log10().clamp(0., 1.),
-        )
+        (WARM, HOT, (mib / 100.).log10().clamp(0., 1.))
     };
     let channel = |i: usize| (from[i] + (to[i] - from[i]) * heat) as u8;
     slint::Color::from_rgb_u8(channel(0), channel(1), channel(2))

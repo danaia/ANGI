@@ -1,50 +1,63 @@
-import { Theme, Sys } from "data.slint";
+// System panels: Overview (device and storage), CPU & safety, Memory, Network, Hardware, System.
+import { Theme, Icons, Badge, Tone, Progress, Well, Divider, Button, ButtonVariant, IconButton, Label, Hint } from "pebble/pebble.slint";
+import { Sys } from "data.slint";
 import { StorageCategories, StorageMap, StorageView } from "storage.slint";
 import { MemoryProcesses } from "memory-processes.slint";
 import { DesktopInput } from "desktop-input.slint";
 import { StorageTrash } from "storage-trash.slint";
 import { HoverTip } from "hover-tip.slint";
-import { ScrollView, Button } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 
+// Key/value line: muted key, ink value.
 component Row inherits HorizontalLayout {
     in property <string> label;
     in property <string> value;
-    in property <color> tint: Theme.fg-bright;
-    spacing: 12px;
-    Text { text: root.label; color: Theme.fg-dim; horizontal-stretch: 0; min-width: 96px; }
-    Text { text: root.value; color: root.tint; overflow: elide; horizontal-stretch: 1; }
+    in property <color> tint: Theme.ink;
+    spacing: Theme.space-6;
+    Text { text: root.label; color: Theme.ink-muted; font-size: Theme.text-body; horizontal-stretch: 0; min-width: 72px; }
+    Text { text: root.value; color: root.tint; font-size: Theme.text-body; overflow: elide; horizontal-stretch: 1; }
 }
 
+// Label, figure and an 8px Progress track. The bar is `accent`; only a value that is itself a warning
+// takes a status tone.
 component Meter inherits VerticalLayout {
     in property <string> label;
     in property <float> percent;
     in property <string> detail;
-    in property <color> tint: Theme.accent;
-    spacing: 4px;
+    spacing: Theme.space-2;
     alignment: start;
-    max-height: 36px;
     HorizontalLayout {
-        Text { text: root.label; color: Theme.fg; font-weight: 700; }
-        Text { text: root.detail; color: Theme.fg-dim; horizontal-alignment: right; overflow: elide; }
+        Text { text: root.label; color: Theme.ink; font-size: Theme.text-body; font-weight: 500; }
+        Text { text: root.detail; color: Theme.ink-muted; font-size: Theme.text-body; horizontal-alignment: right; overflow: elide; }
     }
-    Rectangle {
-        height: 10px;
-        background: Theme.bg-light;
-        Rectangle {
-            x: 0;
-            width: parent.width * clamp(root.percent, 0, 100) / 100;
-            background: root.percent > 85 ? Theme.red : root.percent > 65 ? Theme.yellow : root.tint;
-            animate width { duration: 300ms; easing: ease-out; }
-        }
+    Progress {
+        progress: root.percent / 100;
+        tone: root.percent > 90 ? Tone.danger : root.percent > 75 ? Tone.warning : Tone.accent;
     }
 }
 
+// Small figure in a filled well.
+component Stat inherits Well {
+    in property <string> label;
+    in property <string> value;
+    height: 68px;
+    VerticalLayout {
+        padding-left: Theme.space-4; padding-right: Theme.space-4;
+        padding-top: 12px; padding-bottom: 12px;
+        spacing: 2px;
+        Text { text: root.label; color: Theme.ink-muted; font-size: Theme.text-small; }
+        Text { text: root.value; color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 300; overflow: elide; }
+    }
+}
+
+// Status dot: never colour alone; rows pair it with the state word.
 component StateDot inherits Rectangle {
     in property <string> state;
     width: 8px;
     height: 8px;
-    background: state == "up" || state == "ready" || state == "present" || state == "running" ? Theme.green
-        : state == "down" || state == "missing" || state == "failed" ? Theme.red : Theme.yellow;
+    border-radius: 4px;
+    background: state == "up" || state == "ready" || state == "present" || state == "running" ? Theme.success
+        : state == "down" || state == "missing" || state == "failed" ? Theme.danger : Theme.warning;
 }
 
 export component OverviewPanel inherits Rectangle {
@@ -52,47 +65,65 @@ export component OverviewPanel inherits Rectangle {
     in property <bool> hide-cursor;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback pointer-moved(length, length);
+    private property <length> pad: root.width < 520px ? Theme.space-4 : Theme.space-6;
+    // Short tiles drop the device summary so the storage map keeps its room.
+    private property <bool> short: root.height < 400px;
     DesktopInput {
         cursor: root.cursor;
         hide-cursor: root.hide-cursor;
         pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
-    HorizontalLayout {
-        x: 12px; y: 12px;
-        width: max(0px, root.width - 54px); height: 112px;
-        spacing: 12px;
+    if !root.short: HorizontalLayout {
+        x: root.pad; y: Theme.space-5;
+        width: max(0px, root.width - 2 * root.pad); height: 112px;
+        spacing: Theme.space-4;
         VerticalLayout {
-            spacing: 3px;
-            Row { label: "host"; value: Sys.hostname; }
-            Row { label: "board"; value: Sys.board; }
-            Row { label: "kernel"; value: Sys.kernel; }
-            Row { label: "uptime"; value: Sys.uptime; }
-            Row { label: "address"; value: Sys.primary-ip; tint: Theme.green; }
+            spacing: 2px;
+            Row { label: "Host"; value: Sys.hostname; }
+            Row { label: "Board"; value: Sys.board; }
+            Row { label: "Kernel"; value: Sys.kernel; }
+            Row { label: "Uptime"; value: Sys.uptime; }
+            Row { label: "Address"; value: Sys.primary-ip; }
         }
-        Image {
-            source: @image-url("../../../brand/brand-mark-text.svg");
-            width: root.width > 600px ? 170px : 100px;
-            image-fit: contain;
-            accessible-label: "ANGI";
+        VerticalLayout {
+            alignment: start;
+            spacing: Theme.space-2;
+            Image {
+                source: @image-url("../../../brand/brand-mark-text.svg");
+                width: root.width > 600px ? 170px : 100px;
+                height: root.width > 600px ? 58px : 34px;
+                image-fit: contain;
+                colorize: Theme.ink;
+                accessible-label: "ANGI";
+            }
+            HorizontalLayout {
+                alignment: end;
+                Badge {
+                    text: Sys.primary-ip == "no network" ? "Offline" : "Online";
+                    tone: Sys.primary-ip == "no network" ? Tone.neutral : Tone.success;
+                    dot: true;
+                }
+            }
         }
     }
     categories := StorageCategories {
-        x: 12px; y: 135px; width: max(0px, parent.width - 24px);
+        x: root.pad; y: root.short ? Theme.space-3 : 146px; width: max(0px, parent.width - 2 * root.pad);
         hide-cursor: root.hide-cursor;
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
+    Rectangle { x: root.pad; y: categories.y + categories.height - 1px; width: categories.width; height: 1px; background: Theme.line; }
     storage-scroll := ScrollView {
         visible: StorageView.category != 7;
         x: 0px; y: categories.y + categories.height;
-        width: parent.width; height: max(0px, parent.height - self.y - 44px);
+        width: parent.width; height: max(0px, parent.height - self.y - 64px);
         content-width: self.width;
         horizontal-scrollbar-policy: always-off;
         vertical-scrollbar-policy: always-off;
         VerticalLayout {
-            padding: 12px;
-            padding-top: 10px;
-            spacing: 10px;
+            padding-left: root.pad; padding-right: root.pad;
+            padding-top: Theme.space-4; padding-bottom: Theme.space-3;
+            spacing: Theme.space-4;
             alignment: start;
             sd-map := StorageMap {
                 label: "SD card"; drive: 0;
@@ -112,54 +143,65 @@ export component OverviewPanel inherits Rectangle {
                 pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
                 pointer-moved(x, y) => { root.pointer-moved(x, y); }
             }
-            Text { text: "File size · green < 10 MiB · amber 100 MiB · red ≥ 1 GiB · click for details"; color: #947a6d; font-size: 10px; wrap: word-wrap; }
-
+            // Legend: tone, dot and words, never colour alone.
+            HorizontalLayout {
+                spacing: Theme.space-2;
+                alignment: start;
+                Text { text: "File size"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
+                Badge { text: "< 10 MiB"; tone: Tone.success; dot: true; }
+                Badge { text: "≥ 100 MiB"; tone: Tone.warning; dot: true; }
+                Badge { text: "≥ 1 GiB"; tone: Tone.danger; dot: true; }
+                Text { text: "Click a tile for details"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; overflow: elide; }
+            }
         }
     }
     if StorageView.category == 7: StorageTrash {
         x: categories.x;
-        y: categories.y + categories.height + 8px;
+        y: categories.y + categories.height + Theme.space-2;
         width: categories.width;
-        height: max(0px, root.height - self.y - 44px);
+        height: max(0px, root.height - self.y - 64px);
     }
     category-position := Rectangle {
         visible: false;
         property <int> selection: StorageView.category;
         changed selection => { storage-scroll.content-y = 0px; }
     }
+    // Footer: hovered file on the left, actions on the right, under a 1px rule.
+    Rectangle { x: root.pad; y: root.height - 61px; width: max(0px, root.width - 2 * root.pad); height: 1px; background: Theme.line; }
     if sd-map.hover-path != "" || nvme-map.hover-path != "": Rectangle {
-        x: 12px; y: max(0px, root.height - 40px);
-        width: max(0px, root.width - 192px); height: 32px;
+        x: root.pad; y: max(0px, root.height - 52px);
+        width: max(0px, root.width - 2 * root.pad - 200px); height: 40px;
         VerticalLayout {
+            alignment: center;
             spacing: 2px;
-            Text { text: sd-map.hover-path != "" ? sd-map.hover-path : nvme-map.hover-path; color: Theme.fg; font-size: 11px; overflow: elide; }
-            Text { text: sd-map.hover-path != "" ? sd-map.hover-detail : nvme-map.hover-detail; color: Theme.fg-dim; font-size: 10px; overflow: elide; }
+            Text { text: sd-map.hover-path != "" ? sd-map.hover-path : nvme-map.hover-path; color: Theme.ink; font-size: Theme.text-small; font-family: Theme.font-mono; overflow: elide; }
+            Text { text: sd-map.hover-path != "" ? sd-map.hover-detail : nvme-map.hover-detail; color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
         }
     }
-    Button {
-        x: max(0px, root.width - self.width - 56px);
-        y: max(0px, root.height - self.height - 8px);
-        width: 124px; height: 32px;
+    clear := Button {
+        x: max(0px, refresh.x - self.width - Theme.space-2);
+        y: max(0px, root.height - self.height - Theme.space-3);
+        width: self.preferred-width;
         visible: StorageView.category != 7;
         text: "Clear cache…";
+        icon: Icons.trash;
         enabled: !StorageView.selected-open;
         clicked => { StorageView.check-cache(); }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
-    Button {
-        x: max(0px, root.width - self.width - 8px);
-        y: max(0px, root.height - self.height - 8px);
-        width: 40px; height: 32px;
-        icon: @image-url("icons/refresh.svg");
-        icon-size: 16px;
-        colorize-icon: true;
-        accessible-label: StorageView.category == 7 ? "Refresh Trash" : StorageView.refreshing ? "Refreshing files" : "Refresh files";
+    refresh := IconButton {
+        x: max(0px, root.width - self.width - root.pad);
+        y: max(0px, root.height - self.height - Theme.space-3);
+        icon: Icons.refresh;
+        label: StorageView.category == 7 ? "Refresh Trash" : StorageView.refreshing ? "Refreshing files" : "Refresh files";
         enabled: !StorageView.selected-open && !StorageView.refreshing;
         clicked => { StorageView.refresh-files(); }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     HoverTip {
         shown: categories.hint-text != "";
         text: categories.hint-text;
-        width: min(160px, categories.width);
+        width: min(140px, categories.width);
         x: categories.x + clamp(categories.hint-x, 0px, categories.width - self.width);
         y: categories.y + categories.height + 8px;
     }
@@ -170,9 +212,6 @@ export component CpuPanel inherits ScrollView {
     in property <bool> hide-cursor;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback pointer-moved(length, length);
-    private property <color> risk-tint: Sys.network-risk-score < 0 ? Theme.fg-dim
-        : Sys.network-risk-score >= 70 ? Theme.red
-        : Sys.network-risk-score >= 30 ? Theme.yellow : Theme.green;
     horizontal-scrollbar-policy: always-off;
     content-width: self.visible-width;
     content-height: max(self.visible-height, layout.preferred-height);
@@ -187,86 +226,89 @@ export component CpuPanel inherits ScrollView {
     }
     layout := VerticalLayout {
         width: root.content-width;
-        padding: 12px;
-        padding-right: 16px;
-        spacing: 8px;
+        padding: root.width < 360px ? Theme.space-4 : Theme.space-6;
+        spacing: Theme.space-4;
         alignment: start;
-        Meter { label: "usage"; percent: Sys.cpu-percent; detail: Sys.cpu-detail; tint: Theme.cyan; }
-        Row { label: "load"; value: Sys.load-text; }
-        Row { label: "temperature"; value: Sys.cpu-temperature; }
-        Rectangle { height: 1px; background: Theme.muted; }
+        Meter { label: "Usage"; percent: Sys.cpu-percent; detail: Math.round(Sys.cpu-percent) + "% · " + Sys.cpu-detail; }
         HorizontalLayout {
-            spacing: 8px;
-            Text { text: "Network exposure"; font-weight: 700; color: Theme.fg-bright; }
-            Text {
+            spacing: Theme.space-3;
+            Stat { label: "Load average"; value: Sys.load-text; }
+            Stat { label: "Temperature"; value: Sys.cpu-temperature; }
+        }
+        Divider { }
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Text { text: "Network exposure"; color: Theme.ink; font-size: Theme.text-body; font-weight: 500; vertical-alignment: center; horizontal-stretch: 1; }
+            Badge {
                 text: Sys.network-risk-score < 0 ? "Unavailable" : Sys.network-risk-score + "/100 · " +
                     (Sys.network-risk-score >= 70 ? "High" : Sys.network-risk-score >= 30 ? "Moderate" : "Low");
-                color: root.risk-tint;
-                font-weight: 700;
-                horizontal-alignment: right;
+                tone: Sys.network-risk-score < 0 ? Tone.neutral : Sys.network-risk-score >= 70 ? Tone.danger
+                    : Sys.network-risk-score >= 30 ? Tone.warning : Tone.success;
+                dot: Sys.network-risk-score >= 0;
             }
         }
-        Text { text: Sys.network-risk-reason; wrap: word-wrap; color: Theme.fg; }
+        Hint { text: Sys.network-risk-reason; }
     }
 }
 
 export component MemoryPanel inherits VerticalLayout {
     callback pointer-moved(length, length);
-    padding: 12px;
-    spacing: 10px;
+    padding: Theme.space-6;
+    spacing: Theme.space-5;
     alignment: start;
     Rectangle {
         height: 36px;
         accessible-role: button;
         accessible-label: "Memory usage. Show processes";
-        Meter { label: "memory"; percent: Sys.mem-percent; detail: Sys.mem-detail; tint: Theme.magenta; }
+        Meter { label: "Memory"; percent: Sys.mem-percent; detail: Sys.mem-detail; }
         TouchArea {
             mouse-cursor: MouseCursor.pointer;
             moved => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
             clicked => { MemoryProcesses.show(); }
         }
     }
-    Meter { label: "root"; percent: Sys.disk-percent; detail: Sys.disk-detail; tint: Theme.accent; }
+    Meter { label: "Root"; percent: Sys.disk-percent; detail: Sys.disk-detail; }
+    Hint { text: Math.round(Sys.disk-percent) + "% of the root filesystem used · click Memory to see processes"; font-size: Theme.text-small; }
 }
 
 export component NetworkPanel inherits VerticalLayout {
-    padding: 12px;
-    spacing: 6px;
+    padding: Theme.space-6;
+    spacing: Theme.space-2;
     alignment: start;
     for n in Sys.networks: HorizontalLayout {
-        spacing: 12px;
-        height: 24px;
-        Rectangle { width: 8px; StateDot { state: n.state; } }
-        Text { text: n.name; color: Theme.fg-bright; font-weight: 700; width: 110px; vertical-alignment: center; }
-        Text { text: n.state; color: Theme.fg-dim; width: 90px; vertical-alignment: center; }
-        Text { text: n.ipv4; color: Theme.green; width: 160px; vertical-alignment: center; }
-        Text { text: n.mac; color: Theme.fg-dim; vertical-alignment: center; overflow: elide; }
+        spacing: Theme.space-3;
+        height: 28px;
+        VerticalLayout { alignment: center; StateDot { state: n.state; } }
+        Text { text: n.name; color: Theme.ink; font-weight: 500; width: 110px; vertical-alignment: center; }
+        Text { text: n.state; color: Theme.ink-muted; width: 90px; vertical-alignment: center; }
+        Text { text: n.ipv4; color: Theme.ink; width: 160px; vertical-alignment: center; }
+        Text { text: n.mac; color: Theme.ink-muted; font-family: Theme.font-mono; font-size: Theme.text-small; vertical-alignment: center; overflow: elide; }
     }
-    Text { text: "Wi-Fi setup: open the menu and choose Open TUI."; color: Theme.fg-dim; font-size: 12px; }
+    Hint { text: "Wi-Fi setup: open the menu and choose Open TUI."; }
 }
 
 export component HardwarePanel inherits VerticalLayout {
-    padding: 12px;
-    spacing: 6px;
+    padding: Theme.space-6;
+    spacing: Theme.space-2;
     alignment: start;
     for h in Sys.hardware: HorizontalLayout {
-        spacing: 12px;
-        height: 24px;
-        Rectangle { width: 8px; StateDot { state: h.state; } }
-        Text { text: h.kind; color: Theme.accent; width: 90px; vertical-alignment: center; }
-        Text { text: h.name; color: Theme.fg-bright; width: 170px; vertical-alignment: center; }
-        Text { text: h.detail; color: Theme.fg-dim; overflow: elide; vertical-alignment: center; }
+        spacing: Theme.space-3;
+        height: 28px;
+        VerticalLayout { alignment: center; StateDot { state: h.state; } }
+        Text { text: h.kind; color: Theme.ink-muted; width: 90px; vertical-alignment: center; }
+        Text { text: h.name; color: Theme.ink; font-weight: 500; width: 170px; vertical-alignment: center; }
+        Text { text: h.detail; color: Theme.ink-muted; overflow: elide; vertical-alignment: center; }
     }
 }
 
 export component SystemPanel inherits VerticalLayout {
-    padding: 12px;
-    spacing: 8px;
+    padding: Theme.space-6;
+    spacing: Theme.space-2;
     alignment: start;
-    Row { label: "kernel"; value: Sys.kernel; }
-    Row { label: "board"; value: Sys.board; }
-    Row { label: "uptime"; value: Sys.uptime; }
-    Row { label: "warnings"; value: Sys.warnings == "" ? "none" : Sys.warnings; tint: Sys.warnings == "" ? Theme.green : Theme.yellow; }
-    Row { label: "display"; value: Sys.mode-note; }
-    Row { label: "screen"; value: Sys.screen-size; }
+    Row { label: "Kernel"; value: Sys.kernel; }
+    Row { label: "Board"; value: Sys.board; }
+    Row { label: "Uptime"; value: Sys.uptime; }
+    Row { label: "Warnings"; value: Sys.warnings == "" ? "None" : Sys.warnings; tint: Sys.warnings == "" ? Theme.ink : Theme.warning; }
+    Row { label: "Display"; value: Sys.mode-note; }
+    Row { label: "Screen"; value: Sys.screen-size; }
 }

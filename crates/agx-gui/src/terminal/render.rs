@@ -24,13 +24,15 @@ pub(super) fn palette(index: usize) -> Rgb {
             let v = (8 + 10 * (index - 232)) as u32;
             v << 16 | v << 8 | v
         }
-        257 | 268 => 0x11141c,
-        258 => 0xb8f66c,
+        // Pebble Line dark ground and ink. The terminal stays dark in both desktop themes because
+        // the ANSI palette is tuned for it; ui/terminal.slint uses the same ground (Theme.terminal-ground).
+        257 | 268 => 0x141414,
+        258 => 0xececea,
         259..=266 => {
             let v = ANSI[index - 259];
             ((v & 0xfefefe) >> 1) as u32
         }
-        _ => 0xdce3f5,
+        _ => 0xececea,
     };
     Rgb {
         r: (n >> 16) as u8,
@@ -104,7 +106,8 @@ pub(super) fn rows(term: &Term<Proxy>) -> Vec<Vec<Run>> {
             .as_ref()
             .is_some_and(|selection| selection.contains(item.point))
         {
-            bg = slint::Color::from_rgb_u8(53, 75, 109);
+            // Pebble dark line-strong: a neutral selection that keeps ANSI text legible.
+            bg = slint::Color::from_rgb_u8(69, 69, 69);
         }
         let mut text = if cell.flags.contains(Flags::HIDDEN) {
             ' '

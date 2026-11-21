@@ -33,7 +33,7 @@ export global Services {
 component StatusDot inherits Rectangle {
     in property <string> state;
     width: 8px; height: 8px; border-radius: 4px;
-    background: root.state == "current" ? Theme.green : root.state == "update" ? #ff9e64 : Theme.yellow;
+    background: root.state == "current" ? Theme.success : root.state == "update" ? Theme.warning : Theme.line-bold;
 }
 
 component SoftwareRow inherits Rectangle {
@@ -42,13 +42,13 @@ component SoftwareRow inherits Rectangle {
     in property <length> status-width: root.compact ? 124px : 144px;
     height: root.compact ? 100px : 66px;
     background: transparent;
-    Rectangle { y: parent.height - 1px; height: 1px; background: Theme.muted.with-alpha(0.3); }
+    Rectangle { y: parent.height - 1px; height: 1px; background: Theme.line-strong.with-alpha(0.3); }
     StatusDot { x: 14px; y: (parent.height - self.height) / 2; state: root.item.update-state; }
     Text {
         x: 36px; y: 10px;
         width: max(0px, parent.width - 36px - 64px - root.status-width - (root.compact ? 0px : 384px));
         height: 20px;
-        text: root.item.name; color: Theme.fg-bright; font-size: 13px;
+        text: root.item.name; color: Theme.ink; font-size: Theme.text-body-sm;
         vertical-alignment: center; overflow: elide;
     }
     Text {
@@ -56,14 +56,14 @@ component SoftwareRow inherits Rectangle {
         width: max(0px, parent.width - 36px - 64px - root.status-width - (root.compact ? 0px : 384px));
         height: 16px; text: root.item.key == "desktop" ? "ANGI local build"
             : root.item.update-state == "update" && root.item.latest != "" ? root.item.installed + " → " + root.item.latest : root.item.installed;
-        color: Theme.fg-dim; font-size: 11px; overflow: elide;
+        color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide;
     }
     Text {
         x: root.compact ? 36px : parent.width - 64px - root.status-width - 384px;
         y: root.compact ? 53px : 0px;
         width: root.compact ? max(0px, parent.width - 36px - 64px - root.status-width) : 180px;
         height: root.compact ? 18px : parent.height;
-        text: root.item.updated-ago; color: Theme.fg-dim; font-size: 12px;
+        text: root.item.updated-ago; color: Theme.ink-muted; font-size: Theme.text-small;
         vertical-alignment: center; overflow: elide;
     }
     Text {
@@ -71,7 +71,7 @@ component SoftwareRow inherits Rectangle {
         y: root.compact ? 73px : 0px;
         width: root.compact ? max(0px, parent.width - 36px - 64px - root.status-width) : 188px;
         height: root.compact ? 18px : parent.height;
-        text: root.item.checked-ago; color: Theme.fg-dim; font-size: 12px;
+        text: root.item.checked-ago; color: Theme.ink-muted; font-size: Theme.text-small;
         vertical-alignment: center; overflow: elide;
     }
     Text {
@@ -79,14 +79,14 @@ component SoftwareRow inherits Rectangle {
         y: (root.item.update-state == "update" && root.item.action != "") || root.item.restart-pending ? 13px : 0px;
         height: (root.item.update-state == "update" && root.item.action != "") || root.item.restart-pending ? 20px : parent.height;
         text: root.item.update-label;
-        color: root.item.update-state == "current" ? Theme.green
-            : root.item.update-state == "update" ? #ff9e64 : Theme.fg;
-        font-size: 12px; vertical-alignment: center; overflow: elide;
+        color: root.item.update-state == "current" ? Theme.success
+            : root.item.update-state == "update" ? Theme.warning-ink : Theme.ink-muted;
+        font-size: Theme.text-small; vertical-alignment: center; overflow: elide;
     }
     if (root.item.update-state == "update" && root.item.action != "") || root.item.restart-pending: Text {
         x: parent.width - 64px - root.status-width; y: 36px; width: root.status-width; height: 18px;
-        text: root.item.restart-label; color: root.item.restart-kind == "computer" || root.item.restart-pending ? Theme.yellow : Theme.fg-dim;
-        font-size: 10px; vertical-alignment: center; overflow: elide;
+        text: root.item.restart-label; color: root.item.restart-kind == "computer" || root.item.restart-pending ? Theme.warning : Theme.ink-muted;
+        font-size: Theme.text-caption; vertical-alignment: center; overflow: elide;
     }
     UpdateButton {
         x: parent.width - 46px; y: (parent.height - self.height) / 2;
@@ -103,13 +103,13 @@ component SoftwareRow inherits Rectangle {
 export component ServicesPanel inherits Rectangle {
     private property <bool> compact: root.width < 900px;
     private property <length> status-width: root.compact ? 124px : 144px;
-    background: Theme.bg;
+    background: Theme.surface;
     VerticalLayout {
         padding: 16px; spacing: 0px;
         Rectangle {
             height: 76px;
-            Text { x: 0px; y: 0px; text: "Services & updates"; color: Theme.fg-bright; font-size: 18px; height: 28px; width: max(0px, parent.width - 192px); overflow: elide; vertical-alignment: center; }
-            Text { y: 36px; height: 20px; text: Services.notice; color: Theme.fg-dim; font-size: 12px; width: parent.width; overflow: elide; vertical-alignment: center; }
+            Text { x: 0px; y: 0px; text: "Services & updates"; color: Theme.ink; font-size: Theme.text-title; height: 28px; width: max(0px, parent.width - 192px); overflow: elide; vertical-alignment: center; }
+            Text { y: 36px; height: 20px; text: Services.notice; color: Theme.ink-muted; font-size: Theme.text-small; width: parent.width; overflow: elide; vertical-alignment: center; }
             UpdateButton {
                 x: parent.width - self.width; y: 0px; primary: true;
                 label: Services.busy ? "Checking…" : "Check for updates";
@@ -118,11 +118,11 @@ export component ServicesPanel inherits Rectangle {
             }
         }
         Rectangle {
-            height: 34px; width: list.visible-width; background: Theme.bg-dark;
-            Text { x: 36px; height: parent.height; text: "SOFTWARE"; color: Theme.fg-dim; font-size: 10px; vertical-alignment: center; }
-            if !root.compact: Text { x: parent.width - 64px - root.status-width - 384px; height: parent.height; text: "LAST UPDATED"; color: Theme.fg-dim; font-size: 10px; vertical-alignment: center; }
-            if !root.compact: Text { x: parent.width - 64px - root.status-width - 196px; height: parent.height; text: "LAST CHECKED"; color: Theme.fg-dim; font-size: 10px; vertical-alignment: center; }
-            Text { x: parent.width - 64px - root.status-width; height: parent.height; text: "STATUS"; color: Theme.fg-dim; font-size: 10px; vertical-alignment: center; }
+            height: 34px; width: list.visible-width; background: Theme.surface;
+            Text { x: 36px; height: parent.height; text: "SOFTWARE"; color: Theme.ink-muted; font-size: Theme.text-caption; vertical-alignment: center; }
+            if !root.compact: Text { x: parent.width - 64px - root.status-width - 384px; height: parent.height; text: "LAST UPDATED"; color: Theme.ink-muted; font-size: Theme.text-caption; vertical-alignment: center; }
+            if !root.compact: Text { x: parent.width - 64px - root.status-width - 196px; height: parent.height; text: "LAST CHECKED"; color: Theme.ink-muted; font-size: Theme.text-caption; vertical-alignment: center; }
+            Text { x: parent.width - 64px - root.status-width; height: parent.height; text: "STATUS"; color: Theme.ink-muted; font-size: Theme.text-caption; vertical-alignment: center; }
         }
         list := ScrollView {
             content-width: self.visible-width;
@@ -132,12 +132,12 @@ export component ServicesPanel inherits Rectangle {
             }
         }
         if Services.operation-state != "": Rectangle {
-            height: 52px; background: Theme.bg-light; border-radius: 4px;
+            height: 52px; background: Theme.surface-muted; border-radius: Theme.radius-md;
             Text { x: 12px; y: 0px; width: max(0px, parent.width - 190px); height: parent.height;
                 text: Services.operation-state == "running" ? Services.operation-component + " update in progress…"
                     : Services.operation-state == "succeeded" ? Services.operation-component + " installation verified" : Services.operation-component + " update failed";
-                color: Services.operation-state == "failed" ? Theme.red : Theme.fg-bright;
-                font-size: 12px; vertical-alignment: center; overflow: elide;
+                color: Services.operation-state == "failed" ? Theme.danger : Theme.ink;
+                font-size: Theme.text-small; vertical-alignment: center; overflow: elide;
             }
             UpdateButton { x: parent.width - self.width - 10px; y: 10px; width: 150px; show-icon: false;
                 label: "View progress"; clicked => { Services.progress-open = true; }
@@ -145,17 +145,17 @@ export component ServicesPanel inherits Rectangle {
         }
         Rectangle {
             height: 38px;
-            if root.compact: Text { y: 12px; height: 20px; text: "Available updates appear first"; color: Theme.fg-dim; font-size: 11px; }
+            if root.compact: Text { y: 12px; height: 20px; text: "Available updates appear first"; color: Theme.ink-muted; font-size: Theme.text-small; }
             if !root.compact: HorizontalLayout {
                 padding-top: 12px; spacing: 8px; alignment: start;
                 Rectangle { width: 8px; StatusDot { y: (parent.height - self.height) / 2; state: "current"; } }
-                Text { text: "Up to date"; color: Theme.fg-dim; font-size: 11px; vertical-alignment: center; }
+                Text { text: "Up to date"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
                 Rectangle { width: 14px; }
                 Rectangle { width: 8px; StatusDot { y: (parent.height - self.height) / 2; state: "update"; } }
-                Text { text: "Newer version"; color: Theme.fg-dim; font-size: 11px; vertical-alignment: center; }
+                Text { text: "Newer version"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
                 Rectangle { width: 14px; }
                 Rectangle { width: 8px; StatusDot { y: (parent.height - self.height) / 2; state: "unknown"; } }
-                Text { text: "Check needed"; color: Theme.fg-dim; font-size: 11px; vertical-alignment: center; }
+                Text { text: "Check needed"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
             }
         }
     }

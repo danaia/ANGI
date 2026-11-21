@@ -27,7 +27,7 @@ define AGX_AGENT_INSTALL_TARGET_CMDS
 	$(INSTALL) -m0644 $(AGX_AGENT_ASSETS)/*.py $(TARGET_DIR)/usr/libexec/agx-agent/
 	$(INSTALL) -d $(TARGET_DIR)/usr/share/agx/agent/work-editor
 	cp -R $(@D)/monaco/. $(TARGET_DIR)/usr/share/agx/agent/work-editor/
-	cp -R $(AGX_AGENT_ASSETS)/skills $(AGX_AGENT_ASSETS)/profiles $(TARGET_DIR)/usr/share/agx/agent/
+	cp -RL $(AGX_AGENT_ASSETS)/skills $(AGX_AGENT_ASSETS)/profiles $(TARGET_DIR)/usr/share/agx/agent/
 	$(INSTALL) -m0644 $(AGX_AGENT_ASSETS)/herdr.toml $(AGX_AGENT_ASSETS)/sdk-env.sh $(AGX_AGENT_ASSETS)/LICENSE.herdr $(AGX_AGENT_ASSETS)/apps.json $(TARGET_DIR)/usr/share/agx/agent/
 endef
 

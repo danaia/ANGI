@@ -1,7 +1,8 @@
 // Native file browser. One component draws both the Files window and the folder picker; each is a
 // numbered "pane" whose state Rust owns (src/files). Rows are virtualized by ListView.
 import { Theme } from "data.slint";
-import { Button, ListView, ScrollView } from "std-widgets.slint";
+import { ListView, ScrollView } from "std-widgets.slint";
+import { Button, ButtonVariant, Icons, Icon } from "pebble/pebble.slint";
 
 export struct FileRow { name: string, glyph: string, tone: int, size: string, modified: string, kind: string, selected: bool, cursor: bool, dir: bool, dim: bool }
 export struct Crumb { label: string, path: string }
@@ -36,10 +37,13 @@ export component Glyph inherits Text {
     in property <int> tone;
     // Nerd Font icons are wider than their one-character advance and Text clips to its own width,
     // so callers append trailing spaces and the icon stays left-aligned inside its slot.
+    // File-type glyphs come from src/files/entry.rs as Nerd Font characters, so pin the mono font.
+    // Pebble Line: folders in ink, everything else ink-muted; no per-type colour.
+    font-family: Theme.font-mono;
     font-size: 16px;
     horizontal-alignment: left;
     vertical-alignment: center;
-    color: tone == 0 ? Theme.accent : tone == 2 ? Theme.magenta : tone == 3 ? Theme.green : tone == 4 ? Theme.yellow : tone == 1 ? Theme.fg-bright : Theme.fg-dim;
+    color: tone == 0 ? Theme.ink : Theme.ink-muted;
 }
 
 // Single-line text field in the desktop theme. The stock LineEdit brings its own minimum height and
@@ -48,25 +52,25 @@ component Field inherits Rectangle {
     in-out property <string> text <=> input.text;
     in property <string> placeholder;
     in property <bool> framed: false;
-    in property <length> font-size: 13px;
+    in property <length> font-size: Theme.text-body-sm;
     out property <bool> has-focus: input.has-focus;
     callback edited(string);
     callback accepted();
     callback key-pressed(KeyEvent) -> EventResult;
     forward-focus: input;
     public function select-all() { input.select-all(); }
-    background: root.framed ? Theme.bg-dark : transparent;
-    border-radius: 5px;
-    border-width: root.framed ? 1px : 0px;
-    border-color: input.has-focus ? Theme.accent : Theme.muted;
+    background: root.framed ? Theme.surface : transparent;
+    border-radius: self.height / 2;
+    border-width: root.framed ? (input.has-focus ? Theme.stroke-rule : Theme.stroke-hair) : 0px;
+    border-color: input.has-focus ? Theme.ink : Theme.line;
     clip: true;
     if input.text == "": Text {
-        x: 8px; width: parent.width - 16px; height: parent.height; vertical-alignment: center; overflow: elide;
-        text: root.placeholder; font-size: root.font-size; color: Theme.fg-dim;
+        x: root.framed ? 14px : 8px; width: parent.width - 2 * self.x; height: parent.height; vertical-alignment: center; overflow: elide;
+        text: root.placeholder; font-size: root.font-size; color: Theme.ink-muted;
     }
     input := TextInput {
-        x: 8px; width: parent.width - 16px; height: parent.height; single-line: true; vertical-alignment: center;
-        font-size: root.font-size; color: Theme.fg-bright; selection-background-color: Theme.muted; selection-foreground-color: Theme.fg-bright;
+        x: root.framed ? 14px : 8px; width: parent.width - 2 * self.x; height: parent.height; single-line: true; vertical-alignment: center;
+        font-size: root.font-size; color: Theme.ink; selection-background-color: Theme.selection; selection-foreground-color: Theme.ink;
         edited => { root.edited(self.text); }
         accepted => { root.accepted(); }
         key-pressed(e) => { root.key-pressed(e) }
@@ -74,20 +78,20 @@ component Field inherits Rectangle {
 }
 
 component ToolButton inherits Rectangle {
-    in property <string> glyph;
+    in property <image> icon;
     in property <string> hint;
     in property <bool> enabled: true;
     in property <bool> active: false;
     callback clicked;
-    width: 30px; height: 28px; border-radius: 5px;
-    background: !enabled ? transparent : touch.pressed ? Theme.muted : (touch.has-hover || active) ? Theme.bg-light : transparent;
+    width: 30px; height: 30px; border-radius: 15px;
+    background: !enabled ? transparent : touch.pressed || active ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
     accessible-role: button;
     accessible-label: hint;
-    Text { x: (parent.width - 10px) / 2; width: parent.width - self.x; text: glyph + "  "; font-size: 17px; color: !root.enabled ? Theme.fg-dim : root.active ? Theme.accent : Theme.fg-bright; horizontal-alignment: left; vertical-alignment: center; }
+    Icon { x: 7px; y: 7px; width: 16px; height: 16px; source: root.icon; color: !root.enabled ? Theme.ink-subtle : root.active || touch.has-hover ? Theme.ink : Theme.ink-muted; }
     touch := TouchArea { enabled: root.enabled; mouse-cursor: MouseCursor.pointer; clicked => { root.clicked(); } }
 }
 
-component Sep inherits Rectangle { width: 1px; height: 18px; background: Theme.muted; }
+component Sep inherits Rectangle { width: 1px; height: 18px; background: Theme.line; }
 
 component Header inherits Rectangle {
     in property <string> label;
@@ -95,11 +99,12 @@ component Header inherits Rectangle {
     in property <bool> ascending;
     in property <TextHorizontalAlignment> align: left;
     callback clicked;
-    background: touch.has-hover ? Theme.bg-light : transparent;
+    background: touch.has-hover ? Theme.surface-hover : transparent;
+    border-radius: Theme.radius-xs;
     Text {
-        x: 4px; width: parent.width - 8px; vertical-alignment: center; overflow: elide; font-size: 12px; font-weight: 700;
-        text: root.label + (root.current ? (root.ascending ? " ▲" : " ▼") : "");
-        color: root.current ? Theme.accent : Theme.fg;
+        x: 4px; width: parent.width - 8px; vertical-alignment: center; overflow: elide; font-size: Theme.text-small; font-weight: 500;
+        text: root.label + (root.current ? (root.ascending ? " ↑" : " ↓") : "");
+        color: root.current ? Theme.ink : Theme.ink-muted;
         horizontal-alignment: root.align;
     }
     touch := TouchArea { mouse-cursor: MouseCursor.pointer; clicked => { root.clicked(); } }
@@ -123,7 +128,7 @@ export component FileBrowser inherits Rectangle {
     property <length> menu-y;
     property <bool> menu-row: false;
     public function focus-list() { keys.focus(); }
-    background: Theme.bg-dark;
+    background: Theme.background;
     clip: true;
     forward-focus: keys;
 
@@ -150,30 +155,30 @@ export component FileBrowser inherits Rectangle {
     VerticalLayout {
         // Toolbar: history, location, view and search.
         Rectangle {
-            height: 38px; background: Theme.bg;
+            height: 38px; background: Theme.surface;
             HorizontalLayout {
                 padding-left: 8px; padding-right: 8px; padding-top: 5px; padding-bottom: 5px; spacing: 2px;
-                ToolButton { glyph: "󰁍"; hint: "Back"; enabled: root.s.can-back; clicked => { root.run("back"); } }
-                ToolButton { glyph: "󰁔"; hint: "Forward"; enabled: root.s.can-forward; clicked => { root.run("forward"); } }
-                ToolButton { glyph: "󰁝"; hint: "Up one folder"; enabled: root.s.can-up; clicked => { root.run("up"); } }
-                ToolButton { glyph: "󰑐"; hint: "Refresh"; clicked => { root.run("refresh"); } }
+                ToolButton { icon: Icons.chevron-left; hint: "Back"; enabled: root.s.can-back; clicked => { root.run("back"); } }
+                ToolButton { icon: Icons.chevron-right; hint: "Forward"; enabled: root.s.can-forward; clicked => { root.run("forward"); } }
+                ToolButton { icon: Icons.arrow-up; hint: "Up one folder"; enabled: root.s.can-up; clicked => { root.run("up"); } }
+                ToolButton { icon: Icons.refresh; hint: "Refresh"; clicked => { root.run("refresh"); } }
                 // Location: breadcrumbs, or a path entry after clicking the empty part or pressing Ctrl+L.
                 Rectangle {
-                    horizontal-stretch: 1; background: Theme.bg-dark; border-radius: 5px; border-width: 1px;
-                    border-color: root.editing-path ? Theme.accent : Theme.muted; clip: true;
+                    horizontal-stretch: 1; background: Theme.surface; border-radius: self.height / 2; border-width: root.editing-path ? Theme.stroke-rule : Theme.stroke-hair;
+                    border-color: root.editing-path ? Theme.ink : Theme.line; clip: true;
                     HorizontalLayout {
                         visible: !root.editing-path;
                         padding-left: 6px; spacing: 0px;
                         for crumb[i] in root.s.crumbs: Rectangle {
                             width: label.preferred-width + (i == 0 ? 14px : 22px);
-                            background: crumb-touch.has-hover ? Theme.bg-light : transparent;
+                            background: crumb-touch.has-hover ? Theme.surface-muted : transparent;
                             label := Text {
                                 x: i == 0 ? 7px : 8px;
-                                text: crumb.label; vertical-alignment: center; font-size: 13px;
-                                color: i == root.s.crumbs.length - 1 ? Theme.fg-bright : Theme.fg;
+                                text: crumb.label; vertical-alignment: center; font-size: Theme.text-body-sm;
+                                color: i == root.s.crumbs.length - 1 ? Theme.ink : Theme.ink;
                                 font-weight: i == root.s.crumbs.length - 1 ? 700 : 400;
                             }
-                            if i > 0: Text { x: 0px; width: 8px; text: "›"; color: Theme.fg-dim; vertical-alignment: center; font-size: 13px; }
+                            if i > 0: Text { x: 0px; width: 8px; text: "›"; color: Theme.ink-muted; vertical-alignment: center; font-size: Theme.text-body-sm; }
                             crumb-touch := TouchArea { mouse-cursor: MouseCursor.pointer; clicked => { Files.command(root.pane, "navigate", crumb.path); keys.focus(); } }
                         }
                         Rectangle {
@@ -183,7 +188,7 @@ export component FileBrowser inherits Rectangle {
                     }
                     path-edit := Field {
                         visible: root.editing-path;
-                        font-size: 12px;
+                        font-size: Theme.text-small;
                         accepted => { root.editing-path = false; Files.command(root.pane, "navigate", self.text); keys.focus(); }
                         key-pressed(e) => {
                             if (e.text == Key.Escape) { root.editing-path = false; keys.focus(); return accept; }
@@ -193,13 +198,13 @@ export component FileBrowser inherits Rectangle {
                 }
                 Rectangle { width: 4px; }
                 filter-box := Rectangle {
-                    width: root.wide ? 210px : 160px; background: Theme.bg-dark; border-radius: 5px; border-width: 1px;
-                    border-color: filter.has-focus ? Theme.accent : Theme.muted;
+                    width: root.wide ? 210px : 160px; background: Theme.surface; border-radius: self.height / 2; border-width: filter.has-focus ? Theme.stroke-rule : Theme.stroke-hair;
+                    border-color: filter.has-focus ? Theme.ink : Theme.line;
                     HorizontalLayout {
-                        padding-left: 8px; spacing: 4px;
-                        Text { text: (root.s.searching != "" ? "󰍉" : "󰈲") + " "; color: root.s.searching != "" ? Theme.accent : Theme.fg-dim; vertical-alignment: center; font-size: 13px; }
+                        padding-left: 12px; spacing: 4px;
+                        VerticalLayout { alignment: center; Icon { source: root.s.searching != "" ? Icons.search : Icons.filter; width: 14px; height: 14px; color: root.s.searching != "" ? Theme.ink : Theme.ink-muted; } }
                         filter := Field {
-                            font-size: 12px;
+                            font-size: Theme.text-small;
                             placeholder: "Filter or search…";
                             horizontal-stretch: 1;
                             edited(text) => { Files.command(root.pane, "filter", text); }
@@ -216,46 +221,46 @@ export component FileBrowser inherits Rectangle {
                         }
                     }
                 }
-                ToolButton { glyph: root.s.show-hidden ? "\u{f06d0}" : "\u{f06d1}"; hint: "Show hidden files"; active: root.s.show-hidden; clicked => { root.run("hidden"); } }
+                ToolButton { icon: root.s.show-hidden ? Icons.eye : Icons.eye-off; hint: "Show hidden files"; active: root.s.show-hidden; clicked => { root.run("hidden"); } }
             }
         }
         // Action bar.
         Rectangle {
-            height: 34px; background: Theme.bg; border-width: 0px;
-            Rectangle { y: 0px; height: 1px; background: Theme.bg-light; }
+            height: 34px; background: Theme.surface; border-width: 0px;
+            Rectangle { y: 0px; height: 1px; background: Theme.surface-muted; }
             HorizontalLayout {
                 padding-left: 8px; padding-right: 8px; padding-top: 3px; padding-bottom: 3px; spacing: 2px;
-                ToolButton { glyph: "\u{f0257}"; hint: "New folder (Ctrl+Shift+N)"; enabled: root.s.searching == ""; clicked => { root.run("new-folder"); } }
-                if !root.picker: ToolButton { glyph: "\u{f0224}"; hint: "New file"; enabled: root.s.searching == ""; clicked => { root.run("new-file"); } }
+                ToolButton { icon: Icons.folder-plus; hint: "New folder (Ctrl+Shift+N)"; enabled: root.s.searching == ""; clicked => { root.run("new-folder"); } }
+                if !root.picker: ToolButton { icon: Icons.file-plus; hint: "New file"; enabled: root.s.searching == ""; clicked => { root.run("new-file"); } }
                 Sep { }
-                if !root.picker: ToolButton { glyph: "󰆐"; hint: "Cut (Ctrl+X)"; enabled: root.s.selected > 0; clicked => { root.run("cut"); } }
-                if !root.picker: ToolButton { glyph: "󰆏"; hint: "Copy (Ctrl+C)"; enabled: root.s.selected > 0; clicked => { root.run("copy"); } }
-                if !root.picker: ToolButton { glyph: "󰆒"; hint: "Paste (Ctrl+V)"; enabled: root.s.can-paste; clicked => { root.run("paste"); } }
+                if !root.picker: ToolButton { icon: Icons.cut; hint: "Cut (Ctrl+X)"; enabled: root.s.selected > 0; clicked => { root.run("cut"); } }
+                if !root.picker: ToolButton { icon: Icons.copy; hint: "Copy (Ctrl+C)"; enabled: root.s.selected > 0; clicked => { root.run("copy"); } }
+                if !root.picker: ToolButton { icon: Icons.paste; hint: "Paste (Ctrl+V)"; enabled: root.s.can-paste; clicked => { root.run("paste"); } }
                 if !root.picker: Sep { }
-                ToolButton { glyph: "󰏫"; hint: "Rename (F2)"; enabled: root.s.selected == 1; clicked => { root.run("rename"); } }
-                ToolButton { glyph: "󰩺"; hint: "Move to Trash (Delete)"; enabled: root.s.selected > 0; clicked => { root.run("trash"); } }
+                ToolButton { icon: Icons.edit; hint: "Rename (F2)"; enabled: root.s.selected == 1; clicked => { root.run("rename"); } }
+                ToolButton { icon: Icons.trash; hint: "Move to Trash (Delete)"; enabled: root.s.selected > 0; clicked => { root.run("trash"); } }
                 Sep { }
-                ToolButton { glyph: "󰕌"; hint: "Undo (Ctrl+Z)"; enabled: root.s.can-undo; clicked => { root.run("undo"); } }
-                ToolButton { glyph: "󰑎"; hint: "Redo (Ctrl+Shift+Z)"; enabled: root.s.can-redo; clicked => { root.run("redo"); } }
+                ToolButton { icon: Icons.undo; hint: "Undo (Ctrl+Z)"; enabled: root.s.can-undo; clicked => { root.run("undo"); } }
+                ToolButton { icon: Icons.redo; hint: "Redo (Ctrl+Shift+Z)"; enabled: root.s.can-redo; clicked => { root.run("redo"); } }
                 if !root.picker: Sep { }
-                if !root.picker: ToolButton { glyph: "󰆍"; hint: "Open a terminal here"; clicked => { root.run("terminal"); } }
+                if !root.picker: ToolButton { icon: Icons.terminal; hint: "Open a terminal here"; clicked => { root.run("terminal"); } }
                 Rectangle { horizontal-stretch: 1; }
-                Text { text: root.s.busy != "" ? root.s.busy : root.s.loading ? "Loading…" : ""; color: Theme.yellow; font-size: 12px; vertical-alignment: center; overflow: elide; max-width: root.width * 0.4; }
+                Text { text: root.s.busy != "" ? root.s.busy : root.s.loading ? "Loading…" : ""; color: Theme.warning; font-size: Theme.text-small; vertical-alignment: center; overflow: elide; max-width: root.width * 0.4; }
             }
         }
         // Rename / create / delete prompt.
         Rectangle {
-            height: root.s.prompt-kind != 0 ? 42px : 0px; visible: root.s.prompt-kind != 0; background: root.s.prompt-kind == 4 ? #3a1f2a : Theme.bg-light;
+            height: root.s.prompt-kind != 0 ? 42px : 0px; visible: root.s.prompt-kind != 0; background: root.s.prompt-kind == 4 ? Theme.danger-soft : Theme.surface-muted;
             HorizontalLayout {
                 padding-left: 10px; padding-right: 8px; padding-top: 6px; padding-bottom: 6px; spacing: 8px;
                 Text {
-                    text: root.s.prompt-title; vertical-alignment: center; font-size: 12px; font-weight: 700;
-                    color: root.s.prompt-kind == 4 ? Theme.red : Theme.accent;
+                    text: root.s.prompt-title; vertical-alignment: center; font-size: Theme.text-small; font-weight: 600;
+                    color: root.s.prompt-kind == 4 ? Theme.danger : Theme.accent;
                     horizontal-stretch: root.s.prompt-kind == 4 ? 1 : 0; overflow: elide;
                 }
                 prompt-edit := Field {
                     visible: root.s.prompt-kind != 4; max-width: root.s.prompt-kind == 4 ? 0px : 100000px;
-                    horizontal-stretch: 1; font-size: 13px; framed: true;
+                    horizontal-stretch: 1; font-size: Theme.text-body-sm; framed: true;
                     accepted => { Files.command(root.pane, "prompt-accept", self.text); }
                     key-pressed(e) => {
                         if (e.text == Key.Escape) { Files.command(root.pane, "prompt-cancel", ""); return accept; }
@@ -263,14 +268,14 @@ export component FileBrowser inherits Rectangle {
                     }
                 }
                 Button { text: "Cancel"; clicked => { Files.command(root.pane, "prompt-cancel", ""); } }
-                Button { text: root.s.prompt-kind == 4 ? "Delete" : "OK"; primary: true; clicked => { Files.command(root.pane, "prompt-accept", root.s.prompt-kind == 4 ? "" : prompt-edit.text); } }
+                Button { text: root.s.prompt-kind == 4 ? "Delete" : "OK"; variant: ButtonVariant.primary; clicked => { Files.command(root.pane, "prompt-accept", root.s.prompt-kind == 4 ? "" : prompt-edit.text); } }
             }
         }
         HorizontalLayout {
             vertical-stretch: 1;
             // Sidebar.
             if root.show-sidebar: Rectangle {
-                width: root.sidebar-w; background: Theme.bg;
+                width: root.sidebar-w; background: Theme.surface;
                 ScrollView {
                     VerticalLayout {
                         padding: 6px; spacing: 1px; alignment: start;
@@ -280,15 +285,15 @@ export component FileBrowser inherits Rectangle {
                                 alignment: end;
                                 if place.section != (i > 0 ? root.s.places[i - 1].section : place.section): Rectangle {
                                     height: 12px;
-                                    Rectangle { y: 5px; height: 1px; background: Theme.bg-light; }
+                                    Rectangle { y: 5px; height: 1px; background: Theme.surface-muted; }
                                 }
                                 Rectangle {
-                                    height: 28px; border-radius: 5px;
-                                    background: place.active ? #7aa2f733 : place-touch.has-hover ? Theme.bg-light : transparent;
+                                    height: 28px; border-radius: Theme.radius-xs;
+                                    background: place.active ? Theme.surface-muted : place-touch.has-hover ? Theme.surface-hover : transparent;
                                     HorizontalLayout {
                                         padding-left: 8px; spacing: 8px;
-                                        Text { text: place.glyph + "  "; width: 18px; font-size: 14px; color: place.active ? Theme.accent : Theme.fg; vertical-alignment: center; horizontal-alignment: left; }
-                                        Text { text: place.label; font-size: 13px; color: place.active ? Theme.fg-bright : Theme.fg; font-weight: place.active ? 700 : 400; vertical-alignment: center; overflow: elide; }
+                                        Text { text: place.glyph + "  "; width: 18px; font-size: 14px; font-family: Theme.font-mono; color: place.active ? Theme.ink : Theme.ink-muted; vertical-alignment: center; horizontal-alignment: left; }
+                                        Text { text: place.label; font-size: Theme.text-body-sm; color: place.active ? Theme.ink : Theme.ink; font-weight: place.active ? 500 : 400; vertical-alignment: center; overflow: elide; }
                                     }
                                     place-touch := TouchArea { mouse-cursor: MouseCursor.pointer; clicked => { Files.command(root.pane, "navigate", place.path); keys.focus(); } }
                                 }
@@ -301,7 +306,7 @@ export component FileBrowser inherits Rectangle {
             VerticalLayout {
                 horizontal-stretch: 1;
                 Rectangle {
-                    height: 24px; background: Theme.bg;
+                    height: 24px; background: Theme.surface;
                     HorizontalLayout {
                         padding-left: 36px; padding-right: 14px;
                         Header { label: "Name"; current: root.s.sort-key == 0; ascending: root.s.sort-ascending; horizontal-stretch: 1; clicked => { Files.command(root.pane, "sort", "name"); } }
@@ -333,15 +338,15 @@ export component FileBrowser inherits Rectangle {
                             width: parent.width; height: parent.height;
                             for row[i] in root.s.rows: Rectangle {
                                 height: root.row-h;
-                                background: row.selected ? #7aa2f740 : row-touch.has-hover ? #24283b99 : transparent;
-                                if row.cursor && keys.has-focus: Rectangle { border-width: 1px; border-color: Theme.accent; }
+                                background: row.selected ? Theme.surface-muted : row-touch.has-hover ? Theme.surface-hover : transparent;
+                                if row.cursor && keys.has-focus: Rectangle { border-radius: Theme.radius-xs; border-width: Theme.stroke-focus; border-color: Theme.focus; }
                                 HorizontalLayout {
                                     padding-left: 8px; padding-right: 14px; spacing: 8px;
                                     Glyph { text: row.glyph + "  "; tone: row.tone; width: 20px; opacity: row.dim ? 0.5 : 1; }
-                                    Text { text: row.name; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; font-size: 14px; color: row.selected ? Theme.fg-bright : row.dim ? Theme.fg-dim : Theme.fg; font-weight: row.dir ? 600 : 400; }
-                                    if !root.picker: Text { text: row.size; width: 90px; horizontal-alignment: right; vertical-alignment: center; font-size: 13px; color: Theme.fg; }
-                                    Text { text: row.modified; width: 160px; vertical-alignment: center; font-size: 13px; color: Theme.fg; horizontal-alignment: right; }
-                                    if root.wide && !root.picker: Text { text: row.kind; width: 110px; vertical-alignment: center; font-size: 13px; color: Theme.fg; horizontal-alignment: right; overflow: elide; }
+                                    Text { text: row.name; horizontal-stretch: 1; vertical-alignment: center; overflow: elide; font-size: 14px; color: row.selected ? Theme.ink : row.dim ? Theme.ink-muted : Theme.ink; font-weight: row.dir ? 600 : 400; }
+                                    if !root.picker: Text { text: row.size; width: 90px; horizontal-alignment: right; vertical-alignment: center; font-size: Theme.text-body-sm; color: Theme.ink; }
+                                    Text { text: row.modified; width: 160px; vertical-alignment: center; font-size: Theme.text-body-sm; color: Theme.ink; horizontal-alignment: right; }
+                                    if root.wide && !root.picker: Text { text: row.kind; width: 110px; vertical-alignment: center; font-size: Theme.text-body-sm; color: Theme.ink; horizontal-alignment: right; overflow: elide; }
                                 }
                                 row-touch := TouchArea {
                                     mouse-cursor: MouseCursor.pointer;
@@ -368,9 +373,9 @@ export component FileBrowser inherits Rectangle {
                         }
                         // Empty folder, loading or error message.
                         if root.s.rows.length == 0: Text {
-                            width: parent.width - 40px; x: 20px; y: 36px; horizontal-alignment: center; wrap: word-wrap; font-size: 13px;
+                            width: parent.width - 40px; x: 20px; y: 36px; horizontal-alignment: center; wrap: word-wrap; font-size: Theme.text-body-sm;
                             text: root.s.error != "" ? root.s.error : root.s.empty-text;
-                            color: root.s.error != "" ? Theme.red : Theme.fg-dim;
+                            color: root.s.error != "" ? Theme.danger : Theme.ink-muted;
                         }
                         // Clicks in the blank area clear the selection; right-click opens the folder menu.
                         TouchArea {
@@ -395,12 +400,12 @@ export component FileBrowser inherits Rectangle {
         }
         // Status bar.
         Rectangle {
-            height: 26px; background: Theme.bg;
-            Rectangle { y: 0px; height: 1px; background: Theme.bg-light; }
+            height: 26px; background: Theme.surface;
+            Rectangle { y: 0px; height: 1px; background: Theme.surface-muted; }
             Text {
-                x: 10px; width: parent.width - 20px; vertical-alignment: center; overflow: elide; font-size: 12px;
+                x: 10px; width: parent.width - 20px; vertical-alignment: center; overflow: elide; font-size: Theme.text-small;
                 text: root.s.status != "" ? root.s.status : root.s.summary;
-                color: root.s.status != "" ? Theme.yellow : Theme.fg;
+                color: root.s.status != "" ? Theme.warning : Theme.ink;
             }
         }
     }
@@ -429,16 +434,16 @@ export component FileBrowser inherits Rectangle {
         x: max(4px, min(root.menu-x, root.width - self.width - 4px));
         y: max(4px, min(root.menu-y, root.height - self.height - 4px));
         width: 210px; height: menu-layout.preferred-height;
-        background: Theme.bg; border-width: 1px; border-color: Theme.muted; border-radius: 6px;
+        background: Theme.surface; border-width: Theme.stroke-hair; border-color: Theme.line-strong; border-radius: Theme.radius-md;
         TouchArea { }
         menu-layout := VerticalLayout {
             padding: 6px; spacing: 0px;
             for item in items: Rectangle {
                 height: item.label == "" ? 0px : 28px; visible: item.label != "";
-                border-radius: 4px;
-                background: item-touch.has-hover && item.enabled ? Theme.bg-light : transparent;
-                if item.rule: Rectangle { y: 0px; height: 1px; background: Theme.bg-light; }
-                Text { x: 10px; text: item.label; font-size: 13px; vertical-alignment: center; color: item.enabled ? (item.command == "delete" ? Theme.red : Theme.fg-bright) : Theme.muted; }
+                border-radius: Theme.radius-xs;
+                background: item-touch.has-hover && item.enabled ? Theme.surface-muted : transparent;
+                if item.rule: Rectangle { y: 0px; height: 1px; background: Theme.surface-muted; }
+                Text { x: 10px; text: item.label; font-size: Theme.text-body-sm; vertical-alignment: center; color: item.enabled ? (item.command == "delete" ? Theme.danger : Theme.ink) : Theme.line-strong; }
                 item-touch := TouchArea {
                     enabled: item.enabled; mouse-cursor: MouseCursor.pointer;
                     clicked => {

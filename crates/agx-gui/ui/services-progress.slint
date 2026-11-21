@@ -1,7 +1,8 @@
 import { Theme } from "data.slint";
 import { Services } from "services.slint";
 import { UpdateButton } from "service-controls.slint";
-import { ProgressIndicator, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Progress } from "pebble/pebble.slint";
 
 export component ServiceUpdateProgress inherits FocusScope {
     callback dismissed();
@@ -16,22 +17,22 @@ export component ServiceUpdateProgress inherits FocusScope {
     }
     key-released(e) => { accept }
     Rectangle {
-        background: #000000aa;
+        background: Theme.scrim;
         TouchArea { moved => { root.pointer-moved(self.mouse-x, self.mouse-y); } scroll-event(e) => { accept } }
         Rectangle {
             x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
             width: min(650px, parent.width - 32px); height: min(460px, parent.height - 32px);
-            background: Theme.bg; border-width: 1px; border-radius: 8px;
-            border-color: Services.operation-state == "failed" ? Theme.red : Theme.accent;
+            background: Theme.surface; border-width: 1px; border-radius: Theme.radius-xl;
+            border-color: Theme.line-strong;
             VerticalLayout {
-                padding: 24px; spacing: 16px;
+                padding: Theme.space-8; spacing: Theme.space-4;
                 Text {
                     text: Services.operation-state == "succeeded" ? Services.operation-component + " installation verified"
                         : Services.operation-state == "failed" ? Services.operation-component + " update failed" : "Installing " + Services.operation-component;
-                    color: Theme.fg-bright; font-size: 20px; font-weight: 700; wrap: word-wrap;
+                    color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; wrap: word-wrap;
                 }
-                Text { text: Services.operation-message; color: Services.operation-state == "failed" ? Theme.red : Theme.fg; font-size: 13px; wrap: word-wrap; }
-                if Services.operation-state != "failed": ProgressIndicator {
+                Text { text: Services.operation-message; color: Services.operation-state == "failed" ? Theme.danger : Theme.ink; font-size: Theme.text-body-sm; wrap: word-wrap; }
+                if Services.operation-state != "failed": Progress {
                     height: 6px;
                     progress: Services.operation-total > 0 ? 1.0 * Services.operation-step / Services.operation-total : 0;
                     indeterminate: Services.operation-state == "running" && Services.operation-indeterminate;
@@ -39,17 +40,17 @@ export component ServiceUpdateProgress inherits FocusScope {
                 Text {
                     text: Services.operation-state == "running" ? "Stage " + (Services.operation-step + 1) + " of " + Services.operation-total + " · Live installer output"
                         : Services.operation-state == "succeeded" ? "Download checked against its published checksum and installed" : "No successful installation was confirmed.";
-                    color: Theme.fg-dim; font-size: 12px; wrap: word-wrap;
+                    color: Theme.ink-muted; font-size: Theme.text-small; wrap: word-wrap;
                 }
                 ScrollView {
                     content-width: self.visible-width;
                     content-y: min(0px, self.visible-height - self.content-height);
-                    Text { text: Services.operation-log; color: Theme.fg; font-size: 11px; wrap: word-wrap; }
+                    Text { text: Services.operation-log; color: Theme.ink; font-size: Theme.text-small; wrap: word-wrap; }
                 }
                 Text {
                     text: Services.operation-state == "running" ? "You can hide this window. The update will continue."
                         : Services.operation-state == "succeeded" ? (Services.operation-activation-pending ? "Desktop restart required to load this update. Use Settings when ready; nothing restarts automatically." : Services.operation-component == "ANGI desktop" ? "The verified desktop release is selected." : "The new version is used the next time the program starts.") : "Review the error before retrying.";
-                    color: Theme.fg-dim; font-size: 12px; wrap: word-wrap;
+                    color: Theme.ink-muted; font-size: Theme.text-small; wrap: word-wrap;
                 }
                 HorizontalLayout {
                     alignment: end;

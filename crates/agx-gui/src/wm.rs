@@ -9,14 +9,18 @@ mod startup;
 mod tiling;
 mod windowed;
 
-pub const GAP_OUT: f32 = 10.0;
-pub const GAP_IN: f32 = 5.0;
+// Pebble Line desktop metrics; ui/pebble/tokens.slint mirrors them (gap-out, header, frame-inset,
+// header-button, header-inset). Change both together.
+pub const GAP_OUT: f32 = 16.0;
+pub const GAP_IN: f32 = 8.0;
 /// Title bar height inside a window frame; the Slint frame uses the same value.
-pub const HEADER: f32 = 28.0;
+pub const HEADER: f32 = 44.0;
 pub const COLLAPSED_HEIGHT: f32 = HEADER + BORDER;
 pub const BORDER: f32 = 2.0;
 /// Width of each title bar button (float, fullscreen, close), from the right.
-pub const BTN_W: f32 = 26.0;
+pub const BTN_W: f32 = 32.0;
+/// Space between the frame's right edge and the close button, clear of the rounded corner.
+pub const BTN_INSET: f32 = 10.0;
 pub const MIN_W: f32 = 220.0;
 pub const MIN_H: f32 = 120.0;
 pub const WORKSPACES: usize = 5;

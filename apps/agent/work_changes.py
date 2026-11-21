@@ -1,6 +1,5 @@
 """Before/after evidence and working-copy edits for an ANGI work record."""
 from contextlib import contextmanager
-import gzip
 import hashlib
 import json
 import os
@@ -12,6 +11,11 @@ import tempfile
 
 from chat_files import DIRECTORY, directory
 from scope import OS_SOURCE, validate_project
+
+try:
+    import gzip
+except ImportError:  # Python built without zlib: keep records as plain JSON.
+    gzip = None
 
 FILE_LIMIT = 512 * 1024
 SCAN_LIMIT = 48 * 1024 * 1024
@@ -105,8 +109,12 @@ def write_record(path, data):
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as stream:
         staged = Path(stream.name)
         try:
-            with gzip.GzipFile(fileobj=stream, mode="wb", compresslevel=3) as compressed:
-                compressed.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+            encoded = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            if gzip is None:
+                stream.write(encoded)
+            else:
+                with gzip.GzipFile(fileobj=stream, mode="wb", compresslevel=3) as compressed:
+                    compressed.write(encoded)
             stream.flush()
             os.fsync(stream.fileno())
             staged.replace(path)
@@ -115,8 +123,12 @@ def write_record(path, data):
 
 
 def read_record(path):
-    with gzip.open(path, "rt", encoding="utf-8") as stream:
-        return json.load(stream)
+    data = path.read_bytes()
+    if data[:2] == b"\x1f\x8b":
+        if gzip is None:
+            raise FileNotFoundError(f"{path} is compressed but zlib is unavailable")
+        data = gzip.decompress(data)
+    return json.loads(data.decode("utf-8"))
 
 
 def begin(run, root):

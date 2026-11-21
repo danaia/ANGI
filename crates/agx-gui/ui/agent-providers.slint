@@ -1,5 +1,6 @@
 import { Theme } from "data.slint";
-import { LineEdit, ComboBox, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { TextField, Select } from "pebble/pebble.slint";
 import { AgentButton, AgentText } from "agent-controls.slint";
 export struct CardModels { orchestrator: string, builder: string, tester: string, os: string }
 export global AgentProviders {
@@ -53,9 +54,9 @@ component RoleModel inherits VerticalLayout {
     in property <string> selected;
     in property <int> index;
     spacing: 6px;
-    AgentText { text: (root.label != "" ? root.label : root.role).to-uppercase(); color: Theme.fg; font-size: 11px; }
-    AgentText { text: root.selected == "" ? "OpenCode default" : root.selected; color: Theme.accent; font-size: 11px; wrap: word-wrap; }
-    ComboBox {
+    AgentText { text: (root.label != "" ? root.label : root.role).to-uppercase(); color: Theme.ink; font-size: Theme.text-small; }
+    AgentText { text: root.selected == "" ? "OpenCode default" : root.selected; color: Theme.accent; font-size: Theme.text-small; wrap: word-wrap; }
+    Select {
         model: AgentProviders.models;
         current-index: root.index;
         enabled: !AgentProviders.busy && AgentProviders.models.length > 0;
@@ -70,15 +71,15 @@ export component ProviderPanel inherits FocusScope {
         reject
     }
     Rectangle {
-        background: Theme.bg;
+        background: Theme.surface;
         clip: true;
         TouchArea { }
-        Rectangle { x: 0px; width: 1px; height: parent.height; background: Theme.muted; }
+        Rectangle { x: 0px; width: 1px; height: parent.height; background: Theme.line-strong; }
         VerticalLayout {
             padding: 18px; spacing: 14px;
             HorizontalLayout {
                 spacing: 10px;
-                AgentText { text: "AI providers"; font-size: 19px; font-weight: 700; vertical-alignment: center; }
+                AgentText { text: "AI providers"; font-size: Theme.text-title; font-weight: 600; vertical-alignment: center; }
                 Rectangle { horizontal-stretch: 1; }
                 close-button := AgentButton {
                     width: 36px; icon-only: true; symbol: "×"; label: "Close AI providers";
@@ -104,26 +105,26 @@ export component ProviderPanel inherits FocusScope {
                             activated => { AgentProviders.show(AgentProviders.ids[index]); }
                         }
                     }
-                    Rectangle { height: 1px; background: Theme.muted; }
-                    AgentText { text: AgentProviders.status; color: Theme.fg; font-size: 13px; wrap: word-wrap; }
+                    Rectangle { height: 1px; background: Theme.line-strong; }
+                    AgentText { text: AgentProviders.status; color: Theme.ink; font-size: Theme.text-body-sm; wrap: word-wrap; }
                     if AgentProviders.provider == "apple": VerticalLayout {
                         alignment: start; spacing: 12px;
                         AgentButton { minimum: 36px; vertical-stretch: 0; label: "Open Local LLM Server in the App Store"; activated => { AgentProviders.open-link("https://apps.apple.com/us/app/local-llm-server/id6757007308"); } }
-                        AgentText { text: "Use the network address shown by the app, not localhost. Apple Intelligence must be enabled and its model downloaded on the Apple device."; color: Theme.fg; font-size: 12px; wrap: word-wrap; }
-                        endpoint := LineEdit { height: 36px; vertical-stretch: 0; placeholder-text: "http://your-device-address:port/v1"; text <=> AgentProviders.apple-address; }
+                        AgentText { text: "Use the network address shown by the app, not localhost. Apple Intelligence must be enabled and its model downloaded on the Apple device."; color: Theme.ink; font-size: Theme.text-small; wrap: word-wrap; }
+                        endpoint := TextField { height: 36px; vertical-stretch: 0; placeholder-text: "http://your-device-address:port/v1"; text <=> AgentProviders.apple-address; }
                         AgentButton { minimum: 36px; vertical-stretch: 0; label: "Test and connect"; enabled: !AgentProviders.busy && endpoint.text != ""; activated => { AgentProviders.action(2, endpoint.text); } }
                     }
                     if AgentProviders.provider == "openai" && !AgentProviders.connected: VerticalLayout {
                         alignment: start; spacing: 12px;
-                        AgentText { text: "Sign in in the browser window. Once this panel says Connected, you can close the browser. Closing the browser alone does not complete authentication."; color: Theme.fg; font-size: 12px; wrap: word-wrap; }
+                        AgentText { text: "Sign in in the browser window. Once this panel says Connected, you can close the browser. Closing the browser alone does not complete authentication."; color: Theme.ink; font-size: Theme.text-small; wrap: word-wrap; }
                         AgentButton { minimum: 36px; vertical-stretch: 0; label: "Sign in with ChatGPT"; enabled: !AgentProviders.busy; activated => { AgentProviders.action(1, ""); } }
                     }
                     if AgentProviders.provider == "lmstudio": VerticalLayout {
                         alignment: start; spacing: 12px;
-                        AgentText { text: AgentProviders.tailscale; color: AgentProviders.tailscale-ready ? Theme.green : Theme.yellow; font-size: 12px; wrap: word-wrap; }
+                        AgentText { text: AgentProviders.tailscale; color: AgentProviders.tailscale-ready ? Theme.success : Theme.warning; font-size: Theme.text-small; wrap: word-wrap; }
                         if AgentProviders.tailscale-login: AgentButton { minimum: 36px; vertical-stretch: 0; label: "Sign in to Tailscale"; enabled: !AgentProviders.busy; activated => { AgentProviders.action(5, ""); } }
-                        AgentText { text: "In LM Studio, load a model, start the server and turn on Serve on local network. Then enter that computer's Tailscale name or address."; color: Theme.fg; font-size: 12px; wrap: word-wrap; }
-                        lm-endpoint := LineEdit { height: 36px; vertical-stretch: 0; placeholder-text: "your-computer or 100.x.y.z:1234"; }
+                        AgentText { text: "In LM Studio, load a model, start the server and turn on Serve on local network. Then enter that computer's Tailscale name or address."; color: Theme.ink; font-size: Theme.text-small; wrap: word-wrap; }
+                        lm-endpoint := TextField { height: 36px; vertical-stretch: 0; placeholder-text: "your-computer or 100.x.y.z:1234"; }
                         AgentButton { minimum: 36px; vertical-stretch: 0; label: AgentProviders.connected ? "Test and update" : "Test and connect"; enabled: !AgentProviders.busy && AgentProviders.tailscale-ready && lm-endpoint.text != ""; activated => { AgentProviders.action(6, lm-endpoint.text); } }
                     }
                     if AgentProviders.connected && AgentProviders.active-index != AgentProviders.index-of(AgentProviders.provider): VerticalLayout {
@@ -131,19 +132,19 @@ export component ProviderPanel inherits FocusScope {
                         AgentButton { minimum: 36px; vertical-stretch: 0; label: "Use " + AgentProviders.names[AgentProviders.index-of(AgentProviders.provider)] + " for Agent Angi"; enabled: !AgentProviders.busy; activated => { AgentProviders.action(3, ""); } }
                         AgentText {
                             text: AgentProviders.active-index < 0 ? "Agent Angi builds with one service at a time." : "Agent Angi currently builds with " + AgentProviders.names[AgentProviders.active-index] + ". Using this service switches new builds to it.";
-                            color: Theme.fg; font-size: 11px; wrap: word-wrap;
+                            color: Theme.ink; font-size: Theme.text-small; wrap: word-wrap;
                         }
                     }
                     if AgentProviders.connected && AgentProviders.active-index == AgentProviders.index-of(AgentProviders.provider)
                         && (!AgentProviders.busy || AgentProviders.models.length > 0): VerticalLayout {
                         alignment: start; spacing: 18px;
-                        AgentText { text: "Models"; color: Theme.fg-bright; font-size: 17px; font-weight: 600; }
+                        AgentText { text: "Models"; color: Theme.ink; font-size: Theme.text-title; font-weight: 600; }
                         RoleModel { role: "os"; label: "Chat"; selected: AgentProviders.os-updates; index: AgentProviders.role-index[3]; }
-                        AgentText { text: "OS and Project builds"; color: Theme.fg-bright; font-size: 14px; font-weight: 600; }
+                        AgentText { text: "OS and Project builds"; color: Theme.ink; font-size: Theme.text-body; font-weight: 600; }
                         RoleModel { role: "orchestrator"; selected: AgentProviders.orchestrator; index: AgentProviders.role-index[0]; }
                         RoleModel { role: "builder"; selected: AgentProviders.builder; index: AgentProviders.role-index[1]; }
                         RoleModel { role: "tester"; selected: AgentProviders.tester; index: AgentProviders.role-index[2]; }
-                        AgentText { text: "Each choice is saved immediately. Existing agent sessions keep their current models."; color: Theme.fg; font-size: 11px; wrap: word-wrap; }
+                        AgentText { text: "Each choice is saved immediately. Existing agent sessions keep their current models."; color: Theme.ink; font-size: Theme.text-small; wrap: word-wrap; }
                     }
                 }
             }

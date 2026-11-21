@@ -1,23 +1,24 @@
 import { Theme } from "data.slint";
+import { FocusRing } from "pebble/pebble.slint";
 import "fonts/NotoSans-Regular.ttf";
 import "fonts/NotoSans-Bold.ttf";
 
+// Conversation and file content: Noto Sans covers far more scripts than Poppins. Use it only for
+// text the person or the model wrote; controls and labels use the default Poppins.
 export component AgentText inherits Text {
     font-family: "Noto Sans";
-    color: Theme.fg-bright;
+    color: Theme.ink;
 }
 
 export component AngiMark inherits Rectangle {
-    border-radius: self.width * 0.29;
-    border-width: 1px;
-    border-color: Theme.muted;
-    background: Theme.bg-light;
+    border-radius: self.width / 2;
+    background: Theme.surface-muted;
     Image {
         width: parent.width * 0.56; height: parent.height * 0.56;
         x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
         source: @image-url("../../../brand/brand-bug.svg");
         image-fit: contain;
-        colorize: Theme.accent;
+        colorize: Theme.ink;
     }
 }
 
@@ -39,10 +40,13 @@ export component AgentButton inherits Rectangle {
     callback secondary-click(length, length);
     forward-focus: focus;
     min-height: root.minimum;
-    border-radius: 9px; border-width: 1px;
-    border-color: focus.has-focus ? Theme.accent : root.highlighted ? Theme.accent : Theme.muted;
-    background: !root.enabled ? Theme.bg : root.primary ? (mouse.has-hover ? Theme.accent.brighter(0.14) : Theme.accent)
-        : mouse.has-hover || focus.has-focus ? Theme.muted : root.highlighted ? Theme.accent.with-alpha(0.12) : Theme.bg-light;
+    // Pebble Line: pill for a single line, a radius-md card when it carries a detail line.
+    border-radius: root.detail != "" ? Theme.radius-md : self.height / 2;
+    border-width: root.primary && root.enabled ? 0px : Theme.stroke-hair;
+    border-color: mouse.has-hover ? Theme.line-strong : Theme.line;
+    background: !root.enabled ? Theme.surface-muted : root.primary ? (mouse.has-hover ? Theme.accent-hover : Theme.accent)
+        : root.highlighted ? Theme.surface-muted : mouse.has-hover ? Theme.surface-hover : Theme.surface;
+    animate background { duration: 150ms; }
     accessible-role: button;
     accessible-label: root.action-label == "" ? root.label : root.action-label;
     accessible-enabled: root.enabled;
@@ -51,15 +55,15 @@ export component AgentButton inherits Rectangle {
         width: parent.width - 6px; height: self.width;
     }
     if root.icon-only && !root.brand-mark: Text {
-        text: root.symbol; font-family: "Noto Sans"; font-size: 19px; color: Theme.accent;
+        text: root.symbol; font-family: "Noto Sans"; font-size: Theme.text-title; color: mouse.has-hover ? Theme.ink : Theme.ink-muted;
         horizontal-alignment: center; vertical-alignment: center;
     }
     if !root.icon-only: HorizontalLayout {
-        padding-left: 11px; padding-right: 11px; spacing: 8px;
+        padding-left: Theme.space-4; padding-right: Theme.space-4; spacing: Theme.space-2;
         if root.symbol != "": Text {
-            text: root.symbol; font-size: 15px; font-family: "Noto Sans";
+            text: root.symbol; font-size: Theme.text-label; font-family: "Noto Sans";
             horizontal-stretch: 0; min-width: 13px;
-            color: root.primary && root.enabled ? Theme.bg-dark : Theme.accent;
+            color: root.primary && root.enabled ? Theme.on-accent : Theme.ink-muted;
             vertical-alignment: center;
         }
         VerticalLayout {
@@ -67,28 +71,31 @@ export component AgentButton inherits Rectangle {
             alignment: center; spacing: 3px;
             Text {
                 text: root.label; overflow: elide;
-                color: !root.enabled ? Theme.fg-dim : root.primary ? Theme.bg-dark : Theme.fg-bright;
-                font-family: "Noto Sans"; font-size: 13px; font-weight: 700; horizontal-alignment: left;
+                color: !root.enabled ? Theme.ink-subtle : root.primary ? Theme.on-accent : Theme.ink;
+                font-size: Theme.text-body-sm; font-weight: 500; horizontal-alignment: left;
             }
             if root.detail != "": Text {
                 text: root.detail; overflow: elide;
-                color: Theme.fg; font-family: "Noto Sans"; font-size: 12px;
+                color: root.primary ? Theme.on-accent : Theme.ink-muted; font-size: Theme.text-small;
             }
         }
         if root.badge != "": Rectangle {
-            width: 72px;
+            width: 76px;
+            // Badge: outlined pill with a status dot in `badge-color` and a word.
             Rectangle {
-                width: parent.width; height: 21px; y: (parent.height - self.height) / 2;
-                border-radius: 5px; border-width: 1px;
-                border-color: root.badge-color.with-alpha(0.48);
-                background: root.badge-color.with-alpha(0.14);
-                AgentText {
-                    text: root.badge; font-size: 10px; font-weight: 700;
-                    horizontal-alignment: center; vertical-alignment: center;
+                width: parent.width; height: 22px; y: (parent.height - self.height) / 2;
+                border-radius: 11px; border-width: Theme.stroke-hair;
+                border-color: Theme.line-strong;
+                Rectangle { x: 9px; y: 8px; width: 6px; height: 6px; border-radius: 3px; background: root.badge-color; }
+                Text {
+                    x: 19px; width: parent.width - 25px;
+                    text: root.badge; color: Theme.ink; font-size: Theme.text-caption; font-weight: 500;
+                    horizontal-alignment: center; vertical-alignment: center; overflow: elide;
                 }
             }
         }
     }
+    FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: focus.has-focus; radius: root.border-radius; }
     focus := FocusScope {
         enabled: root.enabled;
         key-pressed(event) => {

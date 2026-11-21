@@ -1,0 +1,244 @@
+// Pebble Line surfaces and status: Card, Well, Divider, Badge, Progress, NavItem, MenuItem,
+// Dialog, Alert. Flat: no shadows, blur or gradients. A part is either an outlined `surface` or a
+// filled shape with no stroke, never both. Never nest an outlined card inside an outlined card.
+import { Theme } from "tokens.slint";
+import { Icon } from "type.slint";
+
+export enum CardVariant { outline, muted, accent }
+export enum Tone { neutral, accent, success, warning, danger }
+
+// Outlined tile (radius-lg). `muted` is a filled well for read-only groups inside an outline card;
+// `accent` is the single solid emphasis tile per screen.
+export component Card inherits Rectangle {
+    in property <CardVariant> variant: CardVariant.outline;
+    border-radius: Theme.radius-lg;
+    background: root.variant == CardVariant.muted ? Theme.surface-muted
+        : root.variant == CardVariant.accent ? Theme.accent : Theme.surface;
+    border-width: root.variant == CardVariant.outline ? Theme.stroke-hair : 0px;
+    border-color: Theme.line;
+}
+
+// Filled read-only group (radius-md), e.g. a stat inside a panel.
+export component Well inherits Rectangle {
+    border-radius: Theme.radius-md;
+    background: Theme.surface-muted;
+}
+
+// 1px horizontal divider in `line`. `rule` gives the heavier 1.5px heading underline.
+export component Divider inherits Rectangle {
+    in property <bool> rule: false;
+    background: root.rule ? Theme.line-strong : Theme.line;
+    height: root.rule ? Theme.stroke-rule : Theme.stroke-hair;
+}
+// 1px vertical divider, e.g. between a sidebar and its page.
+export component VDivider inherits Rectangle {
+    background: Theme.line;
+    width: Theme.stroke-hair;
+}
+
+// Status pill, 24px. Never colour alone: pair a tone with a dot and a word.
+export component Badge inherits Rectangle {
+    in property <string> text;
+    in property <Tone> tone: Tone.neutral;
+    in property <bool> dot: false;
+    in property <image> icon;
+    private property <color> ink: root.tone == Tone.accent ? Theme.on-accent
+        : root.tone == Tone.success ? Theme.success-ink
+        : root.tone == Tone.warning ? Theme.warning-ink
+        : root.tone == Tone.danger ? Theme.danger-ink : Theme.ink;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    horizontal-stretch: 0;
+    height: 24px;
+    border-radius: 12px;
+    background: root.tone == Tone.accent ? Theme.accent
+        : root.tone == Tone.success ? Theme.success-soft
+        : root.tone == Tone.warning ? Theme.warning-soft
+        : root.tone == Tone.danger ? Theme.danger-soft : transparent;
+    border-width: root.tone == Tone.neutral ? Theme.stroke-hair : 0px;
+    border-color: Theme.line-strong;
+    HorizontalLayout {
+        padding-left: 10px; padding-right: 10px;
+        spacing: 6px;
+        if root.dot: VerticalLayout {
+            alignment: center;
+            Rectangle { width: 6px; height: 6px; border-radius: 3px; background: root.ink; }
+        }
+        if root.icon.width > 0: VerticalLayout {
+            alignment: center;
+            Icon { source: root.icon; color: root.ink; width: 14px; height: 14px; }
+        }
+        Text { text: root.text; color: root.ink; font-size: Theme.text-small; font-weight: 500; vertical-alignment: center; overflow: elide; }
+    }
+}
+
+// 8px progress track. `progress` is 0..1. The bar is `accent`; pass a status tone only when the
+// value itself is a warning (for example a disk over 90%).
+export component Progress inherits Rectangle {
+    in property <float> progress;
+    in property <Tone> tone: Tone.accent;
+    // Indeterminate: a sliding segment while the duration is unknown.
+    in property <bool> indeterminate: false;
+    accessible-role: progress-indicator;
+    accessible-value: round(clamp(root.progress, 0, 1) * 100) + "%";
+    height: 8px;
+    border-radius: 4px;
+    background: Theme.surface-muted;
+    border-width: Theme.stroke-hair;
+    border-color: Theme.line;
+    clip: true;
+    Rectangle {
+        x: root.indeterminate ? (mod(animation-tick(), 1600ms) / 1600ms) * (parent.width + self.width) - self.width : 0px;
+        width: root.indeterminate ? parent.width * 0.3 : parent.width * clamp(root.progress, 0, 1);
+        border-radius: 4px;
+        background: root.tone == Tone.success ? Theme.success
+            : root.tone == Tone.warning ? Theme.warning
+            : root.tone == Tone.danger ? Theme.danger : Theme.accent;
+        animate width { duration: 300ms; easing: ease; }
+    }
+}
+
+// Sidebar navigation row: 42px pill; current page uses `surface-muted`.
+export component NavItem inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> current;
+    // Icon-only for narrow windows; `text` is still the accessible name.
+    in property <bool> compact;
+    callback clicked();
+    callback pointer-moved(length, length);
+    accessible-role: tab;
+    accessible-label: root.text;
+    accessible-item-selected: root.current;
+    accessible-action-default => { root.clicked(); }
+    height: 42px;
+    border-radius: 21px;
+    background: root.current ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
+    HorizontalLayout {
+        padding-left: root.compact ? 0px : Theme.space-4;
+        padding-right: root.compact ? 0px : Theme.space-4;
+        alignment: root.compact ? center : start;
+        spacing: Theme.space-3;
+        if root.icon.width > 0: VerticalLayout {
+            alignment: center;
+            Icon { source: root.icon; color: root.current || touch.has-hover ? Theme.ink : Theme.ink-muted; }
+        }
+        if !root.compact: Text {
+            text: root.text;
+            color: root.current || touch.has-hover ? Theme.ink : Theme.ink-muted;
+            font-size: Theme.text-body; font-weight: 500;
+            vertical-alignment: center; overflow: elide;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+}
+
+// Row inside a floating menu: 40px, radius-xs, hover `surface-hover`.
+export component MenuItem inherits Rectangle {
+    in property <string> text;
+    in property <string> shortcut;
+    in property <image> icon;
+    in property <bool> danger;
+    // Keyboard highlight, drawn like hover.
+    in property <bool> highlighted;
+    callback clicked();
+    callback pointer-moved(length, length);
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
+    height: 40px;
+    border-radius: Theme.radius-xs;
+    background: touch.has-hover || root.highlighted ? Theme.surface-hover : transparent;
+    HorizontalLayout {
+        padding-left: Theme.space-3; padding-right: Theme.space-3;
+        spacing: Theme.space-3;
+        if root.icon.width > 0: VerticalLayout {
+            alignment: center;
+            Icon { source: root.icon; color: root.danger ? Theme.danger : Theme.ink-muted; }
+        }
+        Text { text: root.text; color: root.danger ? Theme.danger : Theme.ink; font-size: Theme.text-body; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+        if root.shortcut != "": Text { text: root.shortcut; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
+    }
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.clicked(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+}
+
+// Floating layer (menu, popover, toast): `surface` with a `line-strong` stroke, since nothing else
+// separates it from the page.
+export component Floating inherits Rectangle {
+    border-radius: Theme.radius-md;
+    background: Theme.surface;
+    border-width: Theme.stroke-hair;
+    border-color: Theme.line-strong;
+}
+
+// Modal dialog: a flat `scrim` over the whole window and a radius-xl card in the middle.
+// Put the title, body and actions inside; actions sit right-aligned, primary last.
+export component Dialog inherits Rectangle {
+    in property <length> card-width: 440px;
+    in property <length> card-height: 220px;
+    callback scrim-pointer(length, length);
+    background: Theme.scrim;
+    TouchArea {
+        moved => { root.scrim-pointer(self.mouse-x, self.mouse-y); }
+        pointer-event(e) => { root.scrim-pointer(self.mouse-x, self.mouse-y); }
+    }
+    Rectangle {
+        width: min(root.card-width, parent.width - 2 * Theme.space-6);
+        height: min(root.card-height, parent.height - 2 * Theme.space-6);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: Theme.radius-xl;
+        background: Theme.surface;
+        border-width: Theme.stroke-hair;
+        border-color: Theme.line-strong;
+        clip: true;
+        TouchArea { }
+        @children
+    }
+}
+
+// Inline message with a round tone icon disc.
+export component Alert inherits Rectangle {
+    in property <string> title;
+    in property <string> text;
+    in property <Tone> tone: Tone.neutral;
+    in property <image> icon;
+    border-radius: Theme.radius-md;
+    background: Theme.surface;
+    border-width: Theme.stroke-hair;
+    border-color: Theme.line;
+    HorizontalLayout {
+        padding-left: Theme.space-5; padding-right: Theme.space-5;
+        padding-top: Theme.space-4; padding-bottom: Theme.space-4;
+        spacing: Theme.space-4;
+        VerticalLayout {
+            alignment: start;
+            Rectangle {
+                width: 36px; height: 36px; border-radius: 18px;
+                background: root.tone == Tone.success ? Theme.success-soft : root.tone == Tone.warning ? Theme.warning-soft
+                    : root.tone == Tone.danger ? Theme.danger-soft : Theme.accent-soft;
+                Icon {
+                    source: root.icon; x: 9px; y: 9px;
+                    color: root.tone == Tone.success ? Theme.success-ink : root.tone == Tone.warning ? Theme.warning-ink
+                        : root.tone == Tone.danger ? Theme.danger-ink : Theme.ink;
+                }
+            }
+        }
+        VerticalLayout {
+            padding-top: 7px;
+            spacing: 2px;
+            if root.title != "": Text { text: root.title; color: Theme.ink; font-size: Theme.text-body; font-weight: 500; wrap: word-wrap; }
+            Text { text: root.text; color: Theme.ink-muted; font-size: Theme.text-body; wrap: word-wrap; }
+        }
+    }
+}

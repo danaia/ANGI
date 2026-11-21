@@ -1,4 +1,4 @@
-import { Theme } from "data.slint";
+import { Theme } from "pebble/pebble.slint";
 import { DesktopInput } from "desktop-input.slint";
 import { DriveMount } from "drive-mount.slint";
 import { ScrollView } from "std-widgets.slint";
@@ -63,17 +63,19 @@ export component StorageMap inherits Rectangle {
     out property <int> hovered-index: grid-input.has-hover && root.raw-index >= 0 && root.raw-index < root.cells.length ? root.raw-index : -1;
     out property <string> hover-path: root.hovered-index >= 0 ? root.cells[root.hovered-index].path : "";
     out property <string> hover-detail: root.hovered-index >= 0 ? root.cells[root.hovered-index].detail : "";
-    height: 40px + root.rows * root.cell-size;
+    height: 60px + root.rows * root.cell-size;
     VerticalLayout {
-        spacing: 4px;
+        spacing: Theme.space-2;
         HorizontalLayout {
-            height: 16px;
-            Text { text: root.label; color: #c5a38b; font-size: 12px; font-weight: 700; }
-            Text { text: root.summary; color: Theme.fg-dim; font-size: 11px; horizontal-alignment: right; overflow: elide; }
+            height: 20px;
+            Text { text: root.label; color: Theme.ink; font-size: Theme.text-body; font-weight: 500; vertical-alignment: center; }
+            Text { text: root.summary; color: Theme.ink-muted; font-size: Theme.text-body-sm; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
         }
         grid := Rectangle {
             height: root.rows * root.cell-size;
-            background: #292021;
+            border-radius: Theme.radius-sm;
+            background: Theme.surface-muted;
+            clip: true;
             for cell[i] in root.cells: Rectangle {
                 x: mod(i, root.columns) * root.cell-size;
                 y: floor(i / root.columns) * root.cell-size;
@@ -81,14 +83,14 @@ export component StorageMap inherits Rectangle {
                 height: root.cell-size - 1px;
                 background: cell.tint;
                 animate x, y { duration: 220ms; easing: ease-in-out; }
-                border-width: root.hovered-index == i ? 1px : 0px;
-                border-color: #ead0b7;
+                border-width: root.hovered-index == i ? Theme.stroke-rule : 0px;
+                border-color: Theme.ink;
                 accessible-role: button;
                 accessible-label: cell.path + " · " + cell.detail;
             }
             if root.cells.length == 0 && !root.mount-available: Text {
                 text: root.summary == "Scanning…" ? "Reading file sizes…" : root.summary == "Not mounted" ? "Not mounted" : "No removable files in this category";
-                color: #947a6d; font-size: 11px;
+                color: Theme.ink-muted; font-size: Theme.text-body-sm;
                 vertical-alignment: center; horizontal-alignment: center;
             }
             grid-input := DesktopInput {
@@ -119,14 +121,22 @@ export component StorageMap inherits Rectangle {
                     reject
                 }
                 Rectangle {
-                    border-width: link.has-focus ? 1px : 0px;
-                    border-color: Theme.accent;
+                    border-radius: Theme.radius-xs;
+                    border-width: link.has-focus ? Theme.stroke-focus : 0px;
+                    border-color: Theme.focus;
                     Text {
                         text: "Mount External Drive";
-                        color: mount-link.has-hover ? Theme.fg-bright : Theme.accent;
+                        color: Theme.ink;
                         horizontal-alignment: center;
                         vertical-alignment: center;
-                        font-size: 11px;
+                        font-size: Theme.text-body-sm;
+                        font-weight: 500;
+                    }
+                    // Link underline: line-strong at rest, ink on hover.
+                    Rectangle {
+                        y: parent.height / 2 + 10px; height: 1px;
+                        width: min(150px, parent.width);
+                        background: mount-link.has-hover ? Theme.ink : Theme.line-strong;
                     }
                 }
                 mount-link := TouchArea {
@@ -136,7 +146,7 @@ export component StorageMap inherits Rectangle {
                 }
             }
         }
-        Text { height: 16px; text: root.status; color: Theme.fg-dim; font-size: 10px; overflow: elide; }
+        Text { height: 18px; text: root.status; color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
     }
 }
 
@@ -145,14 +155,14 @@ export component StorageCategories inherits ScrollView {
     callback pointer-moved(length, length);
     out property <string> hint-text;
     out property <length> hint-x;
-    height: strip.preferred-width > self.width ? 46px : 34px;
+    height: strip.preferred-width > self.width ? 50px : 38px;
     content-width: max(self.width, strip.preferred-width);
-    content-height: 32px;
+    content-height: 36px;
     horizontal-scrollbar-policy: as-needed;
     vertical-scrollbar-policy: always-off;
     strip := HorizontalLayout {
-        height: 32px;
-        spacing: 20px;
+        height: 36px;
+        spacing: Theme.space-4;
         alignment: start;
         for tab[index] in [
             { label: "All files", icon: @image-url("icons/storage-categories/all.svg") },
@@ -164,10 +174,11 @@ export component StorageCategories inherits ScrollView {
             { label: "Other files", icon: @image-url("icons/storage-categories/other.svg") },
             { label: "Trash", icon: @image-url("icons/storage-categories/trash.svg") },
         ]: row := Rectangle {
-            width: 28px;
+            width: 32px;
             horizontal-stretch: 0;
-            height: 31px;
-            background: keys.has-focus ? Theme.bg-light : transparent;
+            height: 35px;
+            border-radius: Theme.radius-xs;
+            background: keys.has-focus ? Theme.surface-muted : transparent;
             accessible-role: button;
             accessible-label: tab.label;
             accessible-action-default => { dwell.dismiss(); StorageView.select-category(index); }
@@ -198,15 +209,16 @@ export component StorageCategories inherits ScrollView {
                 }
             }
             Image {
-                width: 19px;
-                height: 19px;
+                width: 18px;
+                height: 18px;
                 x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
+                y: (parent.height - self.height) / 2 - 1px;
                 source: tab.icon;
-                colorize: StorageView.category == index || pointer.has-hover ? Theme.accent : Theme.fg;
+                colorize: StorageView.category == index || pointer.has-hover ? Theme.ink : Theme.ink-muted;
             }
+            // Current tab: 1.5px ink rule, as Pebble Line Tabs.
             if StorageView.category == index: Rectangle {
-                y: parent.height - 2px; height: 2px; background: Theme.accent;
+                y: parent.height - Theme.stroke-rule; height: Theme.stroke-rule; background: Theme.ink;
             }
         }
     }

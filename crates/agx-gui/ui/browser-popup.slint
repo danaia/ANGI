@@ -1,11 +1,12 @@
 // WPE delegates form menus and script dialogs to the embedder.
 import { Theme } from "data.slint";
 import { Web } from "browser.slint";
-import { Button, LineEdit, ScrollView } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Button, TextField } from "pebble/pebble.slint";
 export component BrowserPopup inherits Rectangle {
     callback pointer-moved(length, length);
     property <int> selection: Web.option-index;
-    background: #05070c99;
+    background: Theme.scrim;
     clip: true;
     function choose() {
         if (root.selection >= 0 && root.selection < Web.options.length && Web.options[root.selection].enabled) { Web.selection(root.selection); }
@@ -40,12 +41,12 @@ export component BrowserPopup inherits Rectangle {
                 x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
                 width: min(560px, parent.width - 40px);
                 height: min(Web.popup-kind == 1 ? min(460px, 168px + Web.options.length * 36px) : Web.dialog-type == 2 ? 300px : 260px, parent.height - 32px);
-                background: Theme.bg; border-radius: 12px; border-width: 1px; border-color: Theme.fg-dim;
+                background: Theme.surface; border-radius: Theme.radius-xl; border-width: Theme.stroke-hair; border-color: Theme.line-strong;
                 TouchArea { }
                 VerticalLayout {
-                    padding: 20px; spacing: 12px;
-                    Text { text: Web.popup-kind == 1 ? "Choose an option" : Web.dialog-type == 3 ? "Leave this page?" : "Website message"; color: Theme.fg-bright; font-size: 20px; font-weight: 700; }
-                    Text { text: Web.site; color: Theme.fg-dim; font-size: 11px; overflow: elide; }
+                    padding: Theme.space-8; spacing: Theme.space-3;
+                    Text { text: Web.popup-kind == 1 ? "Choose an option" : Web.dialog-type == 3 ? "Leave this page?" : "Website message"; color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; }
+                    Text { text: Web.site; color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
                     options := ScrollView {
                         visible: Web.popup-kind == 1;
                         min-height: 0px; max-height: self.visible ? 100000px : 0px;
@@ -54,8 +55,8 @@ export component BrowserPopup inherits Rectangle {
                         content-width: self.visible-width;
                         for option[i] in Web.options: Rectangle {
                             y: i * 36px; width: options.visible-width; height: 36px;
-                            background: root.selection == i ? Theme.bg-light : transparent;
-                            Text { x: 10px; width: parent.width - 20px; text: (option.selected ? "✓  " : "   ") + option.label; color: option.enabled ? Theme.fg : Theme.muted; vertical-alignment: center; overflow: elide; }
+                            background: root.selection == i ? Theme.surface-muted : transparent;
+                            Text { x: 10px; width: parent.width - 20px; text: (option.selected ? "✓  " : "   ") + option.label; color: option.enabled ? Theme.ink : Theme.line-strong; vertical-alignment: center; overflow: elide; }
                             TouchArea {
                                 enabled: option.enabled;
                                 mouse-cursor: MouseCursor.pointer;
@@ -67,9 +68,9 @@ export component BrowserPopup inherits Rectangle {
                     if Web.popup-kind == 2: ScrollView {
                         vertical-stretch: 1;
                         content-width: self.visible-width;
-                        Text { width: parent.width; text: Web.dialog-message; color: Theme.fg; wrap: word-wrap; }
+                        Text { width: parent.width; text: Web.dialog-message; color: Theme.ink; wrap: word-wrap; }
                     }
-                    prompt := LineEdit {
+                    prompt := TextField {
                         visible: Web.popup-kind == 2 && Web.dialog-type == 2;
                         min-height: 0px; max-height: self.visible ? 36px : 0px;
                         text <=> Web.dialog-value;

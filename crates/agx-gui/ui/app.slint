@@ -28,20 +28,33 @@ export { AgentWork, WorkRecord, WorkResource }
 import { FilesPanel, Files, FileRow, Crumb, PlaceRow, PaneState } from "files.slint";
 import { FolderPicker } from "files-picker.slint";
 export { Files, FileRow, Crumb, PlaceRow, PaneState }
-import { SettingsPanel, MouseSettings, BluetoothSettings, BtDevice, BtApproval } from "settings.slint";
-export { MouseSettings, BluetoothSettings, BtDevice, BtApproval }
+import { SettingsPanel, MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSettings } from "settings.slint";
+export { MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSettings }
 import { AppLauncher } from "launcher.slint";
 import { HoverTip } from "hover-tip.slint";
 import { Cursor } from "cursor.slint";
 import { CursorPreviewWindow } from "cursor-preview.slint";
 export { CursorPreviewWindow }
-import { Button } from "std-widgets.slint";
+import { Icons, Icon, Button, ButtonVariant, Badge, Tone, MenuItem, Floating, Dialog, Title, Hint } from "pebble/pebble.slint";
 import { LoginWindow } from "login.slint";
 import { GreeterSetup, WifiChoice } from "first-boot.slint";
 export { LoginWindow, GreeterSetup, WifiChoice }
 export { Theme, Sys, NetRow, HwRow, MenuRow, Win }
 
-// Frame metrics mirror wm.rs: header 28px, buttons 26px wide, border 2px.
+// Window tile in Pebble Line: an outlined `surface` card (radius-lg) with a 44px header.
+// Metrics mirror wm.rs: HEADER (Theme.header), BORDER (Theme.frame-inset), BTN_W and BTN_INSET.
+// The focused window takes a 1.5px `ink` stroke and a dot before its title; nothing else changes.
+component HeaderGlyph inherits Rectangle {
+    in property <image> icon;
+    in property <bool> focused;
+    width: Theme.header-button;
+    Icon {
+        source: root.icon;
+        width: 16px; height: 16px;
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        color: root.focused ? Theme.ink : Theme.ink-muted;
+    }
+}
 component WindowFrame inherits Rectangle {
     in property <Win> win;
     in property <bool> dragging;
@@ -52,34 +65,51 @@ component WindowFrame inherits Rectangle {
     callback pointer-moved(length, length);
     clip: true;
     animate x, y, width, height { duration: root.dragging ? 0ms : 110ms; easing: ease-out; }
-    background: win.target ? @linear-gradient(45deg, Theme.magenta, Theme.yellow)
-        : win.focused ? @linear-gradient(45deg, #33ccff, #00ff99)
-        : @linear-gradient(45deg, Theme.muted, Theme.muted);
+    border-radius: min(Theme.radius-lg, self.height / 2);
+    // The stroke is this shape's fill showing around the inset ground below: a gradient for the
+    // focused or drop-target window (Theme.focus-stroke), a flat hairline otherwise.
+    private property <length> stroke: win.focused || win.target ? Theme.stroke-rule : Theme.stroke-hair;
+    background: win.focused || win.target ? Theme.focus-stroke : Theme.line;
     Rectangle {
-        x: Theme.border;
-        y: Theme.border;
-        width: parent.width - 2 * Theme.border;
-        height: parent.height - 2 * Theme.border;
-        background: Theme.bg;
+        x: root.stroke;
+        y: root.stroke;
+        width: parent.width - 2 * root.stroke;
+        height: parent.height - 2 * root.stroke;
+        border-radius: max(0px, root.border-radius - root.stroke);
+        background: win.target ? Theme.surface-muted : Theme.surface;
+    }
+    Rectangle {
+        x: Theme.frame-inset;
+        y: Theme.frame-inset;
+        width: parent.width - 2 * Theme.frame-inset;
+        height: parent.height - 2 * Theme.frame-inset;
         VerticalLayout {
             Rectangle {
-                height: 26px;
-                background: win.focused ? Theme.bg-light : Theme.bg-dark;
+                height: Theme.header - Theme.frame-inset;
                 HorizontalLayout {
-                    padding-left: 10px;
+                    padding-left: Theme.space-5;
+                    padding-right: Theme.header-inset - Theme.frame-inset;
+                    spacing: Theme.space-2;
+                    if win.focused: VerticalLayout {
+                        alignment: center;
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.ink; }
+                    }
                     Text {
                         text: win.kind == 7 ? Web.title : win.kind == 8 || win.kind >= 12 ? Terminal.windows[win.kind == 8 ? 0 : win.kind - 11].title : win.title;
-                        color: win.focused ? Theme.accent : Theme.fg-dim;
-                        font-weight: 700;
-                        font-size: 12px;
+                        color: win.focused ? Theme.ink : Theme.ink-muted;
+                        font-weight: 500;
+                        font-size: Theme.text-body;
                         vertical-alignment: center;
                         overflow: elide;
+                        horizontal-stretch: 1;
                     }
-                    Text { text: win.floating ? "󰖲" : "󰖯"; color: Theme.fg-dim; width: 26px; horizontal-alignment: center; vertical-alignment: center; }
-                    Text { text: "󰊓"; color: Theme.fg-dim; width: 26px; horizontal-alignment: center; vertical-alignment: center; }
-                    Text { text: "󰖭"; color: win.focused ? Theme.red : Theme.fg-dim; width: 26px; horizontal-alignment: center; vertical-alignment: center; }
+                    // Order matches wm::scene hit-testing from the right: Close, Full, Float.
+                    HeaderGlyph { icon: win.floating ? Icons.tile : Icons.float; focused: win.focused; }
+                    HeaderGlyph { icon: Icons.maximize; focused: win.focused; }
+                    HeaderGlyph { icon: Icons.x; focused: win.focused; }
                 }
             }
+            if !win.collapsed: Rectangle { height: 1px; background: Theme.line; }
             if !win.collapsed: Rectangle {
                 vertical-stretch: 1;
                 clip: true;
@@ -99,49 +129,49 @@ component WindowFrame inherits Rectangle {
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if win.kind == 5 && !win.collapsed: ServicesPanel {
-        x: 6px; y: 28px;
-        width: max(0px, parent.width - 12px);
-        height: max(0px, parent.height - 34px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
     }
     if win.kind == 7 && !win.collapsed: BrowserTabs {
-        x: 2px; y: 28px;
-        width: max(0px, parent.width - 4px); height: 36px;
+        x: Theme.frame-inset; y: Theme.header;
+        width: max(0px, parent.width - 2 * Theme.frame-inset); height: 36px;
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if win.kind == 7 && !win.collapsed: BookmarkChrome {
-        x: 2px; y: 64px;
-        width: max(0px, parent.width - 4px); height: 78px;
+        x: Theme.frame-inset; y: Theme.header + 36px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset); height: 78px;
     }
     if win.kind == 7 && !win.collapsed && Web.menus.length > 0: BookmarkMenus {
-        x: 2px; y: 142px;
-        width: max(0px, parent.width - 4px); height: max(0px, parent.height - 144px);
+        x: Theme.frame-inset; y: Theme.header + 114px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset); height: max(0px, parent.height - Theme.header - 114px - Theme.frame-inset);
     }
     if win.kind == 2 && !win.collapsed: MemoryPanel {
-        x: 2px; y: 28px;
-        width: max(0px, parent.width - 4px);
-        height: max(0px, parent.height - 30px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if win.kind == 1 && !win.collapsed: CpuPanel {
-        x: 6px; y: 28px;
-        width: max(0px, parent.width - 12px);
-        height: max(0px, parent.height - 34px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         cursor: root.cursor; hide-cursor: root.hide-cursor;
         pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if win.kind == 0 && !win.collapsed: OverviewPanel {
-        x: 6px; y: 28px;
-        width: max(0px, parent.width - 12px);
-        height: max(0px, parent.height - 34px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         cursor: root.cursor; hide-cursor: root.hide-cursor;
         pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if win.kind == 10 && !win.collapsed: AgentPanel {
-        x: 6px; y: 28px;
-        width: max(0px, parent.width - 12px);
-        height: max(0px, parent.height - 34px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         active: root.win.focused;
         pointer-moved(x, y) => {
             root.pointer(2, 3, x, y, false, false, false, false);
@@ -149,9 +179,9 @@ component WindowFrame inherits Rectangle {
         }
     }
     if win.kind == 11 && !win.collapsed: FilesPanel {
-        x: 6px; y: 28px;
-        width: max(0px, parent.width - 12px);
-        height: max(0px, parent.height - 34px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         active: root.win.focused;
         pointer-moved(x, y) => {
             root.pointer(2, 3, x, y, false, false, false, false);
@@ -159,9 +189,9 @@ component WindowFrame inherits Rectangle {
         }
     }
     if win.kind == 9 && !win.collapsed: SettingsPanel {
-        x: 6px; y: 28px;
-        width: max(0px, parent.width - 12px);
-        height: max(0px, parent.height - 34px);
+        x: Theme.frame-inset; y: Theme.header + 1px;
+        width: max(0px, parent.width - 2 * Theme.frame-inset);
+        height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         active: root.win.focused;
         pointer-moved(x, y) => {
             root.pointer(2, 3, x, y, false, false, false, false);
@@ -171,35 +201,70 @@ component WindowFrame inherits Rectangle {
 
 }
 
+// One workspace pill in the top bar's segmented trough. Occupied workspaces read in `ink`, empty ones
+// in `ink-subtle`; the current one is the raised `surface` pill.
 component WorkspaceButton inherits Rectangle {
     in property <int> index;
     in property <bool> active;
     in property <bool> occupied;
     callback picked();
     callback pointer-moved(length, length);
-    accessible-role: button;
+    accessible-role: tab;
     accessible-label: "Workspace " + (root.index + 1);
+    accessible-item-selected: root.active;
     width: 30px;
-    background: root.active ? Theme.accent : transparent;
+    border-radius: self.height / 2;
+    background: root.active ? Theme.surface : transparent;
+    border-width: Theme.stroke-hair;
+    border-color: root.active ? Theme.line-strong : transparent;
     Text {
         text: root.index + 1;
-        color: root.active ? Theme.bg-dark : root.occupied ? Theme.fg : Theme.muted;
-        font-weight: root.occupied || root.active ? 700 : 400;
+        color: root.active || touch.has-hover ? Theme.ink : root.occupied ? Theme.ink-muted : Theme.ink-subtle;
+        font-size: Theme.text-body-sm;
+        font-weight: 500;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
-    TouchArea {
+    touch := TouchArea {
         mouse-cursor: MouseCursor.pointer;
-        moved => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
         clicked => { root.picked(); }
+    }
+}
+
+// Round, unoutlined icon button for the top bar.
+component BarButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> open;
+    in property <color> tint: Theme.ink-muted;
+    out property <bool> has-hover: touch.has-hover;
+    callback clicked();
+    callback pointer-moved(length, length);
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    width: self.height;
+    border-radius: self.height / 2;
+    background: root.open ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
+    Icon {
+        source: root.icon;
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        color: touch.has-hover || root.open ? Theme.ink : root.tint;
+    }
+    touch := TouchArea {
+        mouse-cursor: MouseCursor.pointer;
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+        moved => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+        clicked => { root.clicked(); }
     }
 }
 
 export component AppWindow inherits Window {
     title: "ANGI";
-    background: Theme.bg;
-    default-font-family: "JetBrainsMono Nerd Font";
-    default-font-size: Theme.text;
+    background: Theme.background;
+    default-font-family: "Poppins";
+    default-font-size: Theme.text-body;
     preferred-width: 1280px;
     preferred-height: 720px;
     min-width: 640px;
@@ -217,6 +282,7 @@ export component AppWindow inherits Window {
     property <bool> mode-tip: false;
     property <bool> top-bar-black: false;
     in property <string> clock: "";
+    in property <string> date: "";
     in property <string> toast: "";
     in property <bool> screen-full: false;
     in property <bool> dragging: false;
@@ -334,119 +400,110 @@ export component AppWindow inherits Window {
                 y: root.ghost-y;
                 width: root.ghost-w;
                 height: root.ghost-h;
-                border-width: 2px;
-                border-color: Theme.accent;
-                background: #7aa2f733;
+                border-radius: Theme.radius-lg;
+                border-width: Theme.stroke-rule;
+                border-color: Theme.ink;
+                background: Theme.selection;
             }
 
         }
 
-        // Top bar (hidden while a window is fullscreen).
+        // Top bar (hidden while a window is fullscreen): a `surface` pill with a faint stroke, holding
+        // apps, workspaces and layout on the left, the clock in the middle and status on the right.
         if !root.screen-full: top-bar := Rectangle {
-            y: 0;
-            height: 34px;
-            background: root.top-bar-black ? #000000 : Theme.bg-dark;
+            x: Theme.gap-out;
+            y: 12px;
+            width: parent.width - 2 * Theme.gap-out;
+            height: 44px;
+            border-radius: self.height / 2;
+            background: Theme.surface;
+            border-width: Theme.stroke-hair;
+            border-color: Theme.line;
             TouchArea {
                 moved => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                double-clicked => { root.top-bar-black = !root.top-bar-black; }
             }
             HorizontalLayout {
-                padding-left: Theme.gap-out;
-                padding-right: Theme.gap-out;
-                spacing: 2px;
-                Rectangle {
-                    width: 30px;
-                    border-radius: 5px;
-                    background: applications-button.has-hover || root.menu-open ? Theme.bg-light : transparent;
-                    accessible-role: button;
-                    accessible-label: "Open Applications";
-                    Image {
-                        width: 20px; height: 20px;
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        source: @image-url("icons/apps/applications.svg");
-                        colorize: Theme.fg-bright;
-                    }
-                    applications-button := TouchArea {
-                        mouse-cursor: MouseCursor.pointer;
-                        moved => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                        clicked => { root.menu-show(); }
-                    }
-                }
-                for occupied[i] in root.ws-occupied: WorkspaceButton {
-                    index: i;
-                    active: root.workspace == i;
-                    occupied: occupied;
+                padding: 4px;
+                padding-right: 6px;
+                spacing: Theme.space-2;
+                BarButton {
+                    icon: Icons.grid; label: "Open Applications";
+                    open: root.menu-open;
+                    tint: Theme.ink;
                     pointer-moved(x, y) => { root.track-cursor(x, y); }
-                    picked => { root.workspace-select(i); }
+                    clicked => { root.menu-show(); }
                 }
-                mode-box := Rectangle {
-                    width: 34px;
-                    background: mode-button.has-hover ? Theme.bg-light : transparent;
-                    border-radius: 5px;
-                    accessible-role: button;
-                    accessible-label: root.windowed-mode ? "Switch to tiled mode" : "Switch to windowed mode";
+                // Workspaces in a segmented trough.
+                Rectangle {
+                    border-radius: self.height / 2;
+                    background: Theme.surface-muted;
+                    border-width: Theme.stroke-hair;
+                    border-color: Theme.line;
+                    HorizontalLayout {
+                        padding: 3px;
+                        spacing: 2px;
+                        for occupied[i] in root.ws-occupied: WorkspaceButton {
+                            index: i;
+                            active: root.workspace == i;
+                            occupied: occupied;
+                            pointer-moved(x, y) => { root.track-cursor(x, y); }
+                            picked => { root.workspace-select(i); }
+                        }
+                    }
+                }
+                mode-box := BarButton {
+                    icon: root.windowed-mode ? Icons.float : Icons.tile;
+                    label: root.windowed-mode ? "Switch to tiled mode" : "Switch to windowed mode";
+                    open: !root.windowed-mode;
                     accessible-checkable: true;
                     accessible-checked: !root.windowed-mode;
-                    // Tiled layout icon: full opacity while tiled, half while windowed.
-                    Image {
-                        width: 20px; height: 20px;
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        source: @image-url("icons/layout-tiled.svg");
-                        colorize: Theme.magenta;
-                        opacity: root.windowed-mode ? 0.5 : 1.0;
-                    }
-                    mode-button := TouchArea {
-                        mouse-cursor: MouseCursor.pointer;
-                        pointer-event(e) => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                        moved => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                        clicked => { root.mode-tip = false; root.layout-toggle(); root-keys.focus(); }
-                        changed has-hover => {
-                            mode-dwell.running = self.has-hover;
-                            if (!self.has-hover) { root.mode-tip = false; }
-                        }
+                    pointer-moved(x, y) => { root.track-cursor(x, y); }
+                    clicked => { root.mode-tip = false; root.layout-toggle(); root-keys.focus(); }
+                    changed has-hover => {
+                        mode-dwell.running = self.has-hover;
+                        if (!self.has-hover) { root.mode-tip = false; }
                     }
                     mode-dwell := Timer { interval: 400ms; running: false; triggered => { self.running = false; root.mode-tip = true; } }
                 }
-                Text { text: "  " + root.focus-title; color: Theme.fg-dim; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; }
-                Text { text: "󰍛 \{Math.round(Sys.cpu-percent)}%"; color: Theme.cyan; vertical-alignment: center; }
-                Text { text: "  󰘚 \{Math.round(Sys.mem-percent)}%"; color: Theme.magenta; vertical-alignment: center; }
-                Text { text: "  󰛳 " + Sys.primary-ip; color: Theme.green; vertical-alignment: center; max-width: 180px; overflow: elide; }
-                Rectangle {
-                    width: 48px;
-                    background: session-button.has-hover || root.session-open ? Theme.bg-light : transparent;
-                    accessible-role: button;
-                    accessible-label: "Session menu";
-                    Image {
-                        x: 6px;
-                        y: (parent.height - self.height) / 2;
-                        width: 20px;
-                        height: 20px;
-                        source: @image-url("icons/smile.svg");
-                        colorize: Theme.green;
-                    }
-                    Text { x: 28px; width: 16px; text: "⌄"; color: Theme.fg-bright; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
-                    session-button := TouchArea {
-                        mouse-cursor: MouseCursor.pointer;
-                        pointer-event(e) => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                        moved => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                        clicked => {
-                            root.session-open = !root.session-open;
-                            root.session-index = 0;
-                            root.menu-open = false;
-                            root-keys.focus();
+                // Kept clear of the centred clock.
+                Text { text: root.focus-title; color: Theme.ink-muted; font-size: Theme.text-body; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; max-width: max(0px, root.width / 2 - 340px); }
+                Rectangle { horizontal-stretch: 1; }
+                // Status badges give way to the clock on narrow screens.
+                if root.width >= 1100px: VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        spacing: Theme.space-2;
+                        Badge { text: "CPU \{Math.round(Sys.cpu-percent)}%"; }
+                        Badge { text: "Memory \{Math.round(Sys.mem-percent)}%"; }
+                        Badge {
+                            text: Sys.primary-ip;
+                            tone: Sys.primary-ip == "no network" ? Tone.neutral : Tone.success;
+                            dot: true;
+                            max-width: 180px;
                         }
                     }
                 }
+                session-box := BarButton {
+                    icon: Icons.user; label: "Session menu";
+                    open: root.session-open;
+                    tint: Theme.ink;
+                    pointer-moved(x, y) => { root.track-cursor(x, y); }
+                    clicked => {
+                        root.session-open = !root.session-open;
+                        root.session-index = 0;
+                        root.menu-open = false;
+                        root-keys.focus();
+                    }
+                }
             }
-            Text {
-                text: root.clock;
-                color: Theme.fg-bright;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+            // Clock, centred on the bar.
+            HorizontalLayout {
+                alignment: center;
+                spacing: Theme.space-2;
+                Text { text: root.clock; color: Theme.ink; font-size: Theme.text-title; font-weight: 500; vertical-alignment: center; }
+                if root.date != "" && root.width >= 900px: Text { text: root.date; color: Theme.ink-muted; font-size: Theme.text-body-sm; vertical-alignment: center; }
             }
-            // Layout toggle tooltip, same style as the Agent Angi scope tip.
+            // Layout toggle tooltip, same pattern as the Agent Angi scope tip.
             HoverTip {
                 shown: root.mode-tip;
                 text: root.windowed-mode
@@ -457,21 +514,19 @@ export component AppWindow inherits Window {
             }
         }
 
-        // Hint line.
+        // Hint line: quiet keyboard help, replaced by a toast when there is news.
         if !root.screen-full: Rectangle {
-            y: parent.height - 26px;
-            height: 26px;
-            background: Theme.bg-dark;
+            y: parent.height - Theme.hint-bar;
+            height: Theme.hint-bar;
             HorizontalLayout {
-                padding-left: Theme.gap-out;
+                padding-left: Theme.gap-out + Theme.space-2;
                 padding-right: Theme.gap-out;
-                spacing: 18px;
                 Text {
                     text: root.toast != "" ? root.toast
-                        : root.windowed-mode ? "\{root.mod-name}+Space apps   Double-click header: collapse/restore   Drag header: move   \{root.mod-name}+L tiled"
-                        : "\{root.mod-name}+Space apps   +arrows focus   +Q close   +T float   +F full   +L tiled/windowed   +1-5 workspace";
-                    color: root.toast != "" ? Theme.yellow : Theme.fg-dim;
-                    font-size: 12px;
+                        : root.windowed-mode ? "\{root.mod-name} + Space  Apps     Double-click header  Collapse or restore     Drag header  Move     \{root.mod-name} + L  Tiled"
+                        : "\{root.mod-name} + Space  Apps     + arrows  Focus     + Q  Close     + T  Float     + F  Full     + L  Windowed     + 1–5  Workspace";
+                    color: root.toast != "" ? Theme.warning : Theme.ink-muted;
+                    font-size: Theme.text-small;
                     vertical-alignment: center;
                     overflow: elide;
                 }
@@ -507,28 +562,31 @@ export component AppWindow inherits Window {
                 moved => { root.track-cursor(self.mouse-x, self.mouse-y); }
                 clicked => { root.session-open = false; root-keys.focus(); }
             }
-            Rectangle {
-                x: parent.width - self.width - 10px;
-                y: 42px;
-                width: 238px;
-                height: 236px;
-                border-radius: 8px;
-                border-width: 1px;
-                border-color: Theme.muted;
-                background: Theme.bg;
+            Floating {
+                x: parent.width - self.width - Theme.gap-out;
+                y: 64px;
+                width: 248px;
+                height: 5 * 40px + 2 * Theme.space-2 + 1px + 2 * Theme.space-2;
                 VerticalLayout {
-                    padding: 8px;
-                    spacing: 2px;
-                    for label[i] in ["Settings", "Log out", "Open Terminal UI (TUI)", "Reboot…", "Shut down…"]: Rectangle {
-                        background: row-touch.has-hover || root.session-index == i ? Theme.bg-light : transparent;
-                        border-radius: 4px;
-                        accessible-role: button;
-                        accessible-label: label;
-                        Text { x: 12px; text: label; color: i >= 3 ? Theme.red : Theme.fg-bright; font-size: 14px; vertical-alignment: center; }
-                        row-touch := TouchArea {
-                            mouse-cursor: MouseCursor.pointer;
-                            pointer-event(e) => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-                            moved => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+                    padding: Theme.space-2;
+                    spacing: 0;
+                    for item[i] in [
+                        { label: "Settings", icon: Icons.settings },
+                        { label: "Log out", icon: Icons.logout },
+                        { label: "Open Terminal UI (TUI)", icon: Icons.terminal },
+                        { label: "Reboot…", icon: Icons.refresh },
+                        { label: "Shut down…", icon: Icons.power },
+                    ]: VerticalLayout {
+                        if i == 3: Rectangle {
+                            height: 1px + 2 * Theme.space-2;
+                            Rectangle { y: Theme.space-2; height: 1px; x: Theme.space-2; width: parent.width - 2 * Theme.space-2; background: Theme.line; }
+                        }
+                        MenuItem {
+                            text: item.label;
+                            icon: item.icon;
+                            danger: i >= 3;
+                            highlighted: root.session-index == i;
+                            pointer-moved(x, y) => { root.track-cursor(x, y); }
                             clicked => { root.session-open = false; root-keys.focus(); root.choose-session(i); }
                         }
                     }
@@ -574,39 +632,25 @@ export component AppWindow inherits Window {
             pointer-moved(x, y) => { root.track-cursor(x, y); }
         }
 
-        // Confirmation overlay for disruptive actions.
-        if root.confirm-text != "": Rectangle {
-            background: #000000bb;
-            TouchArea {
-                pointer-event(e) => {
-                    root.cursor-x = self.mouse-x;
-                    root.cursor-y = self.mouse-y;
-                    root.cursor-seen = true;
-                }
+        // Confirmation dialog for disruptive actions.
+        if root.confirm-text != "": Dialog {
+            card-width: 460px;
+            card-height: 236px;
+            scrim-pointer(x, y) => {
+                root.cursor-x = x;
+                root.cursor-y = y;
+                root.cursor-seen = true;
             }
-            Rectangle {
-                width: min(460px, parent.width - 40px);
-                height: 180px;
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
-                background: Theme.red;
-                Rectangle {
-                    x: Theme.border;
-                    y: Theme.border;
-                    width: parent.width - 2 * Theme.border;
-                    height: parent.height - 2 * Theme.border;
-                    background: Theme.bg;
-                    VerticalLayout {
-                        padding: 16px;
-                        spacing: 12px;
-                        Text { text: root.confirm-text; color: Theme.fg-bright; wrap: word-wrap; font-weight: 700; }
-                        Text { text: "Enter confirms. Esc cancels."; color: Theme.fg-dim; }
-                        HorizontalLayout {
-                            spacing: 12px;
-                            Button { text: "Cancel"; clicked => { root.confirm(false); } }
-                            Button { text: "Confirm"; clicked => { root.confirm(true); } }
-                        }
-                    }
+            VerticalLayout {
+                padding: Theme.space-8;
+                spacing: Theme.space-3;
+                Title { text: root.confirm-text; }
+                Hint { text: "Enter confirms. Esc cancels."; vertical-stretch: 1; }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: Theme.space-3;
+                    Button { text: "Cancel"; variant: ButtonVariant.ghost; clicked => { root.confirm(false); } }
+                    Button { text: "Confirm"; variant: ButtonVariant.primary; clicked => { root.confirm(true); } }
                 }
             }
         }

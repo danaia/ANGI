@@ -37,6 +37,7 @@ component AgentWelcome inherits Flickable {
                 x: (parent.width - self.width) / 2;
                 source: @image-url("../../../brand/brand-bug.svg");
                 image-fit: contain;
+                colorize: Theme.ink;
             }
         }
         Text {
@@ -44,7 +45,7 @@ component AgentWelcome inherits Flickable {
                 : AgentScope.mode == "project" ? "Build custom projects" : "Talk to me about your projects";
             font-family: "Noto Sans"; font-weight: 400;
             font-size: root.wide ? 32px : root.width >= 350px ? 22px : 18px;
-            color: Theme.fg-bright; horizontal-alignment: center; wrap: word-wrap;
+            color: Theme.ink; horizontal-alignment: center; wrap: word-wrap;
         }
         Rectangle { height: root.wide ? 11px : 3px; }
         if root.wide: HorizontalLayout {
@@ -76,9 +77,9 @@ component AgentComposer inherits Rectangle {
     changed active => { if (root.active) { input.focus(); } }
     changed focus-request => { if (root.active) { input.focus(); } }
     init => { if (root.active) { input.focus(); } }
-    border-radius: 15px; border-width: 1px;
-    border-color: input.has-focus ? Theme.accent : Theme.muted;
-    background: Theme.bg-light;
+    border-radius: Theme.radius-md; border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.line-strong;
+    background: Theme.surface-muted;
     function send() {
         if (!root.can-send) { return; }
         if (root.chatting) {
@@ -98,14 +99,14 @@ component AgentComposer inherits Rectangle {
             if root.draft == "": Text {
                 x: 1px; y: 5px; width: parent.width - 2px;
                 text: root.chatting ? "Message Angi…" : "Describe what you want to build…"; overflow: elide;
-                font-size: 16px; font-family: "Noto Sans"; color: Theme.fg;
+                font-size: Theme.text-label; font-family: "Noto Sans"; color: Theme.ink;
             }
             input := TextInput {
                 x: 1px; y: 4px; width: parent.width - 2px; height: max(field.height - 6px, self.preferred-height);
                 text <=> root.draft;
                 single-line: false; wrap: word-wrap;
-                font-family: "Noto Sans"; font-size: 16px; color: Theme.fg-bright;
-                selection-background-color: Theme.accent; selection-foreground-color: Theme.bg-dark;
+                font-family: "Noto Sans"; font-size: Theme.text-label; color: Theme.ink;
+                selection-background-color: Theme.selection; selection-foreground-color: Theme.ink;
                 accessible-label: root.chatting ? "Message Angi" : "Build prompt";
                 key-pressed(event) => {
                     if (event.text == Key.Return && !event.modifiers.shift) { root.send(); return accept; }
@@ -123,7 +124,7 @@ component AgentComposer inherits Rectangle {
         HorizontalLayout {
             spacing: 8px;
             if AgentScope.mode == "os": AgentText {
-                text: "ANGI system"; color: Theme.fg; font-size: 12px;
+                text: "ANGI system"; color: Theme.ink; font-size: Theme.text-small;
                 vertical-alignment: center;
             }
             if AgentScope.mode != "os": AgentButton {
@@ -142,8 +143,8 @@ component AgentComposer inherits Rectangle {
             }
             Rectangle { horizontal-stretch: 1; min-width: 0px; }
             if root.width >= 560px: Text {
-                text: "Shift+Enter for a new line"; color: Theme.fg;
-                font-size: 11px; font-family: "Noto Sans"; vertical-alignment: center;
+                text: "Shift+Enter for a new line"; color: Theme.ink;
+                font-size: Theme.text-small; font-family: "Noto Sans"; vertical-alignment: center;
             }
             AgentButton {
                 label: root.chatting ? "Send" : "Build";
@@ -153,7 +154,7 @@ component AgentComposer inherits Rectangle {
             }
         }
         if AgentScope.mode == "project" && AgentScope.error != "": AgentText {
-            text: AgentScope.error; color: Theme.red; font-size: 12px; wrap: word-wrap;
+            text: AgentScope.error; color: Theme.danger; font-size: Theme.text-small; wrap: word-wrap;
         }
     }
 }
@@ -168,7 +169,7 @@ export component AgentWorkspace inherits Rectangle {
     property <bool> chatting: AgentScope.mode == "chat";
     property <bool> has-transcript: root.chatting && (AgentChat.messages.length > 0 || AgentChat.busy);
     property <int> composer-focus;
-    background: Theme.bg-dark;
+    background: Theme.surface;
     clip: true;
 
     function suggest(prompt: string) {
@@ -180,8 +181,8 @@ export component AgentWorkspace inherits Rectangle {
 
     header := Rectangle {
         x: 0px; y: 0px; width: parent.width; height: root.header-height;
-        background: Theme.bg;
-        Rectangle { width: parent.width; height: 1px; y: parent.height - self.height; background: Theme.muted; }
+        background: Theme.surface;
+        Rectangle { width: parent.width; height: 1px; y: parent.height - self.height; background: Theme.line-strong; }
         history-toggle := AgentButton {
             x: parent.width < 500px ? 8px : 20px; y: 13px; width: 35px; height: 36px;
             label: AgentHistory.open ? "Close history" : "Conversation history";

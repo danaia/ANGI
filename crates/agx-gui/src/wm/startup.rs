@@ -1,11 +1,11 @@
 //! Initial desktop composition, seeded as movable windows at tiled positions.
-use super::{Axis, Desktop, Kind, Node, Rect, WORKSPACES, Workspace};
+use super::{Axis, Desktop, INITIAL_WORKSPACES, Kind, Node, Rect, Workspace};
 use std::collections::{HashMap, HashSet};
 
 impl Desktop {
     pub fn new(screen: Rect, usable: Rect) -> Self {
         let mut desktop = Self {
-            ws: (0..WORKSPACES).map(|_| Workspace::empty()).collect(),
+            ws: (0..INITIAL_WORKSPACES).map(|_| Workspace::empty()).collect(),
             cur: 0,
             prev: 0,
             next_split: 3,
@@ -40,7 +40,7 @@ impl Desktop {
         desktop.cur = 1;
         desktop.open(Kind::AgentAngi);
         // Workspaces 3–5 are available for windows the user opens.
-        for i in 0..WORKSPACES {
+        for i in 0..desktop.workspace_count() {
             desktop.cur = i;
             desktop.cycle_layout();
         }

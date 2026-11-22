@@ -11,7 +11,9 @@ export { Web, WebOption, BookmarkItem, BookmarkRow }
 import { Terminal, TerminalRow, TerminalRun, TerminalPanel, TerminalView } from "terminal.slint";
 export { Terminal, TerminalRow, TerminalRun, TerminalView }
 import { BrowserPopup } from "browser-popup.slint";
-import { PanelMenu } from "panel-menu.slint";
+import { HeaderMenu, HeaderMenuRow } from "header-menu.slint";
+import { BarButton, HeaderClock, HeaderInput, WorkspaceButton } from "header-controls.slint";
+export { HeaderMenuRow }
 import { DesktopInput } from "desktop-input.slint";
 import { StorageView, StorageCell, StorageTrashRow } from "storage.slint";
 import { EmptyTrashDialog } from "storage-trash.slint";
@@ -34,13 +36,15 @@ export { MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSetti
 import { AppLauncher } from "launcher.slint";
 import { HoverTip } from "hover-tip.slint";
 import { Cursor } from "cursor.slint";
+import { NightLight, NightLightFilter } from "night-light.slint";
+export { NightLight }
 import { CursorPreviewWindow } from "cursor-preview.slint";
 export { CursorPreviewWindow }
 import { Icons, Icon, Button, ButtonVariant, Badge, Tone, MenuItem, Floating, Dialog, Title, Hint } from "pebble/pebble.slint";
 import { LoginWindow } from "login.slint";
 import { GreeterSetup, WifiChoice } from "first-boot.slint";
 export { LoginWindow, GreeterSetup, WifiChoice }
-export { Theme, Sys, NetRow, HwRow, MenuRow, Win }
+export { Theme, Sys, NetRow, HwRow, MenuRow, Win, Icons }
 
 // Window tile in Pebble Line: an outlined `surface` card (radius-lg) with a 44px header.
 // Metrics mirror wm.rs: HEADER (Theme.header), BORDER (Theme.frame-inset), BTN_W and BTN_INSET.
@@ -205,65 +209,6 @@ component WindowFrame inherits Rectangle {
 
 }
 
-// One workspace pill in the top bar's segmented trough. Occupied workspaces read in `ink`, empty ones
-// in `ink-subtle`; the current one is the raised `surface` pill.
-component WorkspaceButton inherits Rectangle {
-    in property <int> index;
-    in property <bool> active;
-    in property <bool> occupied;
-    callback picked();
-    callback pointer-moved(length, length);
-    accessible-role: tab;
-    accessible-label: "Workspace " + (root.index + 1);
-    accessible-item-selected: root.active;
-    width: 30px;
-    border-radius: self.height / 2;
-    background: root.active ? Theme.surface : transparent;
-    border-width: Theme.stroke-hair;
-    border-color: root.active ? Theme.line-strong : transparent;
-    Text {
-        text: root.index + 1;
-        color: root.active || touch.has-hover ? Theme.ink : root.occupied ? Theme.ink-muted : Theme.ink-subtle;
-        font-size: Theme.text-body-sm;
-        font-weight: 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-    touch := TouchArea {
-        mouse-cursor: MouseCursor.pointer;
-        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-        clicked => { root.picked(); }
-    }
-}
-
-// Round, unoutlined icon button for the top bar.
-component BarButton inherits Rectangle {
-    in property <image> icon;
-    in property <string> label;
-    in property <bool> open;
-    in property <color> tint: Theme.ink-muted;
-    out property <bool> has-hover: touch.has-hover;
-    callback clicked();
-    callback pointer-moved(length, length);
-    accessible-role: button;
-    accessible-label: root.label;
-    accessible-action-default => { root.clicked(); }
-    width: self.height;
-    border-radius: self.height / 2;
-    background: root.open ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
-    Icon {
-        source: root.icon;
-        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
-        color: touch.has-hover || root.open ? Theme.ink : root.tint;
-    }
-    touch := TouchArea {
-        mouse-cursor: MouseCursor.pointer;
-        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-        moved => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-        clicked => { root.clicked(); }
-    }
-}
-
 export component AppWindow inherits Window {
     title: "ANGI";
     background: Theme.background;
@@ -309,11 +254,14 @@ export component AppWindow inherits Window {
     in-out property <string> confirm-text: "";
     in-out property <bool> session-open: false;
     in-out property <int> session-index: 0;
-    in property <bool> panel-menu-open: false;
-    in property <length> panel-menu-x;
-    in property <length> panel-menu-y;
+    in property <bool> header-menu-open: false;
+    in property <length> header-menu-x;
+    in property <length> header-menu-y;
+    in property <string> header-menu-caption;
+    in property <[HeaderMenuRow]> header-menu-rows;
+    private property <bool> inline-clock: root.width < 876px + max(0, root.ws-occupied.length - 5) * 64px && root.ws-occupied.length > 5;
     property <bool> custom-resize-cursor: root.resize-cursor-overlay
-        && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && !root.panel-menu-open && root.confirm-text == "";
+        && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && !root.header-menu-open && root.confirm-text == "";
 
     callback key(string, bool, bool, bool, bool) -> bool;
     callback browser-key(string, bool, bool, bool, bool, bool) -> bool;
@@ -329,9 +277,9 @@ export component AppWindow inherits Window {
     callback session-action(int);
     callback layout-toggle();
     callback settings-open();
-    callback panel-menu-dismiss();
-    callback panel-menu-move(int);
-    callback panel-menu-close();
+    callback header-menu-dismiss();
+    callback header-menu-action(int);
+    callback workspace-menu(int, length, length);
 
     function choose-session(index: int) {
         if (index == 0) { root.settings-open(); }
@@ -429,8 +377,9 @@ export component AppWindow inherits Window {
             background: Theme.surface;
             border-width: Theme.stroke-hair;
             border-color: Theme.line;
-            TouchArea {
-                moved => { root.track-cursor(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+            HeaderInput {
+                pointer-moved(x, y) => { root.track-cursor(x, y); }
+                context-menu(x, y) => { root.workspace-menu(-1, x, y); }
             }
             HorizontalLayout {
                 padding: 4px;
@@ -441,6 +390,7 @@ export component AppWindow inherits Window {
                     open: root.menu-open;
                     tint: Theme.ink;
                     pointer-moved(x, y) => { root.track-cursor(x, y); }
+                    context-menu(x, y) => { root.workspace-menu(-1, x, y); }
                     clicked => { root.menu-show(); }
                 }
                 // Workspaces in a segmented trough.
@@ -457,6 +407,7 @@ export component AppWindow inherits Window {
                             active: root.workspace == i;
                             occupied: occupied;
                             pointer-moved(x, y) => { root.track-cursor(x, y); }
+                            context-menu(x, y) => { root.workspace-menu(i, x, y); }
                             picked => { root.workspace-select(i); }
                         }
                     }
@@ -468,6 +419,7 @@ export component AppWindow inherits Window {
                     accessible-checkable: true;
                     accessible-checked: !root.windowed-mode;
                     pointer-moved(x, y) => { root.track-cursor(x, y); }
+                    context-menu(x, y) => { root.workspace-menu(-1, x, y); }
                     clicked => { root.mode-tip = false; root.layout-toggle(); root-keys.focus(); }
                     changed has-hover => {
                         mode-dwell.running = self.has-hover;
@@ -476,7 +428,11 @@ export component AppWindow inherits Window {
                     mode-dwell := Timer { interval: 400ms; running: false; triggered => { self.running = false; root.mode-tip = true; } }
                 }
                 // Kept clear of the centred clock.
-                Text { text: root.focus-title; color: Theme.ink-muted; font-size: Theme.text-body; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; max-width: max(0px, root.width / 2 - 340px); }
+                Text { text: root.focus-title; color: Theme.ink-muted; font-size: Theme.text-body; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; max-width: max(0px, root.width / 2 - 340px - max(0, root.ws-occupied.length - 5) * 32px); }
+                if root.inline-clock: HeaderClock {
+                    clock: root.clock;
+                    date: root.width >= 900px ? root.date : "";
+                }
                 Rectangle { horizontal-stretch: 1; }
                 // Status badges give way to the clock on narrow screens.
                 if root.width >= 1100px: VerticalLayout {
@@ -498,6 +454,7 @@ export component AppWindow inherits Window {
                     open: root.session-open;
                     tint: Theme.ink;
                     pointer-moved(x, y) => { root.track-cursor(x, y); }
+                    context-menu(x, y) => { root.workspace-menu(-1, x, y); }
                     clicked => {
                         root.session-open = !root.session-open;
                         root.session-index = 0;
@@ -506,12 +463,9 @@ export component AppWindow inherits Window {
                     }
                 }
             }
-            // Clock, centred on the bar.
-            HorizontalLayout {
-                alignment: center;
-                spacing: Theme.space-2;
-                Text { text: root.clock; color: Theme.ink; font-size: Theme.text-title; font-weight: 500; vertical-alignment: center; }
-                if root.date != "" && root.width >= 900px: Text { text: root.date; color: Theme.ink-muted; font-size: Theme.text-body-sm; vertical-alignment: center; }
+            if !root.inline-clock: HeaderClock {
+                clock: root.clock;
+                date: root.width >= 900px ? root.date : "";
             }
             // Layout toggle tooltip, same pattern as the Agent Angi scope tip.
             HoverTip {
@@ -534,7 +488,7 @@ export component AppWindow inherits Window {
                 Text {
                     text: root.toast != "" ? root.toast
                         : root.windowed-mode ? "\{root.mod-name} + Space  Apps     Double-click header  Collapse or restore     Drag header  Move     \{root.mod-name} + L  Tiled"
-                        : "\{root.mod-name} + Space  Apps     + arrows  Focus     + Q  Close     + T  Float     + F  Full     + L  Windowed     + 1–5  Workspace";
+                        : "\{root.mod-name} + Space  Apps     + arrows  Focus     + Q  Close     + T  Float     + F  Full     + L  Windowed     + 1–0  Workspace";
                     color: root.toast != "" ? Theme.warning : Theme.ink-muted;
                     font-size: Theme.text-small;
                     vertical-alignment: center;
@@ -604,15 +558,14 @@ export component AppWindow inherits Window {
             }
         }
 
-        if root.panel-menu-open: PanelMenu {
-            anchor-x: root.panel-menu-x;
-            anchor-y: root.panel-menu-y;
-            workspace: root.workspace;
-            workspace-count: root.ws-occupied.length;
+        if root.header-menu-open: HeaderMenu {
+            anchor-x: root.header-menu-x;
+            anchor-y: root.header-menu-y;
+            caption: root.header-menu-caption;
+            rows: root.header-menu-rows;
             pointer-moved(x, y) => { root.track-cursor(x, y); }
-            dismissed => { root.panel-menu-dismiss(); }
-            send-to(workspace) => { root.panel-menu-move(workspace); }
-            close-panel => { root.panel-menu-close(); }
+            dismissed => { root.header-menu-dismiss(); }
+            chosen(index) => { root.header-menu-action(index); }
         }
 
         if Files.chooser-open: FolderPicker {
@@ -675,6 +628,9 @@ export component AppWindow inherits Window {
                 }
             }
         }
+
+        // Night light warms everything above, including dialogs; the pointer stays crisp on top.
+        NightLightFilter { x: 0; y: 0; width: root.width; height: root.height; }
 
         if (root.draw-cursor || root.custom-resize-cursor) && root.cursor-seen: Cursor {
             x: root.cursor-x;

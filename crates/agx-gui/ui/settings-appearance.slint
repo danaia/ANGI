@@ -1,6 +1,8 @@
 // Appearance page of Settings: the Pebble Line light or dark theme for this account.
 // src/appearance.rs loads and saves the choice; `Theme.dark` switches every token live.
-import { Theme, Icons, Heading2, Hint, Label, Caption, SegmentedControl } from "pebble/pebble.slint";
+import { Theme, Icons, Icon, Heading2, Hint, Label, Caption, SegmentedControl, Switch, Slider } from "pebble/pebble.slint";
+import { ScrollView } from "std-widgets.slint";
+import { NightLight } from "night-light.slint";
 
 export global AppearanceSettings {
     in-out property <string> status: "Changes apply immediately and are saved for your account";
@@ -87,7 +89,17 @@ export component AppearancePage inherits Rectangle {
     in property <bool> compact;
     callback pointer-moved(length, length);
     callback activate();
-    public function focus-theme() { theme-choice.focus(); }
+    public function focus-theme() { scroll.content-y = 0; theme-choice.focus(); }
+    public function focus-night-light() { root.reveal-night(); night-switch.focus(); }
+    public function focus-warmth() { root.reveal-night(); warmth-slider.focus(); }
+    function reveal-night() {
+        let bottom = night-section.y + night-section.height + Theme.space-4;
+        if (bottom + scroll.content-y > scroll.height) { scroll.content-y = min(0px, scroll.height - bottom); }
+    }
+    function night-changed() { root.activate(); NightLight.changed(); }
+    function commit-warmth(v: float) {
+        if (v != NightLight.warmth) { NightLight.warmth = v; root.night-changed(); }
+    }
     function choose(dark: bool) {
         root.activate();
         if (Theme.dark != dark) {
@@ -95,6 +107,9 @@ export component AppearancePage inherits Rectangle {
             AppearanceSettings.changed();
         }
     }
+    scroll := ScrollView {
+    width: root.width; height: root.height;
+    content-width: self.width;
     VerticalLayout {
         padding-left: root.compact ? Theme.space-4 : Theme.space-8;
         padding-right: self.padding-left;
@@ -139,9 +154,69 @@ export component AppearancePage inherits Rectangle {
                 pointer-moved(x, y) => { root.pointer-moved(x, y); }
             }
         }
+        night-section := VerticalLayout {
+            padding-top: Theme.space-5;
+            spacing: 0;
+            Rectangle { height: 1px; background: Theme.line; }
+            HorizontalLayout {
+                padding-top: Theme.space-5; padding-bottom: Theme.space-4;
+                spacing: Theme.space-8;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2px;
+                    alignment: center;
+                    Label { text: "Night light"; }
+                    Hint { text: "Warms the whole screen to rest your eyes after dark."; }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    night-switch := Switch {
+                        label: "Night light";
+                        checked <=> NightLight.enabled;
+                        toggled => { root.night-changed(); }
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    }
+                }
+            }
+            // Warmth: sun (a light glow) to moon (a deep night view).
+            Rectangle {
+                height: warmth-row.preferred-height;
+                border-radius: Theme.radius-md;
+                background: Theme.surface-muted;
+                opacity: NightLight.enabled ? 1 : 0.5;
+                warmth-row := HorizontalLayout {
+                    padding: Theme.space-4;
+                    spacing: Theme.space-3;
+                    VerticalLayout {
+                        alignment: center;
+                        Icon { source: Icons.sun; width: 20px; height: 20px; }
+                    }
+                    // The knob moves freely while dragging; the screen filter (a full-screen repaint)
+                    // and the saved file change once, on release. Arrow keys apply each step.
+                    warmth-slider := Slider {
+                        horizontal-stretch: 1;
+                        minimum: 0; maximum: 100; step: 5;
+                        enabled: NightLight.enabled;
+                        value: NightLight.warmth;
+                        changed(v) => { if (!self.dragging) { root.commit-warmth(v); } }
+                        released(v) => { root.commit-warmth(v); }
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Icon { source: Icons.moon; width: 20px; height: 20px; }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Label { text: NightLight.level-for(warmth-slider.value); min-width: 84px; horizontal-alignment: right; }
+                    }
+                }
+            }
+        }
         Rectangle { height: Theme.space-5; }
         Caption { text: "PEBBLE LINE"; }
         Hint { text: "Flat surfaces, faint 1px strokes and one inverted accent. Terminal and web pages keep their own colours."; }
         Rectangle { vertical-stretch: 1; }
+    }
     }
 }

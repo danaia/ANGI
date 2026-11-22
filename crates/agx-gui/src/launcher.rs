@@ -7,7 +7,7 @@ use crate::{
     App, AppWindow, MenuRow,
     keymap::Cmd,
     library::Availability,
-    wm::{Desktop, Kind, Mode, WORKSPACES},
+    wm::{Desktop, Kind, Mode},
 };
 use slint::{ModelRc, VecModel};
 
@@ -243,11 +243,11 @@ fn catalogue(
         9,
         Cmd::CycleLayout,
     );
-    for n in 0..WORKSPACES {
+    for n in 0..desktop.workspace_count() {
         command(
             format!("Workspace {}", n + 1),
             "Switch desktop workspace".into(),
-            format!("{modifier}+{}", n + 1),
+            format!("{modifier}+{}", (n + 1) % 10),
             8,
             Cmd::Workspace(n),
         );

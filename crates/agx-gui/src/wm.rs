@@ -8,6 +8,7 @@ mod scene;
 mod startup;
 mod tiling;
 mod windowed;
+mod workspaces;
 
 // Pebble Line desktop metrics; ui/pebble/tokens.slint mirrors them (gap-out, header, frame-inset,
 // header-button, header-inset). Change both together.
@@ -23,7 +24,8 @@ pub const BTN_W: f32 = 32.0;
 pub const BTN_INSET: f32 = 10.0;
 pub const MIN_W: f32 = 220.0;
 pub const MIN_H: f32 = 120.0;
-pub const WORKSPACES: usize = 5;
+pub const INITIAL_WORKSPACES: usize = 5;
+pub const MAX_WORKSPACES: usize = 10;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rect {
@@ -521,52 +523,6 @@ impl Desktop {
         let fallback = self.default_float(n);
         self.float_rect.entry(k).or_insert(fallback);
     }
-    pub fn move_to_workspace(&mut self, target: usize, follow: bool) {
-        let Some(k) = self.focused() else { return };
-        if target >= WORKSPACES || target == self.cur {
-            return;
-        }
-        let was_float = self.ws[self.cur].floats.contains(&k);
-        let was_collapsed = self.collapsed.contains(&k);
-        let rect = if was_collapsed {
-            self.float_rect.get(&k).copied()
-        } else {
-            self.rect_of(k)
-        };
-        self.detach(k);
-        self.attach(target, k);
-        if let Some(r) = rect {
-            self.float_rect.insert(k, r);
-        }
-        if was_collapsed {
-            self.collapsed.insert(k);
-        }
-        if was_float {
-            // Keep it floating on the other side too.
-            let w = &mut self.ws[target];
-            w.tree = w.tree.take().and_then(|t| t.remove(k));
-            w.floats.push(k);
-        }
-        self.ws[target].focus = Some(k);
-        if follow {
-            self.goto(target);
-        }
-    }
-    pub fn goto(&mut self, i: usize) {
-        if i < WORKSPACES && i != self.cur {
-            self.prev = self.cur;
-            self.cur = i;
-        }
-    }
-    pub fn next_workspace(&mut self, back: bool) {
-        let n = WORKSPACES;
-        self.goto(if back {
-            (self.cur + n - 1) % n
-        } else {
-            (self.cur + 1) % n
-        });
-    }
-
     // --- layout operations ------------------------------------------------
     pub fn swap(&mut self, a: Kind, b: Kind) {
         let w = &mut self.ws[self.cur];

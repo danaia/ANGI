@@ -61,6 +61,8 @@ pub enum Cmd {
     Fullscreen,
     Maximize,
     CycleLayout,
+    AddWorkspace,
+    RemoveWorkspace(usize),
     Workspace(usize),
     MoveToWorkspace { ws: usize, follow: bool },
     NextWorkspace,
@@ -82,7 +84,11 @@ pub enum Cmd {
 /// `key` is a normalised name: "left", "tab", "space", "-", "a", "1" ...
 pub fn bind(key: &str, m: Mods, modk: ModKey) -> Option<Cmd> {
     let key = unshift(key);
-    let digit = key.parse::<usize>().ok().filter(|n| (1..=9).contains(n)).map(|n| n - 1);
+    let digit = match key.as_bytes() {
+        [b'0'] => Some(9),
+        [digit @ b'1'..=b'9'] => Some(usize::from(digit - b'1')),
+        _ => None,
+    };
     if !modk.held(m) {
         // Convenience without a modifier; Alt+Tab is Omarchy's window cycle.
         if m.alt && key == "tab" {
@@ -93,7 +99,7 @@ pub fn bind(key: &str, m: Mods, modk: ModKey) -> Option<Cmd> {
         }
         return match (key, digit) {
             ("/", _) => Some(Cmd::Menu),
-            (_, Some(n)) if n < crate::wm::WORKSPACES => Some(Cmd::Workspace(n)),
+            (_, Some(n)) if !m.shift => Some(Cmd::Workspace(n)),
             _ => None,
         };
     }
@@ -109,7 +115,7 @@ pub fn bind(key: &str, m: Mods, modk: ModKey) -> Option<Cmd> {
         return Some(if m.shift { Cmd::Swap(d) } else { Cmd::Focus(d) });
     }
     if let Some(n) = digit {
-        return (n < crate::wm::WORKSPACES).then_some(if m.shift {
+        return Some(if m.shift {
             Cmd::MoveToWorkspace { ws: n, follow: !fine }
         } else {
             Cmd::Workspace(n)
@@ -147,6 +153,7 @@ fn unshift(key: &str) -> &str {
         "&" => "7",
         "*" => "8",
         "(" => "9",
+        ")" => "0",
         k => k,
     }
 }
@@ -182,7 +189,9 @@ mod tests {
         assert_eq!(bind("tab", m(true, false, false, false), S), Some(Cmd::NextWorkspace));
         assert_eq!(bind("tab", m(true, false, false, true), S), Some(Cmd::PrevWorkspace));
         assert_eq!(bind("tab", m(false, true, false, false), S), Some(Cmd::CycleFocus(false)));
-        assert_eq!(bind("9", m(true, false, false, false), S), None, "only five workspaces");
+        assert_eq!(bind("9", m(true, false, false, false), S), Some(Cmd::Workspace(8)));
+        assert_eq!(bind("^", m(true, false, false, true), S), Some(Cmd::MoveToWorkspace { ws: 5, follow: true }));
+        assert_eq!(bind(")", m(true, false, false, true), S), Some(Cmd::MoveToWorkspace { ws: 9, follow: true }));
     }
     #[test]
     fn resize_steps_match_omarchy() {

@@ -3,6 +3,7 @@ import { Theme, Icons, Heading2, Hint, Label, Caption, Kbd, Button, ButtonVarian
 import { ScrollView } from "std-widgets.slint";
 import { BluetoothPage, BluetoothSettings, BtDevice, BtApproval } from "bluetooth.slint";
 import { AppearancePage, AppearanceSettings } from "settings-appearance.slint";
+import { NightLight } from "night-light.slint";
 export { BluetoothSettings, BtDevice, BtApproval, AppearanceSettings }
 
 export global MouseSettings {
@@ -78,9 +79,13 @@ export component SettingsPanel inherits Rectangle {
         if (root.focus-step == 3) { refresh-button.focus(); }
     }
     function next-appearance-control(backwards: bool) {
-        root.focus-step = root.focus-step < 0 ? (backwards ? 1 : 0) : mod(root.focus-step + 1, 2);
+        // Theme, Night light, Warmth (only while night light is on), Refresh.
+        root.focus-step = root.focus-step < 0 ? (backwards ? 3 : 0) : mod(root.focus-step + (backwards ? 3 : 1), 4);
+        if (root.focus-step == 2 && !NightLight.enabled) { root.focus-step = backwards ? 1 : 3; }
         if (root.focus-step == 0) { appearance-page.focus-theme(); }
-        if (root.focus-step == 1) { refresh-button.focus(); }
+        if (root.focus-step == 1) { appearance-page.focus-night-light(); }
+        if (root.focus-step == 2) { appearance-page.focus-warmth(); }
+        if (root.focus-step == 3) { refresh-button.focus(); }
     }
     function next-control(backwards: bool) {
         if (root.page == 1) { root.next-bluetooth-control(backwards); return; }

@@ -34,7 +34,8 @@ and every screen must look right in both.
   destructive action. Never pick a token because its current colour happens to match.
 - Allowed exceptions, each already commented in the code: the terminal cell grid
   (`Theme.terminal-*`, always dark because the ANSI palette needs it), the literal swatches in the
-  Appearance page's theme previews, the cursor bitmaps, and web-page pixels.
+  Appearance page's theme previews, the night light filter colours (`ui/night-light.slint`), the
+  cursor bitmaps, and web-page pixels.
 
 ### 2. Colour roles
 

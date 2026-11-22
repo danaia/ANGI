@@ -1,0 +1,31 @@
+// Night light: a warm screen filter over the whole desktop, set in Settings › Appearance.
+// src/appearance.rs loads and saves `NightLight`; `NightLightFilter` sits above every window in
+// app.slint (below the pointer) and takes no input.
+//
+// The two filter colours below are a screen filter, not interface colour, so they are literal
+// values (docs/design-system.md, rule 1 exceptions). Low warmth is a faint amber glow; high warmth
+// blends toward a deep ember that also dims the screen for a dark night view.
+
+export global NightLight {
+    in-out property <bool> enabled: false;
+    // 0 is the gentlest glow, 100 the deepest night.
+    in-out property <float> warmth: 40;
+    callback changed();
+    // A short word for a warmth, shown beside the slider (which may be mid-drag, ahead of `warmth`).
+    public pure function level-for(w: float) -> string {
+        w < 25 ? "Soft glow" : w < 50 ? "Warm" : w < 75 ? "Amber" : "Deep night"
+    }
+    out property <float> ratio: clamp(warmth / 100, 0, 1);
+    // `a.mix(b, f)` is f·a + (1−f)·b, so ratio 0 is the glow and 1 the ember.
+    out property <color> tint: #6b2200.mix(#ffa040, ratio);
+    out property <float> strength: 0.12 + 0.43 * ratio;
+}
+
+// The filter layer. Pure paint: it has no TouchArea, so every click passes through.
+export component NightLightFilter inherits Rectangle {
+    background: NightLight.tint;
+    opacity: NightLight.enabled ? NightLight.strength : 0;
+    visible: self.opacity > 0;
+    // One short fade when night light turns on or off, or a new warmth is committed on release.
+    animate opacity, background { duration: 400ms; easing: ease-in-out; }
+}

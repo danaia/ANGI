@@ -1,0 +1,86 @@
+import { Icon, Theme } from "pebble/pebble.slint";
+
+// The same secondary-button handler serves the top bar and its controls.
+export component HeaderInput inherits TouchArea {
+    callback context-menu(length, length);
+    callback pointer-moved(length, length);
+    pointer-event(e) => {
+        let x = self.absolute-position.x + self.mouse-x;
+        let y = self.absolute-position.y + self.mouse-y;
+        root.pointer-moved(x, y);
+        if e.kind == PointerEventKind.down && e.button == PointerEventButton.right {
+            root.context-menu(x, y);
+        }
+    }
+}
+
+// One workspace pill in the top bar's segmented trough. Occupied workspaces read in `ink`, empty ones
+// in `ink-subtle`; the current one is the raised `surface` pill.
+export component WorkspaceButton inherits Rectangle {
+    in property <int> index;
+    in property <bool> active;
+    in property <bool> occupied;
+    callback picked();
+    callback pointer-moved(length, length);
+    callback context-menu(length, length);
+    accessible-role: tab;
+    accessible-label: "Workspace " + (root.index + 1);
+    accessible-item-selected: root.active;
+    width: 30px;
+    border-radius: self.height / 2;
+    background: root.active ? Theme.surface : transparent;
+    border-width: Theme.stroke-hair;
+    border-color: root.active ? Theme.line-strong : transparent;
+    Text {
+        text: root.index + 1;
+        color: root.active || touch.has-hover ? Theme.ink : root.occupied ? Theme.ink-muted : Theme.ink-subtle;
+        font-size: Theme.text-body-sm;
+        font-weight: 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := HeaderInput {
+        mouse-cursor: MouseCursor.pointer;
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        context-menu(x, y) => { root.context-menu(x, y); }
+        clicked => { root.picked(); }
+    }
+}
+
+// Round, unoutlined icon button for the top bar.
+export component BarButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> open;
+    in property <color> tint: Theme.ink-muted;
+    out property <bool> has-hover: touch.has-hover;
+    callback clicked();
+    callback pointer-moved(length, length);
+    callback context-menu(length, length);
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    width: self.height;
+    border-radius: self.height / 2;
+    background: root.open ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
+    Icon {
+        source: root.icon;
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        color: touch.has-hover || root.open ? Theme.ink : root.tint;
+    }
+    touch := HeaderInput {
+        mouse-cursor: MouseCursor.pointer;
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        context-menu(x, y) => { root.context-menu(x, y); }
+        clicked => { root.clicked(); }
+    }
+}
+
+export component HeaderClock inherits HorizontalLayout {
+    in property <string> clock;
+    in property <string> date;
+    alignment: center;
+    spacing: Theme.space-2;
+    Text { text: root.clock; color: Theme.ink; font-size: Theme.text-title; font-weight: 500; vertical-alignment: center; }
+    if root.date != "": Text { text: root.date; color: Theme.ink-muted; font-size: Theme.text-body-sm; vertical-alignment: center; }
+}

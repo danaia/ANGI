@@ -1,93 +1,149 @@
-//! Per-account appearance: the Pebble Line light or dark theme.
+//! Per-account appearance: the Pebble Line light or dark theme, and the night light filter.
 //!
-//! The choice lives in `~/.config/agx/appearance.conf` as `theme=dark` or `theme=light`, and drives
-//! `Theme.dark` in `ui/pebble/tokens.slint`. Every colour token switches with it, so the change is
-//! live with no restart.
-use crate::{AppWindow, AppearanceSettings, Theme};
+//! The choice lives in `~/.config/agx/appearance.conf` as `theme=dark|light`, `night-light=on|off`
+//! and `night-warmth=0..100`. The theme drives `Theme.dark` in `ui/pebble/tokens.slint`, so every
+//! colour token switches live; the night light drives `NightLight` in `ui/night-light.slint`, the
+//! warm filter laid over the whole desktop.
+use crate::{AppWindow, AppearanceSettings, NightLight, Theme};
 use slint::ComponentHandle;
 use std::{fs, io};
 
 const FILE: &str = "appearance.conf";
+const DEFAULT_WARMTH: u8 = 40;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-enum Mode {
-    #[default]
-    Dark,
-    Light,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Appearance {
+    dark: bool,
+    night_light: bool,
+    /// 0 is the gentlest glow, 100 the deepest night.
+    warmth: u8,
 }
-impl Mode {
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            dark: true,
+            night_light: false,
+            warmth: DEFAULT_WARMTH,
+        }
+    }
+}
+impl Appearance {
     fn parse(text: &str) -> io::Result<Self> {
-        let mut mode = Self::default();
+        let mut prefs = Self::default();
         for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
             match line.split_once('=') {
-                Some(("theme", "dark")) => mode = Self::Dark,
-                Some(("theme", "light")) => mode = Self::Light,
+                Some(("theme", "dark")) => prefs.dark = true,
+                Some(("theme", "light")) => prefs.dark = false,
                 Some(("theme", _)) => return Err(io::Error::other("Unknown theme")),
+                Some(("night-light", "on")) => prefs.night_light = true,
+                Some(("night-light", "off")) => prefs.night_light = false,
+                Some(("night-light", _)) => return Err(io::Error::other("Unknown night light")),
+                Some(("night-warmth", value)) => {
+                    prefs.warmth = value
+                        .parse()
+                        .ok()
+                        .filter(|warmth| *warmth <= 100)
+                        .ok_or_else(|| io::Error::other("Night warmth must be 0 to 100"))?;
+                }
                 _ => return Err(io::Error::other("Unknown appearance preference")),
             }
         }
-        Ok(mode)
+        Ok(prefs)
     }
     fn encode(self) -> String {
         format!(
-            "theme={}\n",
-            if self == Self::Dark { "dark" } else { "light" }
+            "theme={}\nnight-light={}\nnight-warmth={}\n",
+            if self.dark { "dark" } else { "light" },
+            if self.night_light { "on" } else { "off" },
+            self.warmth
         )
+    }
+    fn read(ui: &AppWindow) -> Self {
+        let night = ui.global::<NightLight>();
+        Self {
+            dark: ui.global::<Theme>().get_dark(),
+            night_light: night.get_enabled(),
+            warmth: night.get_warmth().round().clamp(0.0, 100.0) as u8,
+        }
+    }
+    fn apply(self, ui: &AppWindow) {
+        ui.global::<Theme>().set_dark(self.dark);
+        let night = ui.global::<NightLight>();
+        night.set_enabled(self.night_light);
+        night.set_warmth(f32::from(self.warmth));
     }
 }
 
-fn load() -> Mode {
+fn load() -> Appearance {
     let Some(path) = crate::settings::config_file(FILE) else {
-        return Mode::default();
+        return Appearance::default();
     };
     match fs::read_to_string(path) {
-        Ok(text) => Mode::parse(&text).unwrap_or_else(|error| {
-            eprintln!("agx-gui: appearance: {error}; using dark");
-            Mode::default()
+        Ok(text) => Appearance::parse(&text).unwrap_or_else(|error| {
+            eprintln!("agx-gui: appearance: {error}; using defaults");
+            Appearance::default()
         }),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Mode::default(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Appearance::default(),
         Err(error) => {
             eprintln!("agx-gui: appearance: {error}");
-            Mode::default()
+            Appearance::default()
         }
     }
 }
 
-/// Apply the saved theme and save it again whenever Settings changes it.
+/// Apply the saved appearance and save it again whenever Settings changes the theme or night light.
 pub fn install(ui: &AppWindow) {
-    ui.global::<Theme>().set_dark(load() == Mode::Dark);
-    let weak = ui.as_weak();
-    ui.global::<AppearanceSettings>().on_changed(move || {
-        let Some(ui) = weak.upgrade() else {
-            return;
-        };
-        let mode = if ui.global::<Theme>().get_dark() {
-            Mode::Dark
-        } else {
-            Mode::Light
-        };
-        let status = match crate::settings::config_file(FILE)
-            .ok_or_else(|| io::Error::other("Home directory unavailable"))
-            .and_then(|path| crate::settings::write_private(&path, &mode.encode()))
-        {
-            Ok(()) => "Saved for your account".to_owned(),
-            Err(error) => format!("Applied for this session. Could not save: {error}"),
-        };
-        ui.global::<AppearanceSettings>().set_status(status.into());
-    });
+    load().apply(ui);
+    let save = {
+        let weak = ui.as_weak();
+        move || {
+            let Some(ui) = weak.upgrade() else {
+                return;
+            };
+            let status = match crate::settings::config_file(FILE)
+                .ok_or_else(|| io::Error::other("Home directory unavailable"))
+                .and_then(|path| {
+                    crate::settings::write_private(&path, &Appearance::read(&ui).encode())
+                }) {
+                Ok(()) => "Saved for your account".to_owned(),
+                Err(error) => format!("Applied for this session. Could not save: {error}"),
+            };
+            ui.global::<AppearanceSettings>().set_status(status.into());
+        }
+    };
+    ui.global::<AppearanceSettings>().on_changed(save.clone());
+    ui.global::<NightLight>().on_changed(save);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn theme_round_trips_and_rejects_unknown_values() {
-        for mode in [Mode::Dark, Mode::Light] {
-            assert_eq!(Mode::parse(&mode.encode()).unwrap(), mode);
+    fn appearance_round_trips_and_rejects_unknown_values() {
+        for dark in [true, false] {
+            for (night_light, warmth) in [(false, 0), (true, 55), (true, 100)] {
+                let prefs = Appearance {
+                    dark,
+                    night_light,
+                    warmth,
+                };
+                assert_eq!(Appearance::parse(&prefs.encode()).unwrap(), prefs);
+            }
         }
-        assert_eq!(Mode::parse("").unwrap(), Mode::Dark);
-        for text in ["theme=blue", "theme", "accent=red"] {
-            assert!(Mode::parse(text).is_err(), "{text}");
+        assert_eq!(Appearance::parse("").unwrap(), Appearance::default());
+        // Files written before night light existed keep their theme and get the default filter.
+        let older = Appearance::parse("theme=light\n").unwrap();
+        assert!(!older.dark && !older.night_light && older.warmth == DEFAULT_WARMTH);
+        for text in [
+            "theme=blue",
+            "theme",
+            "accent=red",
+            "night-light=maybe",
+            "night-warmth=101",
+            "night-warmth=-5",
+            "night-warmth=warm",
+        ] {
+            assert!(Appearance::parse(text).is_err(), "{text}");
         }
     }
 
@@ -135,6 +191,7 @@ mod tests {
             "cursor.slint",
             "cursor-preview.slint",
             "settings-appearance.slint",
+            "night-light.slint",
         ];
         let mut offenders = Vec::new();
         for entry in fs::read_dir(&ui).unwrap() {

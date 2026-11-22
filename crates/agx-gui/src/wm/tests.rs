@@ -122,7 +122,7 @@ fn desk() -> Desktop {
     let screen = Rect::new(0.0, 0.0, 1200.0, 800.0);
     // Existing tiling/interaction checks use a three-panel tiled fixture.
     let mut desktop = Desktop::new(screen, Rect::new(0.0, 34.0, 1200.0, 740.0));
-    for i in 0..WORKSPACES {
+    for i in 0..INITIAL_WORKSPACES {
         desktop.goto(i);
         if desktop.mode() != Mode::Tiled {
             desktop.cycle_layout();
@@ -171,7 +171,7 @@ fn default_desktop_opens_the_reference_layout_in_windowed_mode() {
         assert!(c.right() < m.x);
         assert_eq!(c.y, m.y);
         assert!((m.right() - (width - GAP_OUT)).abs() < 0.01);
-        for i in 0..WORKSPACES {
+        for i in 0..INITIAL_WORKSPACES {
             d.goto(i);
             assert_eq!(d.mode(), Mode::Floating);
         }
@@ -390,6 +390,44 @@ fn move_window_between_workspaces() {
 }
 
 #[test]
+fn creating_numbered_workspaces_preserves_existing_windows_and_wraps_navigation() {
+    let mut desktop = desk();
+    let original = desktop.scene().windows.len();
+    desktop.goto(4);
+    desktop.move_to_workspace(7, true);
+    assert_eq!(desktop.current(), 7);
+    assert_eq!(desktop.workspace_count(), 8);
+    desktop.next_workspace(false);
+    assert_eq!(desktop.current(), 0);
+    assert_eq!(desktop.scene().windows.len(), original);
+    assert!(!desktop.ensure_workspace(MAX_WORKSPACES));
+    assert_eq!(desktop.workspace_count(), 8);
+}
+
+#[test]
+fn removing_the_active_workspace_keeps_windows_and_the_last_workspace() {
+    let mut desktop = desk();
+    desktop.goto(1);
+    desktop.cycle_layout();
+    desktop.goto(0);
+    desktop.cycle_layout();
+    let full_rect = rect(&desktop, Kind::Overview);
+    desktop.toggle_collapsed(Kind::Overview);
+    desktop.remove_workspace(0);
+    assert_eq!(desktop.current(), 0);
+    assert_eq!(desktop.focused(), Some(Kind::Overview));
+    assert!(desktop.scene().rect_of(Kind::AgentAngi).is_some());
+    assert!(desktop.is_collapsed(Kind::Overview));
+    desktop.toggle_collapsed(Kind::Overview);
+    assert_eq!(rect(&desktop, Kind::Overview), full_rect);
+    for _ in 0..INITIAL_WORKSPACES {
+        desktop.remove_workspace(0);
+    }
+    assert_eq!(desktop.workspace_count(), 1);
+    assert!(desktop.scene().rect_of(Kind::Overview).is_some());
+}
+
+#[test]
 fn closed_panels_reopen_on_the_current_workspace() {
     let mut d = desk();
     d.close(Kind::AgentAngi);
@@ -493,7 +531,7 @@ fn fresh_desktop_keeps_three_workspaces_empty() {
     assert!(desktop.occupied(0));
     desktop.goto(1);
     assert_eq!(desktop.focused(), Some(Kind::AgentAngi));
-    for workspace in 2..WORKSPACES {
+    for workspace in 2..INITIAL_WORKSPACES {
         desktop.goto(workspace);
         assert!(!desktop.occupied(workspace));
         assert!(desktop.scene().windows.is_empty());

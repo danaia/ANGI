@@ -1,0 +1,68 @@
+import { Caption, Divider, Floating, MenuItem, Theme } from "pebble/pebble.slint";
+
+export struct HeaderMenuRow { label: string, icon: image, danger: bool, separator: bool }
+
+export component HeaderMenu inherits Rectangle {
+    in property <length> anchor-x;
+    in property <length> anchor-y;
+    in property <string> caption;
+    in property <[HeaderMenuRow]> rows;
+    callback chosen(int);
+    callback dismissed();
+    callback pointer-moved(length, length);
+
+    private property <int> selected: 0;
+    private property <int> count: max(1, root.rows.length);
+    private property <length> row-height: root.rows.length > 8 && root.height < 480px ? Theme.space-8 : Theme.space-10;
+
+    init => { keys.focus(); }
+    keys := FocusScope {
+        key-pressed(e) => {
+            if e.text == Key.Escape { root.dismissed(); }
+            else if e.text == Key.DownArrow || e.text == Key.Tab {
+                root.selected = mod(root.selected + (e.modifiers.shift ? -1 : 1) + root.count, root.count);
+            } else if e.text == Key.UpArrow || e.text == Key.Backtab {
+                root.selected = mod(root.selected + root.count - 1, root.count);
+            } else if e.text == Key.Return || e.text == " " { root.chosen(root.selected); }
+            accept
+        }
+        key-released(e) => { accept }
+    }
+    TouchArea {
+        pointer-event(e) => { root.pointer-moved(self.mouse-x, self.mouse-y); }
+        clicked => { root.dismissed(); }
+        scroll-event(e) => { accept }
+    }
+    Floating {
+        x: clamp(root.anchor-x, Theme.space-2, max(Theme.space-2, root.width - self.width - Theme.space-2));
+        y: clamp(root.anchor-y, Theme.space-2, max(Theme.space-2, root.height - self.height - Theme.space-2));
+        width: 212px;
+        height: content.preferred-height;
+
+        content := VerticalLayout {
+            padding: Theme.space-2;
+            spacing: 0;
+            if root.caption != "": HorizontalLayout {
+                height: Theme.space-6;
+                padding-left: Theme.space-3;
+                Caption { text: root.caption; vertical-alignment: center; }
+            }
+            for row[i] in root.rows: VerticalLayout {
+                spacing: 0;
+                if row.separator: VerticalLayout {
+                    padding: Theme.space-2;
+                    Divider { }
+                }
+                MenuItem {
+                    height: root.row-height;
+                    text: row.label;
+                    icon: row.icon;
+                    danger: row.danger;
+                    highlighted: root.selected == i;
+                    clicked => { root.chosen(i); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+        }
+    }
+}

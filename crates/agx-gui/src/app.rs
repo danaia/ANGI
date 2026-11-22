@@ -11,6 +11,8 @@ use crate::{
 use slint::{ComponentHandle, Model, Timer, VecModel};
 use std::process::Command;
 use std::{rc::Rc, time::Duration};
+mod header_menu;
+use header_menu::HeaderMenu;
 pub(super) struct App {
     pub(super) terminal: terminal::State,
     pub(super) terminal_kind: Kind,
@@ -37,7 +39,7 @@ pub(super) struct App {
     /// Logical size of the window as last laid out.
     pub(super) size: (f32, f32),
     pub(super) header_clicks: input::HeaderClicks,
-    panel_menu_target: Option<Kind>,
+    header_menu: HeaderMenu,
 }
 
 pub(super) fn session_action(index: i32) -> Option<Cmd> {
@@ -61,7 +63,7 @@ impl App {
             browser: browser::Browser::default(),
             desk,
             view,
-            occupied: Rc::new(VecModel::from(vec![false; wm::WORKSPACES])),
+            occupied: Rc::new(VecModel::from(vec![false; wm::INITIAL_WORKSPACES])),
             modk: ModKey::from_env(),
             drag: Drag::None,
             mods: Mods::default(),
@@ -76,7 +78,7 @@ impl App {
             pending: None,
             size: (1280.0, 720.0),
             header_clicks: input::HeaderClicks::default(),
-            panel_menu_target: None,
+            header_menu: HeaderMenu::default(),
         }
     }
 
@@ -112,7 +114,7 @@ impl App {
                 .windows
                 .iter()
                 .any(|w| w.kind.is_terminal() && !w.collapsed);
-        if !ui.get_panel_menu_open()
+        if !ui.get_header_menu_open()
             && !terminal_search
             && self.desk.focused() != Some(Kind::Settings)
             && self.desk.focused() != Some(Kind::AgentAngi)
@@ -121,10 +123,16 @@ impl App {
         {
             ui.invoke_focus_desktop();
         }
-        for i in 0..wm::WORKSPACES {
+        let workspace_count = self.desk.workspace_count();
+        while self.occupied.row_count() > workspace_count {
+            self.occupied.remove(self.occupied.row_count() - 1);
+        }
+        for i in 0..workspace_count {
             let occupied = self.desk.occupied(i);
-            if self.occupied.row_data(i) != Some(occupied) {
-                self.occupied.set_row_data(i, occupied);
+            match self.occupied.row_data(i) {
+                None => self.occupied.push(occupied),
+                Some(old) if old != occupied => self.occupied.set_row_data(i, occupied),
+                _ => {}
             }
         }
         ui.set_workspace(self.desk.current() as i32);
@@ -169,34 +177,8 @@ impl App {
     }
 
     // --- commands -----------------------------------------------------------
-    pub(super) fn open_panel_menu(&mut self, ui: &AppWindow, kind: Kind, x: f32, y: f32) {
-        self.desk.focus(kind);
-        self.panel_menu_target = Some(kind);
-        ui.set_panel_menu_x(x);
-        ui.set_panel_menu_y(y);
-        ui.set_panel_menu_open(true);
-    }
-
-    pub(super) fn dismiss_panel_menu(&mut self, ui: &AppWindow) {
-        if self.panel_menu_target.take().is_some() {
-            ui.set_panel_menu_open(false);
-            ui.invoke_focus_desktop();
-        }
-    }
-
-    pub(super) fn panel_menu_command(&mut self, ui: &AppWindow, command: Cmd) {
-        if let Some(kind) = self.panel_menu_target
-            && self.view.scene.borrow().rect_of(kind).is_some()
-        {
-            self.desk.focus(kind);
-            self.run(ui, command);
-        } else {
-            self.dismiss_panel_menu(ui);
-        }
-    }
-
     pub(super) fn run(&mut self, ui: &AppWindow, cmd: Cmd) {
-        self.dismiss_panel_menu(ui);
+        self.dismiss_header_menu(ui);
         self.header_clicks = input::HeaderClicks::default();
         let m = self.modk.name();
         match cmd {
@@ -223,6 +205,10 @@ impl App {
             Cmd::Fullscreen => self.desk.toggle_fullscreen(Full::Screen),
             Cmd::Maximize => self.desk.toggle_fullscreen(Full::Maximized),
             Cmd::CycleLayout => self.desk.cycle_layout(),
+            Cmd::AddWorkspace => {
+                self.desk.ensure_workspace(self.desk.workspace_count());
+            }
+            Cmd::RemoveWorkspace(index) => self.desk.remove_workspace(index),
             Cmd::Workspace(n) => self.desk.goto(n),
             Cmd::MoveToWorkspace { ws, follow } => self.desk.move_to_workspace(ws, follow),
             Cmd::NextWorkspace => self.desk.next_workspace(false),

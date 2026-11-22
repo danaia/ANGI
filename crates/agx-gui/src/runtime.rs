@@ -64,13 +64,9 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
         .scroll(&ui, dx, delta, mods(ctrl, alt, shift, meta)));
     hook!(on_resized, |a, ui, w, h| a.resized(&ui, w, h));
     hook!(on_menu_show, |a, ui| a.run(&ui, Cmd::Menu));
-    hook!(on_panel_menu_dismiss, |a, ui| a.dismiss_panel_menu(&ui));
-    hook!(on_panel_menu_close, |a, ui| a.panel_menu_command(&ui, Cmd::Close));
-    hook!(on_panel_menu_move, |a, ui, index| {
-        if let Ok(ws) = usize::try_from(index) {
-            a.panel_menu_command(&ui, Cmd::MoveToWorkspace { ws, follow: false });
-        }
-    });
+    hook!(on_header_menu_dismiss, |a, ui| a.dismiss_header_menu(&ui));
+    hook!(on_header_menu_action, |a, ui, index| a.choose_header_action(&ui, index));
+    hook!(on_workspace_menu, |a, ui, index, x, y| a.open_workspace_menu(&ui, index, x, y));
     hook!(on_workspace_select, |a, ui, index| {
         if let Ok(index) = usize::try_from(index) {
             a.run(&ui, Cmd::Workspace(index));

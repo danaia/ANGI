@@ -1,0 +1,143 @@
+import { Theme, Dialog, Title, Hint, Label, Button, ButtonVariant, SegmentedControl, Well } from "pebble/pebble.slint";
+import { KeyBindings } from "settings-key-bindings.slint";
+import { DesktopButtons } from "desktop-input.slint";
+
+export component KeyBindingDialog inherits FocusScope {
+    callback pointer-moved(length, length);
+    callback record-key(string, bool, bool, bool, bool);
+    focus-on-tab-navigation: false;
+    init => { root.focus-recorder(); }
+    function focus-recorder() {
+        if KeyBindings.resetting { cancel.focus(); } else { recorder.focus(); }
+    }
+    function next-control(backwards: bool) {
+        if !backwards {
+            if device.has-focus && !KeyBindings.can-accept { recorder.focus(); return; }
+            if (device.has-focus || recorder.has-focus) && remove.visible { remove.focus(); return; }
+            if (device.has-focus || recorder.has-focus || remove.has-focus) && retry.visible { retry.focus(); return; }
+            if cancel.has-focus && confirm.enabled { confirm.focus(); return; }
+            if !confirm.has-focus && !cancel.has-focus { cancel.focus(); return; }
+            if device.visible { device.focus(); }
+            else if !KeyBindings.resetting && !KeyBindings.can-accept { recorder.focus(); }
+            else { cancel.focus(); }
+            return;
+        }
+        if confirm.has-focus { cancel.focus(); return; }
+        if cancel.has-focus && retry.visible { retry.focus(); return; }
+        if (cancel.has-focus || retry.has-focus) && remove.visible { remove.focus(); return; }
+        if (cancel.has-focus || remove.has-focus) && !KeyBindings.resetting && !KeyBindings.can-accept { recorder.focus(); return; }
+        if !device.has-focus && device.visible { device.focus(); return; }
+        if confirm.enabled { confirm.focus(); } else { cancel.focus(); }
+    }
+    capture-key-pressed(e) => {
+        if e.text == Key.Escape && !e.modifiers.control && !e.modifiers.alt && !e.modifiers.meta {
+            KeyBindings.cancel();
+            return accept;
+        }
+        if (e.text == Key.Tab || e.text == Key.Backtab) && !e.modifiers.meta && !e.modifiers.alt && !e.modifiers.control {
+            root.next-control(e.modifiers.shift || e.text == Key.Backtab);
+            return accept;
+        }
+        if KeyBindings.resetting { return reject; }
+        if e.repeat && (recorder.has-focus || e.text == Key.Return || e.text == " ") { return accept; }
+        if KeyBindings.can-accept || !recorder.has-focus { return reject; }
+        root.record-key(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift || e.text == Key.Backtab, e.modifiers.meta);
+        if KeyBindings.can-accept { confirm.focus(); }
+        accept
+    }
+    Dialog {
+        card-width: 520px;
+        card-height: KeyBindings.resetting ? 208px : 344px;
+        scrim-pointer(x, y) => { root.pointer-moved(x, y); }
+        VerticalLayout {
+            padding: Theme.space-5;
+            spacing: Theme.space-2;
+            Title { text: KeyBindings.action; overflow: elide; }
+            if KeyBindings.resetting: Hint {
+                text: KeyBindings.device == 0
+                    ? "Replace your keyboard bindings with the ANGI defaults?"
+                    : "Replace your mouse bindings with the ANGI defaults?";
+            }
+            device := SegmentedControl {
+                visible: !KeyBindings.resetting && !KeyBindings.mouse-only;
+                label: "Record input from";
+                options: ["Keyboard", "Mouse"];
+                current-index <=> KeyBindings.record-device;
+                selected(index) => { KeyBindings.retry(); recorder.focus(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            Well {
+                visible: !KeyBindings.resetting;
+                min-height: 72px;
+                VerticalLayout {
+                    padding: Theme.space-3;
+                    alignment: center;
+                    Label {
+                        text: KeyBindings.candidate != "" ? KeyBindings.candidate
+                            : KeyBindings.record-device == 0 ? "Press a shortcut" : "Click a mouse button here";
+                        wrap: word-wrap;
+                        horizontal-alignment: center;
+                    }
+                    if KeyBindings.original != "": Hint { text: "Current · " + KeyBindings.original; horizontal-alignment: center; }
+                }
+                recorder := FocusScope {
+                    width: parent.width;
+                    height: parent.height;
+                    focus-on-tab-navigation: false;
+                    enabled: !KeyBindings.resetting;
+                }
+                TouchArea {
+                    pointer-event(e) => {
+                        root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+                        if e.kind == PointerEventKind.down {
+                            if !KeyBindings.can-accept { recorder.focus(); }
+                            if KeyBindings.record-device == 1 {
+                                KeyBindings.record-mouse(DesktopButtons.binding-button(e.button), e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta);
+                                if KeyBindings.can-accept { confirm.focus(); }
+                            }
+                        }
+                    }
+                }
+            }
+            Hint {
+                text: KeyBindings.message != "" ? KeyBindings.message
+                    : KeyBindings.resetting ? ""
+                    : KeyBindings.can-accept ? "Accept to save this binding."
+                    : "Hold modifiers together or tap them one at a time.";
+                vertical-stretch: 1;
+                vertical-alignment: top;
+            }
+            HorizontalLayout {
+                spacing: Theme.space-2;
+                remove := Button {
+                    visible: !KeyBindings.resetting && KeyBindings.original != "";
+                    text: "Remove";
+                    variant: ButtonVariant.ghost;
+                    clicked => { KeyBindings.commit(true); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                retry := Button {
+                    visible: !KeyBindings.resetting && KeyBindings.can-accept;
+                    text: "Record again";
+                    variant: ButtonVariant.ghost;
+                    clicked => { KeyBindings.retry(); recorder.focus(); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                cancel := Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.ghost;
+                    clicked => { KeyBindings.cancel(); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                confirm := Button {
+                    text: KeyBindings.resetting ? "Restore" : KeyBindings.conflict ? "Replace binding" : "Accept";
+                    variant: ButtonVariant.primary;
+                    enabled: KeyBindings.resetting || KeyBindings.can-accept;
+                    clicked => { KeyBindings.commit(false); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+        }
+    }
+}

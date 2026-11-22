@@ -1,7 +1,7 @@
 """The curated catalogue of command-line tools and servers that ANGI can install (apps.json).
 
 The same file is embedded in the desktop for search; this module is the installer's reader. Every entry
-names a GitHub project, a pattern that selects its aarch64 Linux release asset, and the programs to expose.
+names an ARM64 GitHub artifact or a native Buildroot package and the commands it exposes.
 """
 from dataclasses import dataclass
 import json
@@ -32,15 +32,19 @@ class App:
     summary: str
     kind: str
     repo: str
-    asset: re.Pattern
+    asset: re.Pattern | None
     programs: tuple
     launch: str          # program to start directly in a terminal after install, or ''
+    native: bool = False
 
 
 def parse(item):
     try:
-        app_id, repo = item['id'], item['repo']
-        if not ID.fullmatch(app_id) or not REPO.fullmatch(repo):
+        app_id, repo = item['id'], item.get('repo', '')
+        native = item.get('native', False)
+        if type(native) is not bool or 'debian' in item:
+            raise CatalogueError(f'{app_id}: unsupported app runtime')
+        if not ID.fullmatch(app_id) or (not native and not REPO.fullmatch(repo)) or (native and repo):
             raise CatalogueError(f'Invalid id or repository for {app_id!r}')
         programs = []
         for entry in item['bins']:
@@ -56,7 +60,7 @@ def parse(item):
         if launch and launch not in {p.name for p in programs}:
             raise CatalogueError(f'{app_id}: launch names an unknown program')
         return App(app_id, item['name'], item['summary'], item['kind'], repo,
-                   re.compile(item['asset']), tuple(programs), launch)
+                   None if native else re.compile(item['asset']), tuple(programs), launch, native)
     except (KeyError, TypeError, re.error) as error:
         raise CatalogueError(f'Invalid catalogue entry: {error!r}') from error
 

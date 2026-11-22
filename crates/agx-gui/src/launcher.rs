@@ -12,10 +12,11 @@ use crate::{
 use slint::{ModelRc, VecModel};
 
 /// Launcher tabs, in the order the tab strip shows them. The numbers are `AppLauncher.section`.
-/// Apps is the landing tab; Settings, the built-in tools, comes last.
+/// Apps is the landing tab. Install lists software compatible with the device.
 const APPS: i32 = 0;
 const COMMANDS: i32 = 1;
 const SETTINGS: i32 = 2;
+const INSTALL: i32 = 3;
 /// Vertical space one row takes in the results list, and the space a section heading adds above its first row.
 const ROW_STRIDE: f32 = 70.0;
 const HEADING: f32 = 34.0;
@@ -53,7 +54,7 @@ struct Entry {
 fn catalogue(
     desktop: &Desktop,
     modifier: &str,
-    availability: &dyn Fn(&str) -> Availability,
+    availability: &dyn Fn(&apps::Package) -> Availability,
 ) -> Vec<Entry> {
     let mut entries = Vec::new();
     for (kind, (label, description, aliases)) in Kind::ALL.into_iter().zip([
@@ -277,7 +278,11 @@ fn catalogue(
         apps::index()
             .iter()
             .enumerate()
-            .map(|(index, package)| packages::entry(index, package, availability(&package.id))),
+            .filter_map(|(index, package)| {
+                let status = availability(package);
+                (package.native || !matches!(status, Availability::Unavailable(_)))
+                    .then(|| packages::entry(index, package, status))
+            }),
     );
     entries
 }
@@ -290,7 +295,7 @@ fn results(
     modifier: &str,
     query: &str,
     section: i32,
-    availability: &dyn Fn(&str) -> Availability,
+    availability: &dyn Fn(&apps::Package) -> Availability,
 ) -> Vec<Entry> {
     let query = query.trim().to_lowercase();
     let mut catalogue = catalogue(desktop, modifier, availability);
@@ -307,6 +312,9 @@ fn results(
         .filter(|entry| {
             if query.is_empty() {
                 return entry.section == section;
+            }
+            if section == INSTALL && entry.section != INSTALL {
+                return false;
             }
             let searchable =
                 format!("{} {} {}", entry.label, entry.description, entry.aliases).to_lowercase();
@@ -331,8 +339,12 @@ fn results(
             (title, entry.section != section, !packages::is_installed(entry), entry.section)
         });
     } else if section == APPS {
-        entries = packages::arrange(entries);
+        if let Some(first) = entries.first_mut() {
+            first.heading = "INSTALLED".into();
+        }
         entries.splice(0..0, featured);
+    } else if section == INSTALL {
+        packages::arrange_install(&mut entries);
     }
     entries
 }
@@ -346,7 +358,7 @@ impl App {
             self.modk.name(),
             query,
             ui.get_menu_section(),
-            &|id| library.availability(id),
+            &|package| library.catalogue_availability(&package.id, package.native),
         );
         let mut top = 0.0;
         let rows: Vec<_> = entries
@@ -364,7 +376,14 @@ impl App {
                 badge: entry.badge.into(),
                 label: entry.label.clone().into(),
                 description: entry.description.clone().into(),
-                hint: entry.hint.clone().into(),
+                hint: {
+                    let binding = self.bindings.hint(entry.command);
+                    if entry.section == COMMANDS || !binding.is_empty() {
+                        binding.into()
+                    } else {
+                        entry.hint.clone().into()
+                    }
+                },
                 icon: entry.icon,
                 app: entry.section != COMMANDS,
                 running: entry.running,

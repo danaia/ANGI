@@ -10,6 +10,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let ui = AppWindow::new()?;
     graphics::attach_input(&ui);
     let _settings_save = crate::settings::install(&ui);
+    let _sound_watch = crate::sound::install(&ui);
     let _process_watch = crate::memory_processes::install(&ui);
     let _storage_watch = crate::storage::install(&ui);
     crate::appearance::install(&ui);
@@ -23,6 +24,16 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let app = Rc::new(RefCell::new(App::new()));
+    crate::key_bindings::install(&ui, &app);
+    crate::key_bindings::attach_pointer(&ui);
+    {
+        let (weak, state) = (ui.as_weak(), app.clone());
+        ui.global::<crate::SoundSettings>().on_radio(move || {
+            if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
+                app.terminal_open_program(&ui, "/usr/bin/cliamp".into(), "CLIamp".into());
+            }
+        });
+    }
     let _services_watch = crate::services::install(&ui);
     ui.set_wins(ModelRc::from(app.borrow().view.windows.clone()));
     ui.set_ws_occupied(ModelRc::from(app.borrow().occupied.clone()));
@@ -47,6 +58,19 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("key {name:?} ctrl={ctrl} alt={alt} shift={shift} meta={meta}");
         }
         a.key(&ui, &name, mods(ctrl, alt, shift, meta))
+    });
+    hook!(on_shortcut_key, |a, ui, name, ctrl, alt, shift, meta, allowed, repeat| {
+        a.shortcut_mods = mods(ctrl, alt, shift, meta);
+        // Keep bare typing keys in text fields and published application shortcuts.
+        let global = ctrl || alt || meta || name.chars().next().is_some_and(|key| ('\u{f704}'..='\u{f71b}').contains(&key));
+        if allowed && global && let Some(cmd) = a.bindings.custom_key(&name, a.shortcut_mods) {
+            if !repeat { a.run(&ui, cmd); }
+            return true;
+        }
+        false
+    });
+    hook!(on_mapped_pointer, |a, ui, kind, button, x, y| {
+        a.native_mouse_binding(&ui, kind, button, x, y)
     });
     hook!(on_pointer, |a,
                        ui,
@@ -90,8 +114,9 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
+    let attachments = std::rc::Rc::new(crate::agent_attachments::install(&ui));
     {
-        let (weak, state) = (ui.as_weak(), app.clone());
+        let (weak, state, staged) = (ui.as_weak(), app.clone(), attachments.clone());
         ui.global::<crate::AgentAngi>().on_submit(move |prompt| {
             if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
                 // OS mode builds the operating system; Project mode builds in the chosen folder.
@@ -104,7 +129,10 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
                     "chat" => return,
                     _ => terminal::AgentRun::Os { single },
                 };
-                app.terminal_open_agent(&ui, prompt.to_string(), run);
+                // Files attached in the composer go to the agent as paths in the brief.
+                let (files, _) = staged.take_for_send(&ui);
+                let brief = crate::agent_attachments::brief_with_files(&prompt, &files);
+                app.terminal_open_agent(&ui, brief, run);
             }
         });
     }
@@ -129,6 +157,14 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
+    {
+        let (weak, state) = (ui.as_weak(), app.clone());
+        ui.global::<crate::MouseSettings>().on_open(move || {
+            if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
+                app.run(&ui, Cmd::Open(crate::wm::Kind::Settings));
+            }
+        });
+    }
     hook!(on_layout_toggle, |a, ui| a.run(&ui, Cmd::CycleLayout));
     hook!(on_browser_key, |a,
                            ui,
@@ -144,7 +180,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let _terminal_watch = terminal::install(&ui, &app);
     let _browser_watch = browser::install(&ui, &app);
     let _provider_watch = crate::agent_providers::install(&ui, &app);
-    let _chat_watch = crate::agent_chat::install(&ui);
+    let _chat_watch = crate::agent_chat::install(&ui, &attachments);
     let _history_watch = crate::agent_history::install(&ui, &app);
     let _knowledge_watch = crate::agent_knowledge::install(&ui);
     let _files_watch = crate::files::install(&ui, &app);

@@ -213,6 +213,7 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
         settings_app.borrow().desk.is_open(Kind::Settings),
         "Escape keeps the tile open"
     );
+    crate::key_bindings::test_editor(&ui, &settings_app, &render);
     // Settings → Bluetooth: pages, keyboard, prompts, and the real service wiring (see bluetooth/tests.rs).
     crate::bluetooth::tests::drive(&ui, &window, &settings_app, &click, &render);
     let settings_rect = settings_app.borrow().desk.rect_of(Kind::Settings).unwrap();

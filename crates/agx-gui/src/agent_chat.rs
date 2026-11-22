@@ -1,8 +1,8 @@
 //! Run Chat turns off the UI thread and keep the active conversation tied to its session ID.
-use crate::{AgentChat, AgentHistory, AgentScope, AppWindow, ChatMessage};
+use crate::{agent_attachments::Attachments, AgentChat, AgentHistory, AgentScope, AppWindow, ChatAttachment, ChatMessage};
 use serde_json::Value;
 use slint::{ComponentHandle, Model, ModelRc, Timer, TimerMode, VecModel};
-use std::{process::{Command, Stdio}, sync::mpsc, time::Duration};
+use std::{path::PathBuf, process::{Command, Stdio}, rc::Rc, sync::mpsc, time::Duration};
 
 struct Reply {
     session_id: Option<String>,
@@ -23,7 +23,7 @@ fn parse_reply(stdout: &[u8]) -> Result<Reply, String> {
     })
 }
 
-fn ask(message: &str, session_id: &str, folder: &str, project: &str) -> Result<Reply, String> {
+fn ask(message: &str, session_id: &str, folder: &str, project: &str, files: &[PathBuf]) -> Result<Reply, String> {
     let mut command = Command::new("/usr/bin/agent");
     command.arg("chat-turn");
     if session_id.is_empty() {
@@ -33,6 +33,9 @@ fn ask(message: &str, session_id: &str, folder: &str, project: &str) -> Result<R
     }
     if !folder.is_empty() {
         command.args(["--folder", folder]);
+    }
+    for file in files {
+        command.arg("--attach").arg(file);
     }
     let output = command
         .arg(message)
@@ -45,7 +48,11 @@ fn ask(message: &str, session_id: &str, folder: &str, project: &str) -> Result<R
 }
 
 pub(super) fn bubble(mine: bool, failed: bool, text: &str) -> ChatMessage {
-    ChatMessage { mine, failed, text: text.into() }
+    with_attachments(mine, failed, text, Vec::new())
+}
+
+fn with_attachments(mine: bool, failed: bool, text: &str, attachments: Vec<ChatAttachment>) -> ChatMessage {
+    ChatMessage { mine, failed, text: text.into(), attachments: ModelRc::new(VecModel::from(attachments)) }
 }
 
 pub(super) fn set_messages(chat: &AgentChat<'_>, messages: Vec<ChatMessage>) {
@@ -59,31 +66,35 @@ fn append(chat: &AgentChat<'_>, message: ChatMessage) {
     }
 }
 
-pub(super) fn install(ui: &AppWindow) -> Timer {
+pub(super) fn install(ui: &AppWindow, attachments: &Rc<Attachments>) -> Timer {
     set_messages(&ui.global::<AgentChat>(), Vec::new());
-    let (requests, worker) = mpsc::channel::<(String, String, String, String)>();
+    let (requests, worker) = mpsc::channel::<(String, String, String, String, Vec<PathBuf>)>();
     let (replies, answers) = mpsc::channel();
     std::thread::spawn(move || {
-        for (message, session_id, folder, project) in worker {
-            if replies.send(ask(&message, &session_id, &folder, &project)).is_err() {
+        for (message, session_id, folder, project, files) in worker {
+            if replies.send(ask(&message, &session_id, &folder, &project, &files)).is_err() {
                 break;
             }
         }
     });
-    let weak = ui.as_weak();
+    let (weak, staged) = (ui.as_weak(), attachments.clone());
     ui.global::<AgentChat>().on_send(move |text| {
         let Some(ui) = weak.upgrade() else { return; };
         let (chat, text) = (ui.global::<AgentChat>(), text.trim());
-        if chat.get_busy() || ui.global::<AgentHistory>().get_loading() || text.is_empty() {
+        let has_files = chat.get_attachments().row_count() > 0;
+        if chat.get_busy() || ui.global::<AgentHistory>().get_loading() || (text.is_empty() && !has_files) {
             return;
         }
-        append(&chat, bubble(true, false, text));
+        // Files alone still need words for the model; say what was sent.
+        let text = if text.is_empty() { "Please look at the attached file(s)." } else { text };
+        let (files, tiles) = staged.take_for_send(&ui);
+        append(&chat, with_attachments(true, false, text, tiles));
         chat.set_busy(true);
         let scope = ui.global::<AgentScope>();
         let folder = scope.get_chat_folder().to_string();
         let project = scope.get_project().to_string();
         let session_id = chat.get_session_id().to_string();
-        let _ = requests.send((text.to_string(), session_id, folder, project));
+        let _ = requests.send((text.to_string(), session_id, folder, project, files));
     });
     let weak = ui.as_weak();
     ui.global::<AgentChat>().on_new_chat(move || {

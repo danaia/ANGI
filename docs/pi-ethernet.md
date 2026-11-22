@@ -161,7 +161,7 @@ scripts, especially `/etc/init.d/S12agx-data`.
 `/var/lib/agx-data/angi-dev` (see [agent-swarm.md](agent-swarm.md#os-updates-angi-update-and-the-revert-guard)), so
 on-device updates cannot revert it. Run `make deploy-agent` first on a device that lacks `angi-update`.
 
-For a GUI-only update, use **Settings → Refresh desktop… → confirm** in the
+For a GUI-only update, use **Overview → Refresh desktop… → confirm** in the
 authenticated desktop when appropriate. This closes its terminal/browser
 sessions and execs the installed GUI as the same user. Do not emulate refresh
 with `killall`; killing the session can return it to login. Reconnect VNC if

@@ -13,3 +13,5 @@ dtoverlay=dwc2,dr_mode=peripheral
 dtoverlay=vc4-kms-v3d
 # Bluetooth through the kernel driver.
 dtparam=krnbt=on
+# Built-in analog headphone output on boards equipped with a jack.
+dtparam=audio=on

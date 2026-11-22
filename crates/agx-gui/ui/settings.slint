@@ -4,7 +4,10 @@ import { ScrollView } from "std-widgets.slint";
 import { BluetoothPage, BluetoothSettings, BtDevice, BtApproval } from "bluetooth.slint";
 import { AppearancePage, AppearanceSettings } from "settings-appearance.slint";
 import { NightLight } from "night-light.slint";
-export { BluetoothSettings, BtDevice, BtApproval, AppearanceSettings }
+import { KeyBindingsPage } from "settings-key-bindings.slint";
+import { SoundPage, SoundSettings } from "settings-sound.slint";
+
+export { BluetoothSettings, BtDevice, BtApproval, AppearanceSettings, SoundSettings }
 
 export global MouseSettings {
     in-out property <float> speed: 0;
@@ -15,12 +18,14 @@ export global MouseSettings {
     in-out property <string> status: "Changes apply immediately and are saved for your account";
     in-out property <bool> native: false;
     in-out property <int> focus-serial: 0;
-    // Chosen Settings page: 0 Mouse & pointer, 1 Bluetooth, 2 Appearance. Kept here because the desktop
+    // Chosen Settings page: 0 Mouse & pointer, 1 Bluetooth, 2 Appearance, 3 Sound, 4 Key bindings. Kept here because the desktop
     // rebuilds the panel whenever its window moves in the list (maximize, another app opening), which
     // would otherwise send the person back to the first page.
     in-out property <int> page: 0;
     callback activate();
     callback refresh();
+    // Open Settings (or focus it) on the page in `page`; used by the Overview's Mouse & pointer button.
+    callback open();
     callback changed();
     callback reset();
 }
@@ -54,8 +59,8 @@ component SettingRow inherits Rectangle {
 export component SettingsPanel inherits Rectangle {
     in property <bool> active;
     property <int> request: MouseSettings.focus-serial;
-    changed request => { if (root.active) { keys.focus(); } }
-    changed active => { if (root.active) { keys.focus(); } else { root.focus-step = -1; } }
+    changed request => { if (root.active) { root.focus-current(); } }
+    changed active => { if (root.active) { root.focus-current(); } else { root.focus-step = -1; } }
     callback pointer-moved(length, length);
     background: Theme.surface;
     clip: true;
@@ -65,18 +70,20 @@ export component SettingsPanel inherits Rectangle {
     property <int> page <=> MouseSettings.page;
     property <bool> bluetooth-showing: root.active && root.page == 1;
     changed bluetooth-showing => { BluetoothSettings.active = root.bluetooth-showing; }
+    property <bool> sound-showing: root.active && root.page == 3;
+    changed sound-showing => { SoundSettings.active = root.sound-showing; }
     function show-page(index: int) {
-        if (index == root.page || index < 0 || index > 2) { return; }
+        if (index == root.page || index < 0 || index > 4) { return; }
         root.page = index;
         root.focus-step = -1;
-        keys.focus();
+        if index == 4 { binding-page.focus-first(); } else { keys.focus(); }
     }
     function next-bluetooth-control(backwards: bool) {
         root.focus-step = root.focus-step < 0 ? (backwards ? 3 : 0) : mod(root.focus-step + (backwards ? 3 : 1), 4);
         if (root.focus-step == 0) { bluetooth-page.focus-power(); }
         if (root.focus-step == 1) { bluetooth-page.focus-search(); }
         if (root.focus-step == 2) { keys.focus(); bluetooth-page.enter-list(); }
-        if (root.focus-step == 3) { refresh-button.focus(); }
+        if (root.focus-step == 3) { keys.focus(); }
     }
     function next-appearance-control(backwards: bool) {
         // Theme, Night light, Warmth (only while night light is on), Refresh.
@@ -85,11 +92,17 @@ export component SettingsPanel inherits Rectangle {
         if (root.focus-step == 0) { appearance-page.focus-theme(); }
         if (root.focus-step == 1) { appearance-page.focus-night-light(); }
         if (root.focus-step == 2) { appearance-page.focus-warmth(); }
-        if (root.focus-step == 3) { refresh-button.focus(); }
+        if (root.focus-step == 3) { keys.focus(); }
     }
     function next-control(backwards: bool) {
+        if root.page == 4 { binding-page.focus-first(); return; }
         if (root.page == 1) { root.next-bluetooth-control(backwards); return; }
         if (root.page == 2) { root.next-appearance-control(backwards); return; }
+        if (root.page == 3) {
+            root.focus-step = sound-page.next-focus(root.focus-step, backwards);
+            if (root.focus-step == 6) { keys.focus(); }
+            return;
+        }
         root.focus-step = root.focus-step < 0 ? (backwards ? 6 : 0) : mod(root.focus-step + (backwards ? 6 : 1), 7);
         if (root.focus-step == 0) { root.reveal(speed-row.absolute-position.y, speed-row.height); speed-slider.focus(); }
         if (root.focus-step == 1) { root.reveal(acceleration-row.absolute-position.y, acceleration-row.height); acceleration-choice.focus(); }
@@ -97,7 +110,7 @@ export component SettingsPanel inherits Rectangle {
         if (root.focus-step == 3) { root.reveal(direction-row.absolute-position.y, direction-row.height); direction-choice.focus(); }
         if (root.focus-step == 4) { root.reveal(scroll-row.absolute-position.y, scroll-row.height); scroll-slider.focus(); }
         if (root.focus-step == 5) { reset-button.focus(); }
-        if (root.focus-step == 6) { refresh-button.focus(); }
+        if (root.focus-step == 6) { keys.focus(); }
     }
 
     function reveal(y: length, h: length) {
@@ -110,9 +123,13 @@ export component SettingsPanel inherits Rectangle {
     function moved(x: length, y: length) { root.pointer-moved(x, y); }
     function changed-by-user() { MouseSettings.activate(); MouseSettings.changed(); }
     forward-focus: keys;
+    public function focus-current() {
+        if root.page == 4 { binding-page.focus-first(); } else { keys.focus(); }
+    }
     init => {
         BluetoothSettings.active = root.bluetooth-showing;
-        if (root.active) { keys.focus(); }
+        SoundSettings.active = root.sound-showing;
+        if (root.active) { root.focus-current(); }
     }
     tracker := TouchArea {
         changed mouse-x => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
@@ -123,12 +140,13 @@ export component SettingsPanel inherits Rectangle {
         focus-gained(reason) => { if (reason == FocusReason.tab-navigation && root.focus-step < 0) { root.next-control(false); } }
         key-pressed(e) => {
             if (e.modifiers.meta || e.modifiers.alt || e.modifiers.control) { return reject; }
-            if (e.text == Key.Tab || e.text == Key.Backtab) {
+            if root.page != 4 && (e.text == Key.Tab || e.text == Key.Backtab) {
                 root.next-control(e.modifiers.shift || e.text == Key.Backtab);
                 return accept;
             }
             if (e.text == Key.PageDown) { root.show-page(root.page + 1); return accept; }
             if (e.text == Key.PageUp) { root.show-page(root.page - 1); return accept; }
+            if root.page == 4 { return reject; }
             if (root.page == 1 && bluetooth-page.key(e.text)) { return accept; }
             if (e.text == Key.Escape) { keys.focus(); }
             accept
@@ -149,6 +167,8 @@ export component SettingsPanel inherits Rectangle {
                         { label: "Mouse & pointer", icon: Icons.sliders },
                         { label: "Bluetooth", icon: Icons.bluetooth },
                         { label: "Appearance", icon: Theme.dark ? Icons.moon : Icons.sun },
+                        { label: "Sound", icon: Icons.speaker },
+                        { label: "Key bindings", icon: Icons.keyboard },
                     ]: NavItem {
                         text: item.label; icon: item.icon;
                         current: root.page == index;
@@ -290,9 +310,20 @@ export component SettingsPanel inherits Rectangle {
                             }
                         }
                     }
+                    binding-page := KeyBindingsPage {
+                        width: parent.width; height: parent.height;
+                        visible: root.page == 4;
+                        pointer-moved(x, y) => { root.moved(x, y); }
+                    }
                     bluetooth-page := BluetoothPage {
                         width: parent.width; height: parent.height;
                         visible: root.page == 1;
+                        compact: root.narrow;
+                        pointer-moved(x, y) => { root.moved(x, y); }
+                    }
+                    sound-page := SoundPage {
+                        width: parent.width; height: parent.height;
+                        visible: root.page == 3;
                         compact: root.narrow;
                         pointer-moved(x, y) => { root.moved(x, y); }
                     }
@@ -305,10 +336,11 @@ export component SettingsPanel inherits Rectangle {
                     }
                 }
             }
-            Divider { }
+            Divider { visible: root.page != 4; }
             // Footer: status on the left, page actions on the right (stacked when narrow).
             Rectangle {
-                height: root.width < 500px ? 152px : 60px;
+                visible: root.page != 4;
+                height: root.page == 4 ? 0px : root.width < 500px ? 152px : 60px;
                 Text {
                     visible: root.width < 500px || root.width >= 640px;
                     x: Theme.space-6; y: root.width < 500px ? Theme.space-3 : 0px;
@@ -316,7 +348,7 @@ export component SettingsPanel inherits Rectangle {
                     height: root.width < 500px ? 36px : parent.height;
                     vertical-alignment: center;
                     text: root.page == 1 ? (BluetoothSettings.error != "" ? BluetoothSettings.error : BluetoothSettings.status)
-                        : root.page == 2 ? AppearanceSettings.status : MouseSettings.status;
+                        : root.page == 2 ? AppearanceSettings.status : root.page == 3 ? "" : MouseSettings.status;
                     color: root.page == 1 && BluetoothSettings.error != "" ? Theme.danger : Theme.ink-muted;
                     font-size: Theme.text-body-sm;
                     wrap: word-wrap; overflow: elide;
@@ -325,18 +357,10 @@ export component SettingsPanel inherits Rectangle {
                     visible: root.page == 0;
                     variant: ButtonVariant.ghost;
                     width: self.preferred-width;
-                    x: root.width < 500px ? Theme.space-4 : refresh-button.x - self.width - Theme.space-3;
-                    y: root.width < 500px ? refresh-button.y - self.height - Theme.space-2 : parent.height - self.height - Theme.space-3;
-                    text: "Restore defaults";
-                    clicked => { MouseSettings.activate(); MouseSettings.reset(); }
-                    pointer-moved(x, y) => { root.moved(x, y); }
-                }
-                refresh-button := Button {
-                    width: self.preferred-width;
                     x: root.width < 500px ? Theme.space-4 : parent.width - self.width - Theme.space-4;
                     y: parent.height - self.height - Theme.space-3;
-                    text: "Refresh desktop…";
-                    clicked => { MouseSettings.activate(); MouseSettings.refresh(); }
+                    text: "Restore defaults";
+                    clicked => { MouseSettings.activate(); MouseSettings.reset(); }
                     pointer-moved(x, y) => { root.moved(x, y); }
                 }
             }

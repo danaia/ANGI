@@ -66,6 +66,13 @@ pub(super) fn apply_listing(state: &mut State, listing: &Value) {
         .iter()
         .map(|(id, item)| (id.clone(), item["update"].as_str().unwrap_or("").to_string()))
         .collect();
+    if let Some(unavailable) = listing["unavailable"].as_object() {
+        state.catalogue_checked = true;
+        state.unavailable = unavailable
+            .iter()
+            .filter_map(|(id, reason)| Some((id.clone(), reason.as_str()?.to_owned())))
+            .collect();
+    }
     state.changed();
 }
 

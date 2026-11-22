@@ -117,6 +117,13 @@ impl<B: Backend> Core<B> {
             self.say("Search finished");
         }
         let adapter = self.backend.adapter().await;
+        // A search nobody asked for (the timer is clear) must not keep running beside a stream.
+        let orphaned = self.state.lock().unwrap().scan_until.is_none()
+            && matches!(&adapter, Ok(Some(a)) if a.scanning);
+        if orphaned {
+            let _ = self.backend.stop_scan().await;
+        }
+        let adapter = if orphaned { self.backend.adapter().await } else { adapter };
         let devices = match &adapter {
             Ok(Some(_)) => self.backend.devices().await,
             _ => Ok(Vec::new()),
@@ -237,9 +244,13 @@ impl<B: Backend> Core<B> {
                 {
                     return Err(Error::new("Turn Bluetooth on to search for devices."));
                 }
-                self.backend.start_scan().await?;
+                // Arm the timer first so a refresh never mistakes the new search for a stray one.
                 self.state.lock().unwrap().scan_until =
                     Some(Instant::now() + Duration::from_secs(SCAN_SECONDS.into()));
+                if let Err(error) = self.backend.start_scan().await {
+                    self.state.lock().unwrap().scan_until = None;
+                    return Err(error);
+                }
                 self.say("Searching for devices…");
                 Ok(self.status_message())
             }
@@ -416,6 +427,7 @@ impl<B: Backend> Core<B> {
     /// Pair (when asked), trust and connect. The caller has already marked the device busy.
     async fn connect_flow(&self, address: &str, pair: bool) {
         let name = self.name_of(address);
+        let mut connected = false;
         let outcome = async {
             if pair {
                 tokio::time::timeout(PAIR_TIMEOUT, self.backend.pair(address))
@@ -425,11 +437,14 @@ impl<B: Backend> Core<B> {
                 self.backend.set_trusted(address, true).await?;
             }
             match tokio::time::timeout(CONNECT_TIMEOUT, self.backend.connect(address)).await {
-                Ok(Ok(())) => Ok(if pair {
-                    format!("Paired and connected to {name}")
-                } else {
-                    format!("Connected to {name}")
-                }),
+                Ok(Ok(())) => {
+                    connected = true;
+                    Ok(if pair {
+                        format!("Paired and connected to {name}")
+                    } else {
+                        format!("Connected to {name}")
+                    })
+                }
                 Ok(Err(error)) if pair => Ok(format!(
                     "Paired with {name}, but it did not connect: {error}"
                 )),
@@ -440,6 +455,11 @@ impl<B: Backend> Core<B> {
         }
         .await;
         self.state.lock().unwrap().busy.remove(address);
+        if connected {
+            // A running search shares the radio with the new link and makes audio skip.
+            let _ = self.backend.stop_scan().await;
+            self.state.lock().unwrap().scan_until = None;
+        }
         match outcome {
             Ok(message) => self.say(message),
             Err(error) => self.fail(error.0),

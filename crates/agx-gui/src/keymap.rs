@@ -10,6 +10,27 @@ pub struct Mods {
     pub meta: bool,
 }
 
+impl Mods {
+    pub const CTRL: u8 = 1;
+    pub const ALT: u8 = 2;
+    pub const SHIFT: u8 = 4;
+    pub const META: u8 = 8;
+
+    pub fn bits(self) -> u8 {
+        u8::from(self.ctrl) * Self::CTRL | u8::from(self.alt) * Self::ALT
+            | u8::from(self.shift) * Self::SHIFT | u8::from(self.meta) * Self::META
+    }
+
+    pub fn from_bits(bits: u8) -> Self {
+        Self {
+            ctrl: bits & Self::CTRL != 0,
+            alt: bits & Self::ALT != 0,
+            shift: bits & Self::SHIFT != 0,
+            meta: bits & Self::META != 0,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModKey {
     Super,
@@ -70,6 +91,7 @@ pub enum Cmd {
     CycleFocus(bool),
     Resize { dw: f32, dh: f32 },
     Menu,
+    Calendar,
     Open(Kind),
     OpenCode,
     /// Choose one entry of the ANGI software index: install it, update it, or open it once installed.
@@ -83,6 +105,9 @@ pub enum Cmd {
 
 /// `key` is a normalised name: "left", "tab", "space", "-", "a", "1" ...
 pub fn bind(key: &str, m: Mods, modk: ModKey) -> Option<Cmd> {
+    if m.meta && key == "f10" {
+        return Some(Cmd::Calendar);
+    }
     let key = unshift(key);
     let digit = match key.as_bytes() {
         [b'0'] => Some(9),
@@ -140,7 +165,7 @@ pub fn bind(key: &str, m: Mods, modk: ModKey) -> Option<Cmd> {
 }
 
 /// Shift changes the text a key produces; Omarchy binds the physical key.
-fn unshift(key: &str) -> &str {
+pub(super) fn unshift(key: &str) -> &str {
     match key {
         "_" => "-",
         "+" => "=",

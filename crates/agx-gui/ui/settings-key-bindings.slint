@@ -1,0 +1,103 @@
+import { ScrollView } from "std-widgets.slint";
+import { Theme, Heading2, Hint, Label, Button, ButtonVariant, SegmentedControl, TextField, Divider } from "pebble/pebble.slint";
+
+export struct ShortcutRow { id: string, label: string, bindings: [string] }
+
+export global KeyBindings {
+    in-out property <int> device;
+    in-out property <string> query;
+    in property <[ShortcutRow]> rows;
+    in property <string> layout-hint;
+    in property <string> desktop-hint;
+    in property <bool> open;
+    in property <bool> resetting;
+    in property <bool> mouse-only;
+    in property <string> action;
+    in property <string> original;
+    in property <string> candidate;
+    in property <string> message;
+    in property <bool> conflict;
+    in property <bool> can-accept;
+    in-out property <int> record-device;
+    callback filter();
+    callback edit(string, int);
+    callback record-key(string, bool, bool, bool, bool);
+    callback record-mouse(int, bool, bool, bool, bool);
+    callback retry();
+    callback reset();
+    callback cancel();
+    callback commit(bool);
+}
+
+export component KeyBindingsPage inherits Rectangle {
+    callback pointer-moved(length, length);
+    forward-focus: device-choice;
+
+    public function focus-first() { device-choice.focus(); }
+    function reveal(y: length, h: length) {
+        let top = y - scroll.absolute-position.y;
+        if top < Theme.space-2 { scroll.content-y = min(0px, scroll.content-y - top + Theme.space-2); }
+        else if top + h > scroll.height - Theme.space-2 {
+            scroll.content-y = max(min(0px, scroll.height - scroll.content-height),
+                scroll.content-y - top - h + scroll.height - Theme.space-2);
+        }
+    }
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-2;
+        Heading2 { text: "Key bindings"; }
+        device-choice := SegmentedControl {
+            label: "Input device";
+            options: ["Keyboard", "Mouse"];
+            current-index <=> KeyBindings.device;
+            selected(index) => { KeyBindings.filter(); scroll.content-y = 0px; }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+        TextField {
+            placeholder-text: "Find an action or binding";
+            text <=> KeyBindings.query;
+            edited(text) => { KeyBindings.filter(); scroll.content-y = 0px; }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+        scroll := ScrollView {
+            vertical-stretch: 1;
+            content-width: self.width;
+            VerticalLayout {
+                padding: Theme.space-2;
+                spacing: Theme.space-3;
+                alignment: start;
+                if KeyBindings.rows.length == 0: Hint { text: "No matching actions."; }
+                for row in KeyBindings.rows: VerticalLayout {
+                    spacing: Theme.space-2;
+                    Divider { }
+                    Label { text: row.label; wrap: word-wrap; }
+                    for binding[slot] in row.bindings: Button {
+                        text: binding;
+                        accessible-label: "Edit " + row.label + " · " + binding;
+                        changed has-focus => { if self.has-focus { root.reveal(self.absolute-position.y, self.height); } }
+                        clicked => { KeyBindings.edit(row.id, slot); }
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    }
+                    Button {
+                        text: "Add binding…";
+                        accessible-label: "Add binding for " + row.label;
+                        variant: ButtonVariant.ghost;
+                        changed has-focus => { if self.has-focus { root.reveal(self.absolute-position.y, self.height); } }
+                        clicked => { KeyBindings.edit(row.id, -1); }
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: end;
+            Button {
+                text: "Restore defaults…";
+                variant: ButtonVariant.ghost;
+                clicked => { KeyBindings.reset(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+    }
+}

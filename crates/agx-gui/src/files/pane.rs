@@ -35,6 +35,8 @@ pub enum Prompt {
 
 pub struct Pane {
     pub picker: bool,
+    /// The picker is choosing files to attach, not a folder.
+    pub attach: bool,
     pub model: Rc<FileModel>,
     pub dir: PathBuf,
     pub target: Option<(PathBuf, Move)>,
@@ -65,6 +67,7 @@ impl Pane {
         let model = Rc::new(FileModel::default());
         Self {
             picker,
+            attach: false,
             rows: ModelRc::from(model.clone()),
             model,
             dir,
@@ -152,7 +155,7 @@ impl Pane {
                 if stats.folders > 0 {
                     parts.push(plural(stats.folders, "folder"));
                 }
-                if stats.visible > stats.folders && !self.picker {
+                if stats.visible > stats.folders && (!self.picker || self.attach) {
                     parts.push(plural(stats.visible - stats.folders, "file"));
                 }
                 let found = if parts.is_empty() { None } else { Some(parts.join(", ")) };
@@ -215,6 +218,8 @@ impl Pane {
                 "No matches in this folder or its subfolders".into()
             } else if !self.filter.is_empty() {
                 "No items match. Press Enter to search subfolders.".into()
+            } else if self.picker && self.attach {
+                "Nothing here".into()
             } else if self.picker {
                 "No subfolders".into()
             } else {

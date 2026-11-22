@@ -9,6 +9,7 @@ pub enum Button {
     Left,
     Middle,
     Right,
+    Back,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,7 +46,7 @@ pub fn pointer_inputs(previous: u8, buttons: u8, x: u16, y: u16) -> Vec<Input> {
         action: PointerAction::Move,
     }];
     let mut push = |action| inputs.push(Input::Pointer { x, y, action });
-    for (bit, button) in [(0, Button::Left), (1, Button::Middle), (2, Button::Right)] {
+    for (bit, button) in [(0, Button::Left), (1, Button::Middle), (2, Button::Right), (7, Button::Back)] {
         let (was, is) = (previous >> bit & 1 != 0, buttons >> bit & 1 != 0);
         if !was && is {
             push(PointerAction::Press(button));
@@ -101,6 +102,7 @@ pub fn key_text(keysym: u32) -> Option<SharedString> {
         0xffc7 => Key::F10,
         0xffc8 => Key::F11,
         0xffc9 => Key::F12,
+        0xffca..=0xffd5 => return char::from_u32(0xf710 + keysym - 0xffca).map(|c| c.to_string().into()),
         _ => return printable(keysym).map(|c| c.to_string().into()),
     };
     Some(special.into())
@@ -125,6 +127,17 @@ fn printable(keysym: u32) -> Option<char> {
 pub fn dispatch(window: &slint::Window, input: Input) {
     match input {
         Input::Key { down, keysym } => {
+            use crate::sound::VolumeAction;
+            let volume = match keysym {
+                0x1008_ff11 => Some(VolumeAction::Step(-5)),
+                0x1008_ff12 => Some(VolumeAction::Mute),
+                0x1008_ff13 => Some(VolumeAction::Step(5)),
+                _ => None,
+            };
+            if let Some(action) = volume {
+                crate::sound::media_key(action, down);
+                return;
+            }
             let Some(text) = key_text(keysym) else { return };
             window.dispatch_event(if down {
                 WindowEvent::KeyPressed { text }
@@ -135,10 +148,23 @@ pub fn dispatch(window: &slint::Window, input: Input) {
         Input::Pointer { x, y, action } => {
             let scale = window.scale_factor();
             let position = LogicalPosition::new(f32::from(x) / scale, f32::from(y) / scale);
+            let binding_button = |button| match button {
+                Button::Left => 0, Button::Right => 1, Button::Middle => 2, Button::Back => 4,
+            };
+            let event = match action {
+                PointerAction::Press(b) => Some((0, binding_button(b))),
+                PointerAction::Release(b) => Some((1, binding_button(b))),
+                PointerAction::Move => Some((2, 3)),
+                PointerAction::Scroll { .. } => None,
+            };
+            if event.is_some_and(|(kind, button)| crate::key_bindings::dispatch_pointer(window, kind, button, position)) {
+                return;
+            }
             let button = |button| match button {
                 Button::Left => PointerEventButton::Left,
                 Button::Middle => PointerEventButton::Middle,
                 Button::Right => PointerEventButton::Right,
+                Button::Back => PointerEventButton::Back,
             };
             window.dispatch_event(match action {
                 PointerAction::Move => WindowEvent::PointerMoved { position },

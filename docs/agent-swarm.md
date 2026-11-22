@@ -211,7 +211,7 @@ the run afterwards. The watchdog then makes sure the new release is running and 
 seconds, and if it does not, restores the previous release so the supervisor starts a working
 desktop. The outcome is in `angi-update status` (`running`, `last_refresh`). The command refuses
 when the running desktop was built before this handler existed, because `SIGUSR1` would terminate
-it; one manual **Settings → Refresh desktop…** is needed after upgrading to the first release that
+it; one manual **Overview → Refresh desktop…** is needed after upgrading to the first release that
 has it. Do not emulate a refresh with `kill` or `killall`: that exits the desktop without restarting
 it.
 

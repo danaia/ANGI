@@ -132,7 +132,7 @@ def download(release, destination, progress, opener=None, pause=time.sleep):
 
 def verify(release, actual):
     if actual != release.sha256:
-        raise AppError('The download did not match the checksum GitHub published, so it was discarded.')
+        raise AppError('The package did not match its published checksum, so it was discarded.')
 
 
 def inside(root, path):

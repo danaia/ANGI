@@ -46,7 +46,7 @@ checkout. Use its shared Slint components from Agent Angi's OS and Project toggl
    `tail /run/agx/gui.log`. If the new desktop fails to stay up, `angi-update` restores the
    previous release by itself; use `angi-update rollback` plus another refresh if it merely misbehaves.
 6. If `angi-update refresh` refuses because the running desktop predates automatic refresh, do not
-   work around it: tell the user to choose **Settings > Refresh desktop...** once. Later releases can
+   work around it: tell the user to choose **Overview > Refresh desktop...** once. Later releases can
    refresh themselves.
 
 ## Rules that keep work from being lost

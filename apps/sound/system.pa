@@ -1,0 +1,8 @@
+.fail
+load-module module-native-protocol-unix auth-group=agx-admin auth-cookie=/run/agx-sound/control-cookie
+load-module module-device-restore
+load-module module-stream-restore restore_device=false
+load-module module-card-restore
+load-module module-default-device-restore
+load-module module-always-sink
+load-module module-suspend-on-idle

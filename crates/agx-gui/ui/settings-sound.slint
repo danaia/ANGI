@@ -1,0 +1,203 @@
+import { Theme, Heading2, Hint, Label, Divider, Select, Button, Slider, Progress } from "pebble/pebble.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export global SoundSettings {
+    in-out property <bool> active;
+    in property <bool> available;
+    in property <bool> changing;
+    in property <bool> has-output;
+    in property <bool> has-input;
+    in property <bool> muted;
+    in-out property <float> volume;
+    in-out property <bool> volume-dragging;
+    in property <int> meter-level: -1;
+    in property <bool> has-profiles;
+    in property <bool> radio-available;
+    in property <[string]> outputs: ["No output device"];
+    in property <[string]> inputs: ["No microphone"];
+    in property <[string]> profiles: [];
+    in-out property <int> output-index;
+    in-out property <int> input-index;
+    in-out property <int> profile-index;
+    in property <string> status;
+    callback select(int, int);
+    callback adjust-volume(float);
+    callback test();
+    callback radio();
+}
+
+component DeviceRow inherits Rectangle {
+    in property <bool> stacked;
+    in property <string> label;
+    in property <[string]> options;
+    in property <bool> enabled;
+    in-out property <int> selected-index;
+    callback selected(int);
+    callback pointer-moved(length, length);
+    forward-focus: choice;
+    height: root.stacked ? 72px : 40px;
+    Label {
+        x: 0px; y: 0px;
+        width: root.stacked ? parent.width : max(0px, choice.x - Theme.space-4);
+        height: root.stacked ? Theme.space-6 : parent.height;
+        text: root.label;
+        vertical-alignment: center;
+    }
+    choice := Select {
+        x: root.stacked ? 0px : parent.width - self.width;
+        y: root.stacked ? Theme.space-8 : 0px;
+        width: root.stacked ? parent.width : 280px;
+        model: root.options;
+        accessible-label: root.label;
+        enabled: root.enabled;
+        current-index <=> root.selected-index;
+        selected(_) => { root.selected(self.current-index); }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+    }
+}
+
+export component SoundPage inherits Rectangle {
+    in property <bool> compact;
+    callback pointer-moved(length, length);
+    property <bool> output-enabled: SoundSettings.available && SoundSettings.outputs.length > 1;
+    property <bool> input-enabled: SoundSettings.available && SoundSettings.inputs.length > 1;
+    property <bool> profile-enabled: SoundSettings.available && SoundSettings.has-profiles && SoundSettings.profiles.length > 1;
+    property <bool> test-enabled: SoundSettings.available && SoundSettings.has-output;
+    function reveal(y: length, h: length) {
+        let top = y - scroll.absolute-position.y;
+        if (top < Theme.space-3) { scroll.content-y = min(0px, scroll.content-y - top + Theme.space-3); }
+        else if (top + h + Theme.space-3 > scroll.height) {
+            scroll.content-y = max(min(0px, scroll.height - scroll.content-height), scroll.content-y - top - h + scroll.height - Theme.space-3);
+        }
+    }
+    public function next-focus(current: int, backwards: bool) -> int {
+        let out-step = root.output-enabled ? 0 : 7;
+        let volume-step = root.test-enabled ? 1 : 7;
+        let in-step = root.input-enabled ? 2 : 7;
+        let profile-step = root.profile-enabled ? 3 : 7;
+        let test-step = root.test-enabled ? 4 : 7;
+        let radio-step = SoundSettings.radio-available ? 5 : 7;
+        let from = !backwards && current >= 6 ? -1 : current;
+        let next = backwards ?
+            max(current > radio-step ? radio-step : -1, current > test-step ? test-step : -1,
+                current > profile-step ? profile-step : -1, current > in-step ? in-step : -1,
+                current > volume-step ? volume-step : -1, current > out-step ? out-step : -1) :
+            min(from < out-step ? out-step : 7, from < volume-step ? volume-step : 7,
+                from < in-step ? in-step : 7, from < profile-step ? profile-step : 7,
+                from < test-step ? test-step : 7, from < radio-step ? radio-step : 7, 6);
+        if (next < 0) { return 6; }
+        if (next == 0) { root.reveal(output.absolute-position.y, output.height); output.focus(); }
+        if (next == 1) { root.reveal(volume.absolute-position.y, volume.height); volume.focus(); }
+        if (next == 2) { root.reveal(input.absolute-position.y, input.height); input.focus(); }
+        if (next == 3) { root.reveal(profile.absolute-position.y, profile.height); profile.focus(); }
+        if (next == 4) { root.reveal(test.absolute-position.y, test.height); test.focus(); }
+        if (next == 5) { root.reveal(radio.absolute-position.y, radio.height); radio.focus(); }
+        next
+    }
+    scroll := ScrollView {
+        width: root.width; height: root.height;
+        content-width: self.visible-width;
+        horizontal-scrollbar-policy: always-off;
+        VerticalLayout {
+            alignment: start;
+            padding: root.compact ? Theme.space-4 : Theme.space-6;
+            spacing: Theme.space-4;
+            Heading2 { text: "Sound"; }
+            Hint { text: "Connect a wired device or pair an audio device in Bluetooth."; wrap: word-wrap; }
+            Divider { }
+            output := DeviceRow {
+                stacked: root.width < 550px;
+                label: "Output";
+                options: SoundSettings.outputs;
+                enabled: root.output-enabled && !SoundSettings.changing;
+                selected-index <=> SoundSettings.output-index;
+                selected(index) => { SoundSettings.select(0, index); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            VerticalLayout {
+                spacing: Theme.space-1;
+                HorizontalLayout {
+                    Label { text: "Output volume"; }
+                    Hint {
+                        text: !SoundSettings.has-output ? "" :
+                            SoundSettings.muted && !volume.dragging ? "Muted" : round(SoundSettings.volume) + "%";
+                        horizontal-alignment: right;
+                        horizontal-stretch: 1;
+                    }
+                }
+                volume := Slider {
+                    enabled: root.test-enabled && !SoundSettings.changing;
+                    accessible-label: "Output volume";
+                    value <=> SoundSettings.volume;
+                    changed dragging => { SoundSettings.volume-dragging = self.dragging; }
+                    changed(value) => { if (!self.dragging) { SoundSettings.adjust-volume(value); } }
+                    released(value) => { SoundSettings.adjust-volume(value); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+            Divider { }
+            input := DeviceRow {
+                stacked: root.width < 550px;
+                label: "Input";
+                options: SoundSettings.inputs;
+                enabled: root.input-enabled && !SoundSettings.changing;
+                selected-index <=> SoundSettings.input-index;
+                selected(index) => { SoundSettings.select(1, index); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            VerticalLayout {
+                spacing: Theme.space-2;
+                HorizontalLayout {
+                    Label { text: "Input level"; }
+                    Hint {
+                        text: !SoundSettings.has-input ? "No microphone selected" :
+                            SoundSettings.meter-level < 0 ? "Waiting for input" : SoundSettings.meter-level + "%";
+                        horizontal-alignment: right;
+                        horizontal-stretch: 1;
+                    }
+                }
+                Progress {
+                    accessible-label: "Microphone input level";
+                    progress: max(0, SoundSettings.meter-level) / 100;
+                }
+            }
+            profile := DeviceRow {
+                visible: SoundSettings.has-profiles;
+                stacked: root.width < 550px;
+                label: "Bluetooth mode";
+                options: SoundSettings.profiles;
+                enabled: root.profile-enabled && !SoundSettings.changing;
+                selected-index <=> SoundSettings.profile-index;
+                selected(index) => { SoundSettings.select(2, index); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            if SoundSettings.has-profiles: Hint { text: "Selecting a Bluetooth microphone switches that device to hands-free audio."; wrap: word-wrap; }
+            HorizontalLayout {
+                alignment: start;
+                spacing: Theme.space-2;
+                test := Button {
+                    text: "Play test tone";
+                    horizontal-stretch: 0;
+                    enabled: root.test-enabled && !SoundSettings.changing;
+                    clicked => { SoundSettings.test(); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+            if SoundSettings.changing || !SoundSettings.available || SoundSettings.status != "": Hint {
+                text: SoundSettings.changing ? "Updating sound…" :
+                    SoundSettings.status != "" ? SoundSettings.status : "Sound service unavailable";
+                wrap: word-wrap;
+            }
+            if SoundSettings.radio-available: Divider { }
+            HorizontalLayout {
+                alignment: start;
+                radio := Button {
+                    visible: SoundSettings.radio-available;
+                    text: "Play Radio Paradise";
+                    clicked => { SoundSettings.radio(); }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+        }
+    }
+}

@@ -17,7 +17,12 @@ SKILL = "angi-chat"
 MARKER = "chat-current"
 
 
-def config(folder, memory=""):
+def folder_skill():
+    """Chat has no skill loader, so the folder-analysis guidance is added to the prompt when needed."""
+    return (session.ASSETS / "skills/angi-folder-analysis/SKILL.md").read_text().split("---", 2)[2].strip()
+
+
+def config(folder, memory="", analysis=False):
     """Include Angi's persona and remembered context in the prompt so they are available on every provider."""
     skill = (session.ASSETS / "skills" / SKILL / "SKILL.md").read_text().split("---", 2)[2].strip()
     prompt = (session.ASSETS / "profiles/chat.md").read_text().strip()
@@ -26,7 +31,7 @@ def config(folder, memory=""):
     permission = {"*": "deny", **{f"angi_files_{name}": "allow" for name in TOOLS},
                   **{f"angi_memory_{name}": "allow" for name in MEMORY_TOOLS}}
     profile = {"description": "Angi, in conversation", "mode": "primary", "permission": permission,
-               "prompt": "\n\n".join(part for part in (prompt, chat_scope_text(folder), skill, graph_recall.CHAT_HINT, memory) if part)}
+               "prompt": "\n\n".join(part for part in (prompt, chat_scope_text(folder), skill, graph_recall.CHAT_HINT, memory, folder_skill() if analysis else "") if part)}
     # Chat is a single agent like an OS update, so it shares that role's model; none chosen means OpenCode's default.
     model = active_selections().get("os")
     if model:
@@ -42,7 +47,7 @@ def config(folder, memory=""):
     return json.dumps(result)
 
 
-def prepare(state, folder=None, message="", conversation=None):
+def prepare(state, folder=None, message="", conversation=None, analysis=False):
     if folder is None:
         folder = str(Path.home().resolve())
     selected = validate_project(folder, allow_home=True)
@@ -51,7 +56,7 @@ def prepare(state, folder=None, message="", conversation=None):
     session.start_size_guard()
     # Remembered context is chosen from what was just asked, before this exchange is itself remembered.
     memory = graph_recall.prompt_text(state, "chat", message, selected, ("conversation", conversation) if conversation else None)
-    os.environ["OPENCODE_CONFIG_CONTENT"] = config(selected, memory)
+    os.environ["OPENCODE_CONFIG_CONTENT"] = config(selected, memory, analysis)
     home = state / "chat"
     home.mkdir(mode=0o700, exist_ok=True)
     os.chdir(home)
@@ -93,7 +98,28 @@ def parse_reply(output):
     return "".join(text).strip(), error, session_id
 
 
-def turn(state, message, new=False, timeout=300, folder=None, session_id=None):
+ATTACH_DIR = "chat-attachments"
+ATTACH_LIMIT = 8
+ATTACH_BYTES = 20 * 1024 * 1024
+
+
+def attachment_files(state, paths):
+    """Resolve attachments the desktop staged; anything outside the staging folder is refused."""
+    if len(paths) > ATTACH_LIMIT:
+        raise ValueError(f"Attach at most {ATTACH_LIMIT} files to one message.")
+    staging = (state / ATTACH_DIR).resolve()
+    files = []
+    for name in paths:
+        path = Path(name).resolve()
+        if path.parent != staging or not path.is_file():
+            raise ValueError("An attachment is no longer available. Attach it again.")
+        if path.stat().st_size > ATTACH_BYTES:
+            raise ValueError("An attachment is larger than 20 MB.")
+        files.append(str(path))
+    return files
+
+
+def turn(state, message, new=False, timeout=300, folder=None, session_id=None, attachments=()):
     """One chat exchange for the desktop's chat view: {"text": reply} or {"error": reason}.
 
     The desktop continues a particular conversation by ID. The CLI also accepts the legacy continuation flag.
@@ -103,11 +129,16 @@ def turn(state, message, new=False, timeout=300, folder=None, session_id=None):
     from agent_preview import show_chat_saves
 
     continuation = ["--session", session_id] if session_id else [] if new else ["--continue"]
-    command = ["opencode", "run", "--agent", AGENT, "--format", "json", *continuation, "--", message]
+    try:
+        files = attachment_files(state, list(attachments))
+    except (OSError, ValueError) as error:
+        return {"error": str(error)}
+    command = ["opencode", "run", "--agent", AGENT, "--format", "json", *continuation,
+               *[part for file in files for part in ("--file", file)], "--", message]
     try:
         if session_id and not history.can_continue(state, session_id):
             return {"error": "This chat is no longer available."}
-        prepare(state, folder, message, session_id)
+        prepare(state, folder, message, session_id, any(Path(f).name.startswith("folder-") for f in files))
     except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
         return {"error": str(error)}
     try:

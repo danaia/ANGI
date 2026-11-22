@@ -35,8 +35,11 @@ export { AgentWork, WorkRecord, WorkResource }
 import { FilesPanel, Files, FileRow, Crumb, PlaceRow, PaneState } from "files.slint";
 import { FolderPicker } from "files-picker.slint";
 export { Files, FileRow, Crumb, PlaceRow, PaneState }
-import { SettingsPanel, MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSettings } from "settings.slint";
-export { MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSettings }
+import { KeyBindingDialog } from "key-binding-dialog.slint";
+import { KeyBindings, ShortcutRow } from "settings-key-bindings.slint";
+export { KeyBindings, ShortcutRow }
+import { SettingsPanel, MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSettings, SoundSettings } from "settings.slint";
+export { MouseSettings, BluetoothSettings, BtDevice, BtApproval, AppearanceSettings, SoundSettings }
 import { AppLauncher } from "launcher.slint";
 import { HoverTip } from "hover-tip.slint";
 import { Cursor } from "cursor.slint";
@@ -169,6 +172,8 @@ component WindowFrame inherits Rectangle {
         width: max(0px, parent.width - 2 * Theme.frame-inset);
         height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         cursor: root.cursor; hide-cursor: root.hide-cursor;
+        refresh-desktop => { MouseSettings.refresh(); }
+        open-mouse => { MouseSettings.page = 0; MouseSettings.open(); }
         pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
@@ -260,6 +265,21 @@ export component AppWindow inherits Window {
         && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && !root.header-menu-open && !Calendar.open && root.confirm-text == "";
 
     callback key(string, bool, bool, bool, bool) -> bool;
+    callback shortcut-key(string, bool, bool, bool, bool, bool, bool) -> bool;
+    callback mapped-pointer(int, int, length, length) -> bool;
+    public function focus-settings() { MouseSettings.focus-serial += 1; }
+    public function mouse-binding(kind: int, button: int, x: length, y: length) -> bool {
+        if (root.key-overlay || root.menu-open || root.header-menu-open) && kind == 0 { return false; }
+        if root.mapped-pointer(kind, button, x, y) {
+            root.track-cursor(x, y);
+            return true;
+        }
+        return false;
+    }
+    private property <bool> key-overlay: KeyBindings.open || Calendar.open || DriveMount.open
+        || Services.progress-open || Services.review-open || StorageView.empty-confirming
+        || StorageView.selected-open || MemoryProcesses.open || Files.chooser-open
+        || root.session-open || root.confirm-text != "";
     callback browser-key(string, bool, bool, bool, bool, bool) -> bool;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback scroll(float, float, bool, bool, bool, bool);
@@ -277,7 +297,7 @@ export component AppWindow inherits Window {
     callback header-menu-action(int);
     callback workspace-menu(int, length, length);
 
-    function open-calendar() {
+    public function open-calendar() {
         root.menu-open = false;
         root.session-open = false;
         root.header-menu-dismiss();
@@ -299,14 +319,27 @@ export component AppWindow inherits Window {
         t == Key.LeftArrow ? "left" : t == Key.RightArrow ? "right" : t == Key.UpArrow ? "up"
         : t == Key.DownArrow ? "down" : (t == Key.Tab || t == Key.Backtab) ? "tab" : t == " " ? "space"
         : t == Key.PageUp ? "pageup" : t == Key.PageDown ? "pagedown"
+        : t == Key.Backspace ? "backspace" : t == Key.Delete ? "delete" : t == Key.Insert ? "insert"
+        : t == Key.Home ? "home" : t == Key.End ? "end" : t == Key.Menu ? "menu"
         : t == Key.Escape ? "escape" : t == Key.Return ? "enter" : t.to-lowercase()
     }
 
     root-keys := FocusScope {
+        capture-key-pressed(e) => {
+            let blocked = root.key-overlay || root.menu-open || root.header-menu-open;
+            if root.shortcut-key(root.key-name(e.text), e.modifiers.control, e.modifiers.alt,
+                e.modifiers.shift || e.text == Key.Backtab, e.modifiers.meta, !blocked, e.repeat) { return accept; }
+            return reject;
+        }
+        capture-key-released(e) => {
+            root.shortcut-key(root.key-name(e.text), e.modifiers.control, e.modifiers.alt,
+                e.modifiers.shift, e.modifiers.meta, false, false);
+            return reject;
+        }
         key-pressed(e) => {
+            if KeyBindings.open { return accept; }
             if DriveMount.open || Services.progress-open || Services.review-open || StorageView.empty-confirming || StorageView.selected-open || MemoryProcesses.open || Files.chooser-open { return accept; }
             if Calendar.open { return reject; }
-            if e.modifiers.meta && e.text == Key.F10 { root.open-calendar(); return accept; }
             if (root.session-open) {
                 if (e.text == Key.Escape) { root.session-open = false; }
                 if (e.text == Key.DownArrow) { root.session-index = mod(root.session-index + 1, 5); }
@@ -486,9 +519,8 @@ export component AppWindow inherits Window {
             // Layout toggle tooltip, same pattern as the Agent Angi scope tip.
             HoverTip {
                 shown: root.mode-tip;
-                text: root.windowed-mode
-                    ? "Windowed: windows float freely. Click to tile them (\{root.mod-name}+L)."
-                    : "Tiled: windows fill the screen in a grid. Click to float them (\{root.mod-name}+L).";
+                text: (root.windowed-mode ? "Switch to tiled layout" : "Switch to windowed layout")
+                    + (KeyBindings.layout-hint == "" ? "" : " (" + KeyBindings.layout-hint + ")");
                 x: mode-box.absolute-position.x - top-bar.absolute-position.x;
                 y: mode-box.absolute-position.y - top-bar.absolute-position.y + mode-box.height + 8px;
             }
@@ -503,8 +535,7 @@ export component AppWindow inherits Window {
                 padding-right: Theme.gap-out;
                 Text {
                     text: root.toast != "" ? root.toast
-                        : root.windowed-mode ? "\{root.mod-name} + Space  Apps     Double-click header  Collapse or restore     Drag header  Move     \{root.mod-name} + L  Tiled"
-                        : "\{root.mod-name} + Space  Apps     + arrows  Focus     + Q  Close     + T  Float     + F  Full     + L  Windowed     + 1–0  Workspace";
+                        : KeyBindings.desktop-hint;
                     color: root.toast != "" ? Theme.warning : Theme.ink-muted;
                     font-size: Theme.text-small;
                     vertical-alignment: center;
@@ -648,6 +679,12 @@ export component AppWindow inherits Window {
                     Button { text: "Confirm"; variant: ButtonVariant.primary; clicked => { root.confirm(true); } }
                 }
             }
+        }
+
+        if KeyBindings.open: KeyBindingDialog {
+            width: root.width; height: root.height;
+            pointer-moved(x, y) => { root.track-cursor(x, y); }
+            record-key(t, c, a, s, m) => { KeyBindings.record-key(root.key-name(t), c, a, s, m); }
         }
 
         // Night light warms everything above, including dialogs; the pointer stays crisp on top.

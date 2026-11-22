@@ -90,7 +90,7 @@ impl Hub {
                     return Some(self.command(pane, "choose", ""));
                 }
                 match cursor {
-                    Some(row) if selected.len() <= 1 => self.activate(pane, row),
+                    Some(row) if selected.len() <= 1 => return Some(self.activate(pane, row)),
                     _ => return None,
                 }
             }

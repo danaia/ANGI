@@ -3,7 +3,7 @@
 //! Choosing an app that is not installed installs it in place; the launcher stays open, the row shows
 //! live progress, and the program is on the terminal's PATH the moment it finishes. Choosing an installed
 //! app opens it in a terminal; choosing one with an update waiting installs the update.
-use super::{APP_ICON, APPS, Entry, Status, apps, apps::Package};
+use super::{APP_ICON, APPS, INSTALL, Entry, Status, apps, apps::Package};
 use crate::{App, AppWindow, keymap::Cmd, library::Availability};
 
 /// `MenuRow.state` values for package rows; 0 is every other row.
@@ -13,6 +13,7 @@ const WORKING: i32 = 3;
 const INSTALLED: i32 = 4;
 const UPDATE: i32 = 5;
 const FAILED: i32 = 6;
+const UNAVAILABLE: i32 = 7;
 
 pub(super) fn package(index: usize) -> Option<&'static Package> {
     apps::index().get(index)
@@ -21,7 +22,8 @@ pub(super) fn package(index: usize) -> Option<&'static Package> {
 pub(super) fn entry(index: usize, package: &'static Package, availability: Availability) -> Entry {
     let summary = package.summary.clone();
     let (state, hint, description, progress, action, keeps_open, removable, running) = match availability {
-        Availability::Available => (AVAILABLE, package.kind.clone(), summary, 0.0, "Install", true, false, false),
+        Availability::Available => (AVAILABLE, if package.native { "Buildroot".into() } else { package.kind.clone() }, summary, 0.0, "Install", true, false, false),
+        Availability::Unavailable(reason) => (UNAVAILABLE, "Unavailable".into(), reason, 0.0, "", true, false, false),
         Availability::Queued { removing } => (
             QUEUED,
             if removing { "Removing…" } else { "Waiting…" }.into(),
@@ -63,7 +65,7 @@ pub(super) fn entry(index: usize, package: &'static Package, availability: Avail
         hint,
         aliases: &package.aliases,
         icon: APP_ICON,
-        section: APPS,
+        section: if running { APPS } else { INSTALL },
         running,
         command: Cmd::Package(index),
         status: Status { state, progress, action: action.into(), keeps_open, removable },
@@ -77,22 +79,18 @@ pub(super) fn is_installed(entry: &Entry) -> bool {
     matches!(entry.status.state, INSTALLED | UPDATE)
 }
 
-/// The Apps tab's own layout: what is installed first, then everything else in catalogue order, each
-/// group introduced by a heading on its first row. An app that is installing stays where it is until it
-/// finishes, so a row never moves under the pointer mid-install.
-pub(super) fn arrange(entries: Vec<Entry>) -> Vec<Entry> {
-    let (mut installed, available): (Vec<_>, Vec<_>) = entries.into_iter().partition(is_installed);
-    let (count, rest) = (installed.len(), available.len());
-    let mut all: Vec<Entry> = Vec::with_capacity(count + rest);
-    if let Some(first) = installed.first_mut() {
-        first.heading = format!("INSTALLED  ·  {count}");
+/// The four requested defaults stay above other compatible software, in catalog order.
+pub(super) fn arrange_install(entries: &mut [Entry]) {
+    if let Some(first) = entries.iter_mut().find(|entry| {
+        matches!(entry.command, Cmd::Package(index) if package(index).is_some_and(|app| app.native))
+    }) {
+        first.heading = "FEATURED".into();
     }
-    all.append(&mut installed);
-    all.extend(available);
-    if let Some(first) = all.get_mut(count) {
-        first.heading = format!("{}  ·  {rest}", if count > 0 { "AVAILABLE" } else { "ALL APPS" });
+    if let Some(first) = entries.iter_mut().find(|entry| {
+        matches!(entry.command, Cmd::Package(index) if package(index).is_some_and(|app| !app.native))
+    }) {
+        first.heading = "MORE SOFTWARE".into();
     }
-    all
 }
 
 impl App {
@@ -113,9 +111,9 @@ impl App {
         let Some(package) = package(index) else {
             return;
         };
-        match self.library.availability(&package.id) {
+        match self.library.catalogue_availability(&package.id, package.native) {
             Availability::Installed { update: None, .. } => self.package_open(ui, package),
-            Availability::Queued { .. } | Availability::Working { .. } => {}
+            Availability::Unavailable(_) | Availability::Queued { .. } | Availability::Working { .. } => {}
             Availability::Available | Availability::Failed(_) | Availability::Installed { .. } => {
                 self.library.install(&package.id);
                 self.refresh_menu(ui);
@@ -146,7 +144,7 @@ impl App {
 
     fn package_remove(&mut self, ui: &AppWindow, index: usize) {
         if let Some(package) = package(index) {
-            if matches!(self.library.availability(&package.id), Availability::Installed { .. }) {
+            if matches!(self.library.catalogue_availability(&package.id, package.native), Availability::Installed { .. }) {
                 self.library.remove(&package.id);
                 self.refresh_menu(ui);
             }

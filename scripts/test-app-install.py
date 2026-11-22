@@ -128,7 +128,10 @@ class Catalogue(unittest.TestCase):
         apps = app_catalog.load()
         self.assertGreaterEqual(len(apps), 45)
         for app in apps.values():
-            self.assertTrue(app.programs and app.repo and app.summary and app.kind in {'Terminal', 'Server'}, app.id)
+            self.assertTrue(app.programs and (app.repo or app.native) and app.summary
+                            and app.kind in {'Desktop', 'Terminal', 'Server'}, app.id)
+        self.assertEqual(list(apps)[:4], ['blender', 'vscode', 'vlc', 'gstreamer'])
+        self.assertTrue(all(apps[app_id].native for app_id in list(apps)[:4]))
         names = {name for app in apps.values() for name in (p.name for p in app.programs)}
         self.assertTrue({'rg', 'nvim', 'gh', 'btm', 'syncthing'} <= names)
 
@@ -174,7 +177,7 @@ class Resolve(Case):
 class Download(Case):
     def test_a_download_that_does_not_match_its_checksum_is_discarded(self):
         fake = Fake(digest='sha256:' + 'a' * 64)
-        with self.assertRaisesRegex(AppError, 'did not match the checksum'):
+        with self.assertRaisesRegex(AppError, 'did not match its published checksum'):
             self.install(fake)
         self.assertEqual(self.store.read(), {})
         self.assertFalse((self.store.bin / 'demo').exists())
@@ -372,7 +375,39 @@ class Cli(Case):
         out = io.StringIO()
         self.assertEqual(app_install.main(['app', 'install', 'nope', '--progress'], self.store, out), 2)
         self.assertEqual(app_install.main(['bogus'], self.store, out), 2)
-        self.assertEqual(json.loads(self._apps()), {'format': 'angi-apps-list-v1', 'bin': str(self.store.bin), 'apps': {}})
+        listing = json.loads(self._apps())
+        self.assertEqual((listing['format'], listing['bin'], listing['apps']),
+                         ('angi-apps-list-v1', str(self.store.bin), {}))
+        self.assertIsInstance(listing['unavailable'], dict)
+
+    def test_incompatible_app_fails_before_downloading(self):
+        from unittest.mock import patch
+        out = io.StringIO()
+        with patch('app_platform.architecture', return_value='amd64'):
+            self.assertEqual(app_install.main(['app', 'install', 'ripgrep', '--progress'], self.store, out), 3)
+        event = json.loads(out.getvalue())
+        self.assertEqual(event['state'], 'failed')
+        self.assertIn('64-bit ARM', event['message'])
+        self.assertEqual(self.store.read(), {})
+
+    def test_native_package_rejects_the_wrong_board_and_installs_on_a_match(self):
+        from unittest.mock import patch
+        root = Path(self.directory.name)
+        archive = tarball({'libexec/gst-inspect-1.0': ELF, 'libexec/gst-launch-1.0': ELF})
+        (root / 'gstreamer.tar.gz').write_bytes(archive)
+        metadata = dict(board='rpi5', arch='aarch64', buildroot='2026.08.1', version='1.24.13',
+                        sha256=hashlib.sha256(archive).hexdigest())
+        (root / 'gstreamer.json').write_text(json.dumps(metadata))
+        args = ['app', 'install', 'gstreamer', '--progress']
+        with patch('app_native.PACKAGES', root), patch('app_native.target', return_value=('rpi4', 'aarch64', '2026.08.1')):
+            log = io.StringIO()
+            self.assertEqual(app_install.main(args, self.store, log), 3)
+            self.assertIn('different ANGI build', log.getvalue())
+            self.assertEqual(self.store.read(), {})
+        with patch('app_native.PACKAGES', root), patch('app_native.target', return_value=('rpi5', 'aarch64', '2026.08.1')):
+            self.assertEqual(app_install.main(args, self.store, io.StringIO()), 0)
+        self.assertTrue(self.store.owns('gst-launch-1.0', 'gstreamer'))
+        self.assertIn('GST_PLUGIN_SCANNER', (self.store.bin / 'gst-launch-1.0').read_text())
 
     def _apps(self):
         from contextlib import redirect_stdout

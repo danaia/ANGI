@@ -1,6 +1,7 @@
 import { Theme } from "data.slint";
 import { AgentButton, AgentText } from "agent-controls.slint";
 import { AgentChat, ChatMessages } from "agent-chat.slint";
+import { AttachmentStrip, AttachmentViewer } from "agent-attachments.slint";
 import { AgentHistory } from "agent-history.slint";
 import { AgentProviders } from "agent-providers.slint";
 import { AgentScope, ModeSwitch, ScopeTip } from "agent-scope.slint";
@@ -76,7 +77,7 @@ component AgentComposer inherits Rectangle {
     // Reserve the Build button, three gaps and the composer padding at narrow widths.
     property <length> scope-controls-width: max(0px, root.width - 83px);
     property <length> control-width: min(130px, root.scope-controls-width / 2);
-    property <bool> can-send: root.draft != "" && AgentScope.ready && !AgentHistory.loading && (!root.chatting || !AgentChat.busy);
+    property <bool> can-send: (root.draft != "" || AgentChat.attachments.length > 0) && AgentScope.ready && !AgentHistory.loading && (!root.chatting || !AgentChat.busy);
     callback build(string);
     callback pointer-moved(length, length);
     forward-focus: input;
@@ -98,6 +99,14 @@ component AgentComposer inherits Rectangle {
     }
     VerticalLayout {
         padding: 10px; padding-left: 13px; padding-right: 13px; spacing: 10px;
+        if AgentChat.attachments.length > 0: AttachmentStrip {
+            items: AgentChat.attachments;
+            open(index) => { AgentChat.viewing = index; }
+            remove(index) => { AgentChat.remove-attachment(index); }
+        }
+        if AgentChat.attach-notice != "": AgentText {
+            text: AgentChat.attach-notice; color: Theme.danger; font-size: Theme.text-small; wrap: word-wrap;
+        }
         field := Flickable {
             height: min(124px, max(48px, input.preferred-height + 6px));
             content-width: self.width;
@@ -116,6 +125,8 @@ component AgentComposer inherits Rectangle {
                 accessible-label: root.chatting ? "Message Angi" : "Build prompt";
                 key-pressed(event) => {
                     if (event.text == Key.Return && !event.modifiers.shift) { root.send(); return accept; }
+                    // A copied image or file becomes an attachment; text still pastes as usual.
+                    if (event.modifiers.control && event.text == "v") { AgentChat.paste-attachment(); }
                     reject
                 }
                 cursor-position-changed(position) => {
@@ -129,6 +140,25 @@ component AgentComposer inherits Rectangle {
         }
         HorizontalLayout {
             spacing: 8px;
+            Rectangle {
+                width: 33px;
+                attach-button := AgentButton {
+                    width: parent.width; minimum: 33px;
+                    label: "Attach files, images or folders";
+                    icon: Icons.plus; icon-only: true;
+                    enabled: !root.chatting || !AgentChat.busy;
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    activated => { attach-dwell.dismiss(); AgentChat.attach(); }
+                }
+                attach-dwell := HoverDwell { hovered: attach-button.hovered; }
+                HoverTip {
+                    shown: attach-dwell.ready;
+                    text: attach-button.label;
+                    width: 232px;
+                    x: 0px;
+                    y: -self.height - Theme.space-2;
+                }
+            }
             if AgentScope.mode == "os": AgentText {
                 text: "ANGI system"; color: Theme.ink; font-size: Theme.text-small;
                 vertical-alignment: center;
@@ -179,6 +209,7 @@ component AgentComposer inherits Rectangle {
         }
     }
     build-dwell := HoverDwell { hovered: !root.chatting && send-button.hovered; }
+
     HoverTip {
         shown: build-dwell.ready;
         text: send-button.label;
@@ -332,6 +363,18 @@ export component AgentWorkspace inherits Rectangle {
         x: max(8px, providers.absolute-position.x - root.absolute-position.x + providers.width - self.width);
         y: providers.absolute-position.y - root.absolute-position.y + providers.height + 8px;
         text: providers.label;
+    }
+    if AgentChat.viewing >= 0: AttachmentViewer {
+        width: root.width; height: root.height;
+        item: AgentChat.attachments[AgentChat.viewing];
+        replace => { AgentChat.replace-attachment(AgentChat.viewing); }
+        remove => { AgentChat.remove-attachment(AgentChat.viewing); AgentChat.viewing = -1; }
+        close => { AgentChat.viewing = -1; }
+    }
+    if AgentChat.sent-viewing: AttachmentViewer {
+        width: root.width; height: root.height;
+        item: AgentChat.sent-view; manage: false;
+        close => { AgentChat.sent-viewing = false; }
     }
     HoverTip {
         shown: history-dwell.ready;

@@ -85,6 +85,12 @@ pub(super) fn install(ui: &AppWindow, app: &Rc<RefCell<App>>) -> Rc<Timer> {
                     }
                 }
                 Effect::PythonServer(dir) => servers.start(dir),
+                Effect::Attach(paths) => {
+                    let files = ui.global::<Files>();
+                    files.set_chooser_open(false);
+                    let list: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+                    ui.global::<crate::AgentChat>().invoke_files_chosen(list.join("\n").into());
+                }
                 Effect::Choose(dir) => {
                     ui.global::<Files>().set_chooser_error("".into());
                     ui.global::<crate::AgentScope>().invoke_use_project(dir.to_string_lossy().into_owned().into());
@@ -114,12 +120,14 @@ pub(super) fn install(ui: &AppWindow, app: &Rc<RefCell<App>>) -> Rc<Timer> {
         });
     }
     {
-        let (weak, hub, pace) = (ui.as_weak(), hub.clone(), pace.clone());
+        let (weak, hub, perform, pace) = (ui.as_weak(), hub.clone(), perform.clone(), pace.clone());
         files.on_activate(move |pane, row| {
             let (Some(ui), Ok(mut hub)) = (weak.upgrade(), hub.try_borrow_mut()) else { return };
-            hub.activate(pane as usize, row as usize);
+            let effect = hub.activate(pane as usize, row as usize);
             pace(hub.busy());
             publish(&ui, &hub, pane as usize);
+            drop(hub);
+            perform(effect);
         });
     }
     {
@@ -151,9 +159,24 @@ pub(super) fn install(ui: &AppWindow, app: &Rc<RefCell<App>>) -> Rc<Timer> {
         files.on_open_picker(move |start| {
             let (Some(ui), Ok(mut hub)) = (weak.upgrade(), hub.try_borrow_mut()) else { return };
             let start = (!start.is_empty()).then(|| PathBuf::from(start.as_str()));
-            hub.open_picker(start);
+            hub.open_picker(start, false);
             pace(hub.busy());
             let files = ui.global::<Files>();
+            files.set_chooser_attach(false);
+            files.set_chooser_error("".into());
+            files.set_chooser_open(true);
+            publish(&ui, &hub, PICKER);
+        });
+    }
+    {
+        let (weak, hub, pace) = (ui.as_weak(), hub.clone(), pace.clone());
+        files.on_open_picker_files(move |start| {
+            let (Some(ui), Ok(mut hub)) = (weak.upgrade(), hub.try_borrow_mut()) else { return };
+            let start = (!start.is_empty()).then(|| PathBuf::from(start.as_str()));
+            hub.open_picker(start, true);
+            pace(hub.busy());
+            let files = ui.global::<Files>();
+            files.set_chooser_attach(true);
             files.set_chooser_error("".into());
             files.set_chooser_open(true);
             publish(&ui, &hub, PICKER);

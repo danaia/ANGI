@@ -89,12 +89,21 @@ def main():
         if not new and len(options) >= 2 and options[0] == "--session":
             session_id = options[1]
             options = options[2:]
-        if (options and not (len(options) == 2 and options[0] == "--folder")) or not args[-1].strip():
-            raise ValueError("Usage: agent chat-turn [--new | --session ID] [--folder PATH] MESSAGE")
+        folder, attachments = None, []
+        while options:
+            if len(options) >= 2 and options[0] == "--folder" and folder is None:
+                folder = options[1]
+            elif len(options) >= 2 and options[0] == "--attach":
+                attachments.append(options[1])
+            else:
+                break
+            options = options[2:]
+        if options or not args[-1].strip():
+            raise ValueError("Usage: agent chat-turn [--new | --session ID] [--folder PATH] [--attach FILE]... MESSAGE")
         state = Path(os.environ["XDG_STATE_HOME"]) / "angi-swarm"
         state.mkdir(parents=True, exist_ok=True, mode=0o700)
-        print(json.dumps(chat.turn(state, args[-1].strip(), new=new, folder=options[1] if options else None,
-                                   session_id=session_id)))
+        print(json.dumps(chat.turn(state, args[-1].strip(), new=new, folder=folder,
+                                   session_id=session_id, attachments=attachments)))
         return
     if args and args[0] == "_dispatch":
         dispatch(Path(args[1]))

@@ -25,6 +25,8 @@ pub enum Effect {
     Terminal(PathBuf),
     PythonServer(PathBuf),
     Choose(PathBuf),
+    /// Files picked in the picker's attach mode, for the Chat composer.
+    Attach(Vec<PathBuf>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -82,9 +84,12 @@ impl Hub {
         self.panes[pane].state(&self.places, can_paste, !self.undo.is_empty(), !self.redo.is_empty())
     }
 
-    pub fn open_picker(&mut self, start: Option<PathBuf>) {
+    /// Open the picker for folders, or (`attach`) for choosing files to attach to a Chat message.
+    pub fn open_picker(&mut self, start: Option<PathBuf>, attach: bool) {
         let start = start.filter(|p| p.is_dir()).unwrap_or_else(places::home);
         let pane = &mut self.panes[PICKER];
+        pane.attach = attach;
+        pane.view.folders_only = !attach;
         pane.back.clear();
         pane.forward.clear();
         pane.filter.clear();
@@ -182,14 +187,18 @@ impl Hub {
 
     // --- entry points for the UI ---------------------------------------------------------
 
-    pub fn activate(&mut self, pane: usize, row: usize) {
-        let Some(entry) = self.panes[pane].model.entry(row) else { return };
+    pub fn activate(&mut self, pane: usize, row: usize) -> Effect {
+        let Some(entry) = self.panes[pane].model.entry(row) else { return Effect::None };
         let path = self.panes[pane].dir.join(&entry.name);
         if entry.is_dir() {
             self.visit(pane, normalize(&path), Move::Visit);
+        } else if pane == PICKER && self.panes[PICKER].attach {
+            // Double-clicking a file in the attach picker chooses it.
+            return Effect::Attach(vec![path]);
         } else {
             self.panes[pane].status = format!("“{}” cannot be opened yet: no viewer is installed.", entry.name);
         }
+        Effect::None
     }
 
     pub fn command(&mut self, pane: usize, name: &str, arg: &str) -> Effect {
@@ -231,6 +240,9 @@ impl Hub {
             "trash" => self.act(pane, Op::Trash { items: selected }, "Moving to Trash"),
             "copy" | "cut" if !selected.is_empty() => {
                 let n = selected.len();
+                if name == "copy" {
+                    crate::agent_attachments::offer_copied(&selected);
+                }
                 self.clipboard = Some((selected, name == "cut"));
                 self.panes[pane].status = format!("{} {n} item{} to the clipboard", if name == "cut" { "Cut" } else { "Copied" }, if n == 1 { "" } else { "s" });
             }
@@ -253,6 +265,7 @@ impl Hub {
                     }
                 }
             }
+            "choose" if self.panes[PICKER].attach && pane == PICKER => return Effect::Attach(self.chosen_files()),
             "choose" => return Effect::Choose(self.choice()),
             _ => {}
         }
@@ -272,6 +285,14 @@ impl Hub {
     }
 
     /// What "Choose" picks: the one selected folder, else the folder being viewed.
+    /// What the attach picker hands over: the selected files and folders, or, with nothing
+    /// selected, the folder being viewed.
+    fn chosen_files(&self) -> Vec<PathBuf> {
+        let p = &self.panes[PICKER];
+        let picked = p.model.paths(&p.dir);
+        if picked.is_empty() { vec![p.dir.clone()] } else { picked }
+    }
+
     fn choice(&self) -> PathBuf {
         let p = &self.panes[PICKER];
         match p.model.selected().as_slice() {

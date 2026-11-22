@@ -26,8 +26,8 @@ export component FolderPicker inherits FocusScope {
                     height: 56px;
                     VerticalLayout {
                         padding-left: 18px; padding-right: 18px; padding-top: 10px; spacing: 3px;
-                        Text { text: AgentScope.picker-for-chat ? "Choose a folder for Chat" : "Choose a project folder"; color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; }
-                        Text { text: AgentScope.picker-for-chat ? "Chat can read and save text files and create folders here." : "Agent Angi will work only inside the folder you choose."; color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
+                        Text { text: Files.chooser-attach ? "Attach files, images or folders" : AgentScope.picker-for-chat ? "Choose a folder for Chat" : "Choose a project folder"; color: Theme.ink; font-size: Theme.text-heading-2; font-weight: 500; }
+                        Text { text: Files.chooser-attach ? "Select files or folders (Ctrl+click for several). A folder is attached as a summary of its contents." : AgentScope.picker-for-chat ? "Chat can read and save text files and create folders here." : "Agent Angi will work only inside the folder you choose."; color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
                     }
                 }
                 browser := FileBrowser {
@@ -45,8 +45,8 @@ export component FolderPicker inherits FocusScope {
                             Button { text: "Cancel"; enabled: !AgentScope.checking; clicked => { root.close(); } }
                             Button {
                                 variant: ButtonVariant.primary;
-                                text: AgentScope.checking ? "Checking…" : Files.chooser.single-folder ? "Choose selected folder" : "Choose this folder";
-                                enabled: !AgentScope.checking;
+                                text: Files.chooser-attach ? (Files.chooser.selected > 0 ? "Attach selected" : "Attach this folder") : AgentScope.checking ? "Checking…" : Files.chooser.single-folder ? "Choose selected folder" : "Choose this folder";
+                                enabled: Files.chooser-attach || !AgentScope.checking;
                                 clicked => { Files.command(1, "choose", ""); }
                             }
                         }

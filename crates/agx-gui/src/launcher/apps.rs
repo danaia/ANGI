@@ -1,13 +1,7 @@
 //! The searchable index of software ANGI can install.
 //!
-//! ANGI is a minimal Buildroot system: no package manager, no X11 or Wayland, and a desktop that
-//! draws straight to the screen. So the index lists only command-line tools and servers that ship as
-//! ready-made aarch64 Linux binaries on GitHub. Graphical applications such as Firefox or VLC have no
-//! display server to draw on and are deliberately absent.
-//!
-//! The list lives in `apps/agent/apps.json`, most useful first, and is compiled in so search works
-//! offline. The same file tells the installer (`apps/agent/app_install.py`) which release asset to
-//! download and which programs to expose; this module reads only what the launcher shows.
+//! The list is embedded so search works offline. The installer selects either an ARM64 release
+//! artifact or Buildroot packages for the measured device, and publishes compatibility to the launcher.
 use serde_json::Value;
 use std::sync::OnceLock;
 
@@ -25,6 +19,7 @@ pub(super) struct Package {
     pub launch: String,
     /// Shown with a Recommended badge: broadly useful, small, and checked on this device's architecture.
     pub recommended: bool,
+    pub native: bool,
 }
 
 fn parse(text: &str) -> Vec<Package> {
@@ -46,6 +41,7 @@ fn parse(text: &str) -> Vec<Package> {
                 .unwrap_or_default(),
             launch: field(item, "launch"),
             recommended: item["recommended"].as_bool().unwrap_or(false),
+            native: item["native"].as_bool().unwrap_or(false),
         })
         .filter(|app| {
             !app.id.is_empty()
@@ -91,7 +87,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for app in index() {
             assert!(!app.summary.is_empty(), "{} is incomplete", app.name);
-            assert!(matches!(app.kind.as_str(), "Terminal" | "Server"), "{} has no kind", app.name);
+            assert!(matches!(app.kind.as_str(), "Desktop" | "Terminal" | "Server"), "{} has no kind", app.name);
             assert!(seen.insert(app.id.clone()), "{} is listed twice", app.id);
             assert!(
                 app.launch.is_empty() || app.commands.contains(&app.launch),

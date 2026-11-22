@@ -412,13 +412,30 @@ fn picker_shows_only_folders_and_chooses_the_selection_or_current_folder() {
     tmp.dir("app");
     tmp.dir("lib");
     let mut h = Harness::new();
-    h.hub.open_picker(Some(tmp.0.clone()));
+    h.hub.open_picker(Some(tmp.0.clone()), false);
     h.settle();
     assert_eq!(h.rows(PICKER), ["app", "lib"]);
     assert_eq!(h.cmd(PICKER, "choose", ""), Effect::Choose(tmp.0.clone()), "no selection chooses the folder being viewed");
     h.select(PICKER, "lib");
     assert_eq!(h.cmd(PICKER, "choose", ""), Effect::Choose(tmp.0.join("lib")));
     assert_ne!(h.hub.panes[WINDOW].dir, tmp.0, "the two browsers are independent");
+}
+
+#[test]
+fn attach_picker_lists_files_and_folders_and_chooses_the_selection() {
+    let tmp = Scratch::new("attach");
+    tmp.file("a.png", "");
+    tmp.file("b.txt", "");
+    tmp.dir("sub");
+    let mut h = Harness::new();
+    h.hub.open_picker(Some(tmp.0.clone()), true);
+    h.settle();
+    assert_eq!(h.rows(PICKER), ["sub", "a.png", "b.txt"]);
+    assert_eq!(h.cmd(PICKER, "choose", ""), Effect::Attach(vec![tmp.0.clone()]), "nothing selected attaches the folder being viewed");
+    h.select(PICKER, "a.png");
+    assert_eq!(h.cmd(PICKER, "choose", ""), Effect::Attach(vec![tmp.0.join("a.png")]));
+    h.select(PICKER, "sub");
+    assert_eq!(h.cmd(PICKER, "choose", ""), Effect::Attach(vec![tmp.0.join("sub")]), "a selected folder can be attached");
 }
 
 #[test]

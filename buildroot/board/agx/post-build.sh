@@ -39,3 +39,12 @@ if [ -x "$TARGET_DIR/usr/libexec/bluetooth/bluetoothd" ]; then
 else
     rm -f -- "$TARGET_DIR/usr/libexec/agx-bluetooth/run"
 fi
+
+if [ -x "$TARGET_DIR/usr/bin/pulseaudio" ]; then
+    rm -f "$TARGET_DIR/etc/init.d/S50pulseaudio"
+    sound="$BR2_EXTERNAL_AGX_PATH/../apps/sound"
+    install -D -m 0755 "$sound/run.sh" "$TARGET_DIR/usr/libexec/agx-sound/run"
+    install -D -m 0644 "$sound/system.pa" "$TARGET_DIR/etc/pulse/agx-system.pa"
+    install -D -m 0644 "$sound/client.conf" "$TARGET_DIR/etc/pulse/client.conf.d/10-angi.conf"
+    install -D -m 0644 "$sound/asound.conf" "$TARGET_DIR/etc/asound.conf"
+fi

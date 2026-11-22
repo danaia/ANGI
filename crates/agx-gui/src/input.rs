@@ -1,7 +1,8 @@
 //! Desktop keyboard routing, pointer gestures and drag lifecycle.
 use crate::{
     App, AppWindow, TOP,
-    keymap::{Cmd, Mods, bind},
+    key_bindings::Action,
+    keymap::{Cmd, Mods},
     wm::{self, Button, Edges, Full, Hit, Kind, Rect},
 };
 use std::time::{Duration, Instant};
@@ -144,13 +145,17 @@ impl App {
             self.target = None;
             self.refresh(ui);
         }
+        if name == "\u{f70d}" && let Some(Cmd::Calendar) = self.bindings.default_key(name, mods, self.modk) {
+            self.run(ui, Cmd::Calendar);
+            return true;
+        }
         if let Some(result) = self.terminal_shortcut(ui, name, mods) {
             return result;
         }
         if let Some(result) = self.browser_shortcut(ui, name, mods) {
             return result;
         }
-        match bind(name, mods, self.modk) {
+        match self.bindings.custom_key(name, mods).or_else(|| self.bindings.default_key(name, mods, self.modk)) {
             Some(cmd) => {
                 self.run(ui, cmd);
                 true
@@ -169,6 +174,14 @@ impl App {
         y: f32,
         mods: Mods,
     ) {
+        if kind == 2 && self.captured_mouse.is_some_and(|(_, drag)| drag) {
+            return;
+        }
+        if kind == 0 && let Some(action) = self.bindings.mouse(button, mods, self.modk)
+            && self.run_mouse_binding(ui, action, x, y, mods)
+        {
+            return;
+        }
         if self.terminal_pointer(ui, kind, button, x, y, mods) {
             self.header_clicks.cancel();
             return;
@@ -190,18 +203,65 @@ impl App {
                 self.up(x, y, kind == 1);
                 self.refresh(ui);
             }
-            _ => match self.moved(x, y) {
-                Motion::Cursor => ui.set_cursor(self.cursor),
-                Motion::Overlay => {
-                    self.view.target(self.target);
-                    self.refresh_drag(ui);
-                }
-                Motion::Geometry => {
-                    self.view.sync(self.desk.scene(), self.target);
-                    self.refresh_drag(ui);
-                }
-            },
+            _ => self.update_pointer(ui, x, y),
         }
+    }
+
+    fn update_pointer(&mut self, ui: &AppWindow, x: f32, y: f32) {
+        match self.moved(x, y) {
+            Motion::Cursor => ui.set_cursor(self.cursor),
+            Motion::Overlay => {
+                self.view.target(self.target);
+                self.refresh_drag(ui);
+            }
+            Motion::Geometry => {
+                self.view.sync(self.desk.scene(), self.target);
+                self.refresh_drag(ui);
+            }
+        }
+    }
+
+    pub(super) fn native_mouse_binding(&mut self, ui: &AppWindow, kind: i32, button: i32, x: f32, y: f32) -> bool {
+        if let Some((pressed, drag)) = self.captured_mouse {
+            if kind == 1 && button == pressed {
+                self.captured_mouse = None;
+                if drag { self.pointer(ui, 1, button, x, y, self.shortcut_mods); }
+                return true;
+            }
+            if kind == 2 && drag {
+                self.update_pointer(ui, x, y);
+                return true;
+            }
+            return false;
+        }
+        if kind == 0
+            && let Some(action) = self.bindings.mouse(button, self.shortcut_mods, self.modk)
+            && self.run_mouse_binding(ui, action, x, y, self.shortcut_mods)
+        {
+            self.captured_mouse = Some((button, !matches!(self.drag, Drag::None)));
+            return true;
+        }
+        false
+    }
+
+    pub(super) fn run_mouse_binding(&mut self, ui: &AppWindow, action: Action, x: f32, y: f32, mods: Mods) -> bool {
+        if let Action::Command(cmd) = action {
+            self.run(ui, cmd);
+            return true;
+        }
+        let hit = self.view.scene.borrow().hit(x, y);
+        let Some(kind) = owner(hit) else { return false };
+        self.header_clicks.cancel();
+        self.last = (x, y);
+        self.mods = mods;
+        self.desk.focus(kind);
+        match action {
+            Action::Move => self.begin_move(kind, x, y),
+            Action::Resize => self.begin_resize(kind, x, y),
+            Action::Command(_) => unreachable!(),
+        }
+        self.refresh(ui);
+        true
     }
 
     pub(super) fn begin_move(&mut self, k: Kind, x: f32, y: f32) {
@@ -251,17 +311,11 @@ impl App {
             return;
         }
         let hit = self.view.scene.borrow().hit(x, y);
-        let held = self.modk.held(mods);
-        if button != 0 || held || !matches!(hit, Hit::Header(k) if self.desk.is_floating(k)) {
+        if button != 0 || !matches!(hit, Hit::Header(k) if self.desk.is_floating(k)) {
             self.header_clicks.cancel();
         }
         match button {
             0 => {
-                if held && let Some(k) = owner(hit) {
-                    self.desk.focus(k);
-                    self.begin_move(k, x, y);
-                    return;
-                }
                 match hit {
                     Hit::Button(k, b) => {
                         self.desk.focus(k);
@@ -291,10 +345,7 @@ impl App {
                 }
             }
             1 => {
-                if held && let Some(k) = owner(hit) {
-                    self.desk.focus(k);
-                    self.begin_resize(k, x, y);
-                } else if let Hit::Header(k) | Hit::Button(k, _) = hit {
+                if let Hit::Header(k) | Hit::Button(k, _) = hit {
                     self.open_panel_menu(ui, k, x, y);
                 }
             }

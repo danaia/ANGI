@@ -40,6 +40,7 @@ pub const BLUETOOTH: &str = "/usr/libexec/agx-bluetooth/run";
 fn bluetooth() -> Definition {
     Definition::new("bluetooth", "/bin/sh", &[BLUETOOTH], true)
 }
+const SOUND: &str = "/usr/libexec/agx-sound/run";
 fn console_definition(gui: bool) -> Definition {
     if gui {
         Definition::new("console", "/usr/bin/agx-gui", &["--login"], false)
@@ -154,6 +155,9 @@ pub fn definitions(pid1: bool) -> Vec<Definition> {
         // Only images built with BlueZ ship the script.
         if std::path::Path::new(BLUETOOTH).is_file() {
             services.push(bluetooth());
+        }
+        if std::path::Path::new(SOUND).is_file() {
+            services.push(Definition::new("sound", "/bin/sh", &[SOUND], true));
         }
     }
     services.push(Definition::new("network", "/usr/sbin/agx-netd", &[], true));

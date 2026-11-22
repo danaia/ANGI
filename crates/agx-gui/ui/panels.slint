@@ -65,6 +65,9 @@ export component OverviewPanel inherits Rectangle {
     in property <bool> hide-cursor;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback pointer-moved(length, length);
+    // Refresh the desktop (asks first) and open Mouse & pointer settings; wired in app.slint.
+    callback refresh-desktop();
+    callback open-mouse();
     private property <length> pad: root.width < 520px ? Theme.space-4 : Theme.space-6;
     // Short tiles drop the device summary so the storage map keeps its room.
     private property <bool> short: root.height < 400px;
@@ -168,6 +171,25 @@ export component OverviewPanel inherits Rectangle {
             Text { text: sd-map.hover-path != "" ? sd-map.hover-path : nvme-map.hover-path; color: Theme.ink; font-size: Theme.text-small; font-family: Theme.font-mono; overflow: elide; }
             Text { text: sd-map.hover-path != "" ? sd-map.hover-detail : nvme-map.hover-detail; color: Theme.ink-muted; font-size: Theme.text-small; overflow: elide; }
         }
+    }
+    refresh-desktop-button := Button {
+        x: max(0px, clear.x - self.width - Theme.space-2);
+        y: max(0px, root.height - self.height - Theme.space-3);
+        width: self.preferred-width;
+        visible: StorageView.category != 7;
+        text: "Refresh desktop…";
+        icon: Icons.refresh;
+        clicked => { root.refresh-desktop(); }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+    }
+    mouse := Button {
+        x: max(0px, clear.x - refresh-desktop-button.width - self.width - 2 * Theme.space-2);
+        y: max(0px, root.height - self.height - Theme.space-3);
+        width: self.preferred-width;
+        visible: StorageView.category != 7 && root.width >= 720px;
+        text: "Mouse & pointer";
+        clicked => { root.open-mouse(); }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     clear := Button {
         x: max(0px, refresh.x - self.width - Theme.space-2);

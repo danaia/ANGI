@@ -1,3 +1,11 @@
+export global DesktopButtons {
+    public pure function binding-button(button: PointerEventButton) -> int {
+    button == PointerEventButton.left ? 0 : button == PointerEventButton.right ? 1
+        : button == PointerEventButton.middle ? 2 : button == PointerEventButton.back ? 4
+        : button == PointerEventButton.forward ? 5 : 3
+    }
+}
+
 // Shared desktop gesture layer, used behind windows and above their read-only content.
 export component DesktopInput inherits TouchArea {
     in property <int> cursor: 0;
@@ -16,7 +24,7 @@ export component DesktopInput inherits TouchArea {
         let y = self.absolute-position.y + self.mouse-y;
         root.pointer-moved(x, y);
         root.pointer(e.kind == PointerEventKind.down ? 0 : e.kind == PointerEventKind.up ? 1 : e.kind == PointerEventKind.cancel ? 3 : 2,
-            e.button == PointerEventButton.left ? 0 : e.button == PointerEventButton.right ? 1 : 2,
+            DesktopButtons.binding-button(e.button),
             x, y, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta);
     }
     // pointer-event includes motion, both hovering and while grabbed. Handling

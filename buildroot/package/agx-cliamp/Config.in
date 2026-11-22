@@ -1,0 +1,8 @@
+config BR2_PACKAGE_AGX_CLIAMP
+	bool "CLIamp radio player for ANGI"
+	depends on BR2_aarch64
+	depends on BR2_TOOLCHAIN_USES_GLIBC
+	select BR2_PACKAGE_ALSA_LIB
+	select BR2_PACKAGE_CA_CERTIFICATES
+	help
+	  CLIamp is a terminal music player. A bare launch plays Radio Paradise.

@@ -1,5 +1,4 @@
-// Searchable launcher with Settings (built-in tools), Apps (command-line tools and servers that run on ANGI)
-// and Commands tabs. The catalogues and command routing live in launcher.rs.
+// Searchable launcher with Apps, Commands, Settings and Install tabs.
 import { MenuRow } from "data.slint";
 import { Theme, Icons, Icon, Badge, Kbd, SegmentedControl, Heading2, Hint, Caption } from "pebble/pebble.slint";
 import { ScrollView } from "std-widgets.slint";
@@ -62,7 +61,7 @@ component LauncherTab inherits Rectangle {
 export component AppLauncher inherits Rectangle {
     in property <[MenuRow]> rows;
     in-out property <int> selected: 0;
-    // 0 Apps (the landing tab), 1 Commands, 2 Settings; keep in step with the constants in launcher.rs.
+    // Keep in step with APPS, COMMANDS, SETTINGS and INSTALL in launcher.rs.
     in-out property <int> section: 0;
     // Row waiting for a second click (or Delete) before an installed app is removed; -1 when none.
     private property <int> confirm-remove: -1;
@@ -77,7 +76,7 @@ export component AppLauncher inherits Rectangle {
     init => { search.focus(); }
 
     function choose() {
-        if (root.selected >= 0 && root.selected < root.rows.length) { root.accepted(root.selected); }
+        if (root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].state != 7) { root.accepted(root.selected); }
     }
     function switch-section(value: int) {
         root.section = value;
@@ -171,8 +170,8 @@ export component AppLauncher inherits Rectangle {
                                 if (e.text == Key.PageDown) { root.selected = min(root.selected + 5, root.rows.length - 1); return accept; }
                                 if (e.text == Key.PageUp) { root.selected = max(root.selected - 5, 0); return accept; }
                                 if (e.text == Key.Delete && search.text == "") { root.try-remove(root.selected); return accept; }
-                                if (e.text == Key.Tab) { root.switch-section(Math.mod(root.section + 1, 3)); return accept; }
-                                if (e.text == Key.Backtab) { root.switch-section(Math.mod(root.section + 2, 3)); return accept; }
+                                if (e.text == Key.Tab) { root.switch-section(Math.mod(root.section + 1, 4)); return accept; }
+                                if (e.text == Key.Backtab) { root.switch-section(Math.mod(root.section + 3, 4)); return accept; }
                                 reject
                             }
                         }
@@ -193,13 +192,17 @@ export component AppLauncher inherits Rectangle {
                 height: 42px; spacing: Theme.space-3;
                 SegmentedControl {
                     label: "Launcher view";
-                    options: ["Apps", "Commands", "Settings"];
+                    options: ["Apps", "Commands", "Settings", "Install"];
                     current-index: root.section;
                     selected(index) => { root.switch-section(index); }
                     pointer-moved(x, y) => { root.pointer-moved(x, y); }
                 }
                 Rectangle { horizontal-stretch: 1; }
-                Caption { text: search.text != "" ? "SEARCH RESULTS" : root.section == 0 ? "RUNS ON ANGI" : root.section == 1 ? "DESKTOP & SESSION" : "YOUR TOOLS"; vertical-alignment: center; }
+                if panel.width >= 620px: Caption {
+                    text: search.text != "" ? "SEARCH RESULTS" : root.section == 0 ? "RUNS ON ANGI"
+                        : root.section == 1 ? "DESKTOP & SESSION" : root.section == 2 ? "YOUR TOOLS" : "";
+                    vertical-alignment: center;
+                }
             }
             Rectangle {
                 vertical-stretch: 1;
@@ -253,8 +256,9 @@ export component AppLauncher inherits Rectangle {
                             Rectangle { x: 0px; width: parent.width * max(0.02, min(1.0, row.progress)); height: parent.height; border-radius: 2px; background: Theme.accent; }
                         }
                         TouchArea {
-                            mouse-cursor: pointer;
+                            mouse-cursor: row.state == 7 ? MouseCursor.default : MouseCursor.pointer;
                             accessible-role: button;
+                            accessible-enabled: row.state != 7;
                             accessible-label: row.label + ". " + row.description;
                             pointer-event(e) => {
                                 root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
@@ -279,8 +283,8 @@ export component AppLauncher inherits Rectangle {
                 if root.rows.length == 0: VerticalLayout {
                     alignment: center;
                     spacing: 12px;
-                    Text { text: "No matching settings, apps or commands"; color: Theme.ink; font-size: Theme.text-label; font-weight: 500; horizontal-alignment: center; }
-                    Text { text: "Try network, btop, ripgrep or restart."; color: Theme.ink-muted; font-size: Theme.text-body-sm; horizontal-alignment: center; }
+                    Text { text: root.section == 3 ? "No matching apps to install" : "No matching settings, apps or commands"; color: Theme.ink; font-size: Theme.text-label; font-weight: 500; horizontal-alignment: center; }
+                    Text { text: root.section == 3 ? "Try searching by app name." : "Try network, btop, ripgrep or restart."; color: Theme.ink-muted; font-size: Theme.text-body-sm; horizontal-alignment: center; }
                 }
             }
             Rectangle {
@@ -292,7 +296,11 @@ export component AppLauncher inherits Rectangle {
                     height: parent.height - 1px;
                     spacing: 12px;
                     Text { text: "↑↓  Navigate"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
-                    Text { text: "↵  " + (root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].action != "" ? root.rows[root.selected].action : root.rows[root.selected].state == 0 ? "Open" : "Working…"); color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
+                    if root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].state != 7: Text {
+                        text: "↵  " + (root.rows[root.selected].action != "" ? root.rows[root.selected].action
+                            : root.rows[root.selected].state == 0 ? "Open" : "Working…");
+                        color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center;
+                    }
                     if root.selected >= 0 && root.selected < root.rows.length && root.rows[root.selected].removable && search.text == "": Text { text: "Del  Remove"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
                     Text { text: "Tab  Switch view"; color: Theme.ink-muted; font-size: Theme.text-small; vertical-alignment: center; }
                     Rectangle { horizontal-stretch: 1; }

@@ -24,6 +24,9 @@ pub(super) struct App {
     pub(super) view: SceneModel,
     pub(super) occupied: Rc<VecModel<bool>>,
     pub(super) modk: ModKey,
+    pub(super) bindings: crate::key_bindings::Mappings,
+    pub(super) shortcut_mods: Mods,
+    pub(super) captured_mouse: Option<(i32, bool)>,
     pub(super) drag: Drag,
     pub(super) mods: Mods,
     pub(super) last: (f32, f32),
@@ -54,6 +57,7 @@ impl App {
         let desk = Desktop::new(screen, Rect::new(0.0, TOP, 1280.0, 720.0 - TOP - BOTTOM));
         let view = SceneModel::default();
         view.sync(desk.scene(), None);
+        let modk = ModKey::from_env();
         Self {
             terminal: terminal::State::default(),
             terminal_kind: Kind::Terminal,
@@ -64,7 +68,10 @@ impl App {
             desk,
             view,
             occupied: Rc::new(VecModel::from(vec![false; wm::INITIAL_WORKSPACES])),
-            modk: ModKey::from_env(),
+            modk,
+            bindings: crate::key_bindings::Mappings::new(modk),
+            shortcut_mods: Mods::default(),
+            captured_mouse: None,
             drag: Drag::None,
             mods: Mods::default(),
             last: (0.0, 0.0),
@@ -180,7 +187,6 @@ impl App {
     pub(super) fn run(&mut self, ui: &AppWindow, cmd: Cmd) {
         self.dismiss_header_menu(ui);
         self.header_clicks = input::HeaderClicks::default();
-        let m = self.modk.name();
         match cmd {
             Cmd::Focus(d) => self.desk.focus_dir(d),
             Cmd::Swap(d) => self.desk.swap_dir(d),
@@ -192,7 +198,7 @@ impl App {
                     self.desk.close(k);
                     self.toast(
                         ui,
-                        &format!("Closed {}. Reopen it from Apps ({m}+Space).", k.title()),
+                        &format!("Closed {}. Reopen it from Applications.", k.title()),
                     );
                 }
             }
@@ -216,6 +222,7 @@ impl App {
             Cmd::CycleFocus(back) => self.desk.cycle_focus(back),
             Cmd::Resize { dw, dh } => self.desk.resize(dw, dh),
             Cmd::Menu => self.open_menu(ui),
+            Cmd::Calendar => ui.invoke_open_calendar(),
             Cmd::Open(Kind::Terminal) => self.terminal_new_window(ui),
             Cmd::Open(k) => {
                 self.desk.open(k);

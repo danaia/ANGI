@@ -1,11 +1,14 @@
 import { Theme } from "data.slint";
 import { AngiMark } from "agent-controls.slint";
+import { AttachmentTile, ChatAttachment } from "agent-attachments.slint";
+export { ChatAttachment }
 
 // The desktop owns these messages and sends turns to the agent runtime.
 export struct ChatMessage {
     mine: bool,
     text: string,
     failed: bool,
+    attachments: [ChatAttachment],
 }
 
 export global AgentChat {
@@ -13,8 +16,21 @@ export global AgentChat {
     in-out property <bool> busy;
     in-out property <string> draft;
     in-out property <string> session-id;
+    // The collection being built for the next message; src/agent_attachments.rs owns the files.
+    in-out property <[ChatAttachment]> attachments;
+    in-out property <string> attach-notice;
+    // Index shown in the viewer, or -1.
+    in-out property <int> viewing: -1;
+    // A picture opened from a sent message.
+    in-out property <ChatAttachment> sent-view;
+    in-out property <bool> sent-viewing;
     callback send(string);
     callback new-chat();
+    callback attach();
+    callback paste-attachment();
+    callback replace-attachment(int);
+    callback remove-attachment(int);
+    callback files-chosen(string);
 }
 
 component MessageText inherits TextInput {
@@ -43,7 +59,17 @@ component ChatTurn inherits VerticalLayout {
             VerticalLayout {
                 padding-left: 16px; padding-right: 16px;
                 padding-top: 11px; padding-bottom: 11px;
-                MessageText { text: root.message.text; }
+                VerticalLayout {
+                    spacing: 8px;
+                    if root.message.attachments.length > 0: HorizontalLayout {
+                        spacing: 6px; alignment: end;
+                        for item in root.message.attachments: AttachmentTile {
+                            item: item; width: 56px; height: 56px;
+                            open => { AgentChat.sent-view = item; AgentChat.sent-viewing = true; }
+                        }
+                    }
+                    MessageText { text: root.message.text; }
+                }
             }
         }
     }

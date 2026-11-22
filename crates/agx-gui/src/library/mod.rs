@@ -33,6 +33,8 @@ pub(crate) enum Job {
 pub(crate) struct State {
     /// App id to installed release tag.
     pub installed: HashMap<String, String>,
+    pub unavailable: HashMap<String, String>,
+    pub catalogue_checked: bool,
     /// App id to the newest release tag seen by the last update check ("" when unknown).
     pub latest: HashMap<String, String>,
     pub jobs: HashMap<String, Job>,
@@ -48,6 +50,7 @@ pub(crate) struct State {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Availability {
     Available,
+    Unavailable(String),
     Queued { removing: bool },
     Working { fraction: f32, message: String, removing: bool },
     Failed(String),
@@ -115,6 +118,28 @@ impl Library {
         self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
+    pub(crate) fn catalogue_availability(&self, id: &str, native: bool) -> Availability {
+        let state = self.lock();
+        if let Some(reason) = state.unavailable.get(id) {
+            return Availability::Unavailable(reason.clone());
+        }
+        if !state.catalogue_checked {
+            if std::env::var_os("AGX_UPDATE_PROGRAM").is_none()
+                && !std::path::Path::new("/usr/bin/angi-update").is_file()
+            {
+                return Availability::Unavailable("This image lacks the ANGI app installer.".into());
+            }
+            if native {
+                return Availability::Unavailable("Waiting for compatibility information from the ANGI app installer.".into());
+            }
+        }
+        if !native && std::env::consts::ARCH != "aarch64" {
+            return Availability::Unavailable("This release is built for 64-bit ARM Linux.".into());
+        }
+        state.availability(id)
+    }
+
+    #[cfg(test)]
     pub(crate) fn availability(&self, id: &str) -> Availability {
         self.lock().availability(id)
     }

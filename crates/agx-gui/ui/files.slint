@@ -25,12 +25,15 @@ export global Files {
     in-out property <bool> chooser-open: false;
     in-out property <string> chooser-error;
     in-out property <bool> chooser-checking: false;
+    // The picker is choosing files to attach to a Chat message instead of a folder.
+    in-out property <bool> chooser-attach: false;
     callback command(int, string, string);
     callback select(int, int, bool, bool);
     callback activate(int, int);
     callback key(int, string, bool, bool, bool, int) -> bool;
     callback activated();
     callback open-picker(string);
+    callback open-picker-files(string);
 }
 
 export component Glyph inherits Text {

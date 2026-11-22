@@ -96,8 +96,11 @@ are served at once.
 
 Things only a real build and boot can confirm: that BlueZ configures against this image's `libudev-zero`,
 that the controller binds and loads its firmware, that rfkill unblocks, and that a Bluetooth keyboard's
-input reaches the desktop through the existing device-event relay. Audio profiles are not enabled:
-there is no sound server on the device, so headphones and speakers can pair and connect but will not play.
+input reaches the desktop through the existing device-event relay. Pi 4 and Pi 5 images with the Sound service register A2DP playback and native
+headset profiles with BlueZ. After pairing, choose the connected speaker in
+**Settings → Sound → Output**. Select a compatible microphone under **Input** to switch that device to
+hands-free audio.
+Headset mode uses a lower-quality audio link than A2DP.
 
 ## Trying it on a workstation
 

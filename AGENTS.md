@@ -18,6 +18,14 @@ The public product name is **ANGI** (pronounced “AN-jee”). Anything a person
 Keep **AGX** for technical identifiers: the `agx` command and its help text, `agx-*` crates and binaries, service and group names, file paths and environment variables (`/usr/share/agx`, `AGX_*`), Buildroot package names, (the GitHub repository itself is now `danaia/ANGI`). Do not rename identifiers when changing visible text, and do not change visible text to an identifier. When adding a user-visible string, write ANGI.
 
 
+## Omarchy reference
+
+When a task references Omarchy or adapts one of its features or packages for ANGI,
+consult the Omarchy skill for installed-system guidance. Check the upstream
+[Omarchy repository](https://github.com/omacom/omarchy) and, for package choices,
+[Omarchy Packages](https://github.com/omacom/omarchy-pkgs). Apply ANGI’s own
+design and deployment rules to the implementation.
+
 ## Design system (Pebble Line)
 
 Everything a person sees in ANGI uses the Pebble Line design system, in both the light and dark themes. Before designing or changing any screen, app, dialog or web UI, read [docs/design-system.md](docs/design-system.md) and the shared [ANGI design system skill](.agents/skills/angi-design-system/SKILL.md). Use `Theme` tokens and the `pebble/pebble.slint` components; never hard-code colours or use std-widgets controls.

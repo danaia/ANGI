@@ -75,7 +75,7 @@ mod native {
         event::{
             KeyboardEvent, PointerEvent,
             keyboard::{KeyState, KeyboardEventTrait},
-            pointer::{Axis, PointerScrollEvent},
+            pointer::{Axis, ButtonState, PointerScrollEvent},
         },
     };
     use slint::{ComponentHandle, platform::WindowEvent};
@@ -107,15 +107,50 @@ mod native {
                 let size = window.size().to_logical(window.scale_factor());
                 let event = match input {
                     Event::Keyboard(KeyboardEvent::Key(key)) => {
-                        let Some(event) =
-                            super_event(key.key(), key.key_state() == KeyState::Pressed)
-                        else {
+                        let pressed = key.key_state() == KeyState::Pressed;
+                        use crate::sound::VolumeAction;
+                        let volume = match key.key() {
+                            113 => Some(VolumeAction::Mute),
+                            114 => Some(VolumeAction::Step(-5)),
+                            115 => Some(VolumeAction::Step(5)),
+                            _ => None,
+                        };
+                        if let Some(action) = volume {
+                            return crate::sound::media_key(action, pressed);
+                        }
+                        let Some(event) = super_event(key.key(), pressed) else {
                             return false;
                         };
                         Some(event)
                     }
+                    Event::Pointer(PointerEvent::Button(event)) => {
+                        let button = match event.button() {
+                            0x110 => 0, 0x111 => 1, 0x112 => 2, 0x113 | 0x116 => 4,
+                            0x114 | 0x115 => 5, _ => return false,
+                        };
+                        let kind = if event.button_state() == ButtonState::Pressed { 0 } else { 1 };
+                        let position = pointer.borrow().get(size);
+                        if crate::key_bindings::dispatch_pointer(window, kind, button, position) {
+                            return true;
+                        }
+                        // Slint's KMS backend leaves BTN_SIDE and BTN_EXTRA as Other.
+                        if matches!(event.button(), 0x113 | 0x114) {
+                            use slint::platform::PointerEventButton;
+                            let button = if button == 4 { PointerEventButton::Back } else { PointerEventButton::Forward };
+                            let event = if kind == 0 {
+                                WindowEvent::PointerPressed { position, button }
+                            } else {
+                                WindowEvent::PointerReleased { position, button }
+                            };
+                            window.dispatch_event(event);
+                            return true;
+                        }
+                        return false;
+                    }
                     Event::Pointer(PointerEvent::Motion(event)) => {
                         pointer.borrow_mut().relative(event.dx(), event.dy(), size);
+                        // Keep Slint's native pointer position synchronized during a mapped drag.
+                        crate::key_bindings::dispatch_pointer(window, 2, 3, pointer.borrow().get(size));
                         return false;
                     }
                     Event::Pointer(PointerEvent::MotionAbsolute(event)) => {
@@ -124,6 +159,8 @@ mod native {
                             event.absolute_y_transformed(size.height as u32),
                             size,
                         );
+                        // Keep Slint's native pointer position synchronized during a mapped drag.
+                        crate::key_bindings::dispatch_pointer(window, 2, 3, pointer.borrow().get(size));
                         return false;
                     }
                     Event::Pointer(PointerEvent::ScrollWheel(event)) => {

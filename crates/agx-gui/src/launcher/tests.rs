@@ -2,7 +2,7 @@
 use super::*;
 use crate::wm::Rect;
 
-fn available(_: &str) -> Availability {
+fn available(_: &apps::Package) -> Availability {
     Availability::Available
 }
 
@@ -85,24 +85,17 @@ fn search_finds_app_aliases_and_secondary_commands() {
 }
 
 #[test]
-fn apps_tab_lists_built_ins_then_installable_apps() {
+fn install_starts_with_featured_apps_and_apps_only_shows_ready_to_open_entries() {
     let desktop = desktop();
-    let listed = results(&desktop, "Super", "", APPS, &available);
-    assert_eq!(listed.len(), apps::index().len() + 3);
-    assert_eq!(listed[..3].iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(), ["Web", "Files", "Terminal"]);
-    let listed = &listed[3..];
-    assert!(listed.iter().all(|entry| entry.section == APPS));
-    assert!(
-        listed
-            .iter()
-            .all(|entry| matches!(entry.command, Cmd::Package(_)) && entry.status.action == "Install")
-    );
-    assert!(
-        results(&desktop, "Super", "", SETTINGS, &available)
-            .iter()
-            .all(|entry| !matches!(entry.command, Cmd::Package(_))),
-        "installable apps stay out of the built-in tools"
-    );
+    let listed = results(&desktop, "Super", "", INSTALL, &available);
+    assert_eq!(listed.len(), apps::index().len());
+    assert_eq!(listed[..4].iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(),
+               ["Blender", "VS Code", "VLC", "GStreamer"]);
+    assert_eq!(listed[0].heading, "FEATURED");
+    assert_eq!(listed[4].heading, "MORE SOFTWARE");
+    assert!(listed.iter().all(|entry| entry.section == INSTALL && entry.status.action == "Install"));
+    let apps = results(&desktop, "Super", "", APPS, &available);
+    assert_eq!(apps.iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(), ["Web", "Files", "Terminal"]);
 }
 
 #[test]
@@ -116,14 +109,14 @@ fn typing_finds_tools_by_name_or_the_command_they_replace() {
         ("tmux", "Zellij"),
         ("neofetch", "fastfetch"),
     ] {
-        let first = &results(&desktop, "Super", query, APPS, &available)[0];
+        let first = &results(&desktop, "Super", query, INSTALL, &available)[0];
         assert_eq!(first.label, name, "searching {query:?}");
         assert!(matches!(first.command, Cmd::Package(_)), "{name} must install from the launcher");
         assert_eq!(first.status.action, "Install");
     }
-    let editors = results(&desktop, "Super", "editor", APPS, &available);
+    let editors = results(&desktop, "Super", "editor", INSTALL, &available);
     assert!(editors.len() >= 3, "several editors: {}", editors.len());
-    assert!(editors.iter().all(|entry| entry.section == APPS));
+    assert!(editors.iter().all(|entry| entry.section == INSTALL));
 }
 
 #[test]
@@ -162,14 +155,21 @@ fn every_install_state_shows_what_is_happening_and_what_enter_does() {
 }
 
 #[test]
-fn desktop_apps_that_cannot_run_without_a_display_server_are_not_offered() {
-    let desktop = desktop();
-    for query in ["firefox", "chrome", "vlc", "libreoffice", "gimp"] {
-        assert!(
-            results(&desktop, "Super", query, APPS, &available).is_empty(),
-            "{query} needs X11 or Wayland, which ANGI does not have"
-        );
-    }
+fn unsupported_desktop_entries_have_a_reason_and_incompatible_artifacts_are_filtered() {
+    let state = |package: &apps::Package| {
+        if package.id == "blender" || !package.native {
+            Availability::Unavailable("This device cannot run the package.".into())
+        } else {
+            Availability::Available
+        }
+    };
+    let entries = results(&desktop(), "Super", "", INSTALL, &state);
+    assert_eq!(entries.len(), 4);
+    assert_eq!(entries[0].label, "Blender");
+    assert_eq!(entries[0].status.state, 7);
+    assert!(entries[0].status.action.is_empty());
+    assert!(entries[0].description.contains("cannot run"));
+    assert!(results(&desktop(), "Super", "btop", INSTALL, &state).is_empty());
 }
 
 #[test]
@@ -184,12 +184,12 @@ fn a_built_in_tool_still_wins_over_an_installable_app_with_the_same_word() {
 
 #[test]
 fn tabs_are_ordered_apps_then_commands_then_settings_and_the_launcher_lands_on_apps() {
-    assert_eq!((APPS, COMMANDS, SETTINGS), (0, 1, 2));
+    assert_eq!((APPS, COMMANDS, SETTINGS, INSTALL), (0, 1, 2, 3));
 }
 
-fn with_installed(installed: &'static [&'static str]) -> impl Fn(&str) -> Availability {
-    move |id| {
-        if installed.contains(&id) {
+fn with_installed(installed: &'static [&'static str]) -> impl Fn(&apps::Package) -> Availability {
+    move |package| {
+        if installed.contains(&package.id.as_str()) {
             Availability::Installed { tag: "1.0".into(), update: None }
         } else {
             Availability::Available
@@ -202,39 +202,37 @@ fn installed_apps_come_first_under_their_own_heading_and_the_rest_follow() {
     let desktop = desktop();
     let state = with_installed(&["jq", "btop"]);
     let listed = results(&desktop, "Super", "", APPS, &state);
-    assert_eq!(listed.len(), apps::index().len() + 3, "built-in and installable apps are listed");
+    assert_eq!(listed.len(), 5, "built-in and installed apps are listed");
     assert_eq!(listed[..3].iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(), ["Web", "Files", "Terminal"]);
     let listed = &listed[3..];
     let labels: Vec<_> = listed.iter().map(|entry| entry.label.as_str()).collect();
     assert_eq!(&labels[..2], ["jq", "btop"], "installed first, in catalogue order");
     assert!(listed[..2].iter().all(packages::is_installed));
     assert!(listed[2..].iter().all(|entry| !packages::is_installed(entry)));
-    assert_eq!(listed[0].heading, "INSTALLED  ·  2");
-    assert_eq!(listed[2].heading, format!("AVAILABLE  ·  {}", apps::index().len() - 2));
-    assert_eq!(listed.iter().filter(|entry| !entry.heading.is_empty()).count(), 2, "only the first row of a group has a heading");
-    assert_eq!(listed[2].label, "GitHub CLI", "the rest keep their curated order");
+    assert_eq!(listed[0].heading, "INSTALLED");
+    assert_eq!(listed[1].heading, "");
 }
 
 #[test]
 fn with_nothing_installed_there_is_one_heading_and_no_empty_installed_section() {
     let desktop = desktop();
     let listed = results(&desktop, "Super", "", APPS, &available);
-    assert_eq!(listed[3].heading, format!("ALL APPS  ·  {}", apps::index().len()));
-    assert_eq!(listed.iter().filter(|entry| !entry.heading.is_empty()).count(), 1);
+    assert_eq!(listed.len(), 3);
+    assert!(listed.iter().all(|entry| entry.heading.is_empty()));
 }
 
 #[test]
 fn installing_apps_stay_put_and_headings_only_appear_without_a_search() {
     let desktop = desktop();
-    let state = |id: &str| {
-        if id == "fd" {
+    let state = |package: &apps::Package| {
+        if package.id == "fd" {
             Availability::Working { fraction: 0.4, message: "Downloading".into(), removing: false }
         } else {
             Availability::Available
         }
     };
-    let listed = results(&desktop, "Super", "", APPS, &state);
-    assert_eq!(listed[3].label, "GitHub CLI", "an app mid-install does not jump to the top");
+    let listed = results(&desktop, "Super", "", INSTALL, &state);
+    assert_eq!(listed[4].label, "GitHub CLI", "an app mid-install does not jump to the top");
     let searched = results(&desktop, "Super", "find", APPS, &with_installed(&["fd"]));
     assert!(searched.iter().all(|entry| entry.heading.is_empty()), "search results are one flat list");
     assert_eq!(searched[0].label, "fd", "a match you already have is listed first");
@@ -243,7 +241,7 @@ fn installing_apps_stay_put_and_headings_only_appear_without_a_search() {
 #[test]
 fn only_a_few_apps_and_the_built_in_browser_carry_the_recommended_badge() {
     let desktop = desktop();
-    let listed = results(&desktop, "Super", "", APPS, &available);
+    let listed = results(&desktop, "Super", "", INSTALL, &available);
     let badged: Vec<_> = listed.iter().filter(|entry| !entry.badge.is_empty()).map(|entry| entry.label.as_str()).collect();
     assert!(badged.contains(&"ripgrep") && badged.contains(&"btop"), "{badged:?}");
     assert!(badged.len() < listed.len() / 3, "a badge on everything means nothing");

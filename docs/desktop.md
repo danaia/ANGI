@@ -66,7 +66,7 @@ Preview just the login screen without root or real authentication:
 
 ## Mouse settings
 
-Open the top-right power menu and choose **Settings**, or search for Settings in Apps. Settings opens as a normal desktop tile alongside your other windows. It supports tiling, floating, resizing, fullscreen and workspace moves; opening it again focuses the existing tile. The Mouse & pointer panel offers pointer speed, adaptive acceleration, left/right primary button, natural scrolling and scroll speed. Changes apply immediately to connected native pointing devices and are reapplied when a mouse reconnects. The test area lets you try movement and clicks; **Restore defaults** resets this collection of preferences. Close it with the title-bar close button or the normal desktop shortcut; Escape leaves the tile open. The category column collapses to a narrow icon rail in small tiles, and controls stack below their descriptions. **Refresh desktop…** at the bottom asks for confirmation, saves pending preferences, closes the desktop’s terminal and browser sessions, and starts the latest installed GUI as the same signed-in account. It does not reboot the Pi; VNC viewers may need to reconnect.
+Open the top-right power menu and choose **Settings**, or search for Settings in Apps. Settings opens as a normal desktop tile alongside your other windows. It supports tiling, floating, resizing, fullscreen and workspace moves; opening it again focuses the existing tile. The Mouse & pointer panel offers pointer speed, adaptive acceleration, left/right primary button, natural scrolling and scroll speed. Changes apply immediately to connected native pointing devices and are reapplied when a mouse reconnects. The test area lets you try movement and clicks; **Restore defaults** resets this collection of preferences. Close it with the title-bar close button or the normal desktop shortcut; Escape leaves the tile open. The category column collapses to a narrow icon rail in small tiles, and controls stack below their descriptions. **Refresh desktop…** now lives in the Overview footer, to the left of **Clear cache…** (with a **Mouse & pointer** shortcut that opens this page beside it on wide tiles). It asks for confirmation, saves pending preferences, closes the desktop’s terminal and browser sessions, and starts the latest installed GUI as the same signed-in account. It does not reboot the Pi; VNC viewers may need to reconnect.
 
 Preferences belong to the signed-in account and are saved atomically in `$XDG_CONFIG_HOME/agx/mouse.conf` (normally `~/.config/agx/mouse.conf`). The greeter keeps its own defaults. Native controls apply through libinput; VNC movement remains controlled by the viewer. Desktop previews show the controls without changing the workstation's mouse settings. Device capabilities determine which native options the hardware supports.
 
@@ -212,9 +212,11 @@ means adding its app to `resolve()` there.
 
 ## Applications launcher
 
-**Super+Space** opens the launcher on three tabs, in this order: **Apps** (where it lands), **Commands**, and **Settings**. **Apps** is an app library for software you install yourself: 51 command-line tools and servers that run on ANGI, such as GitHub CLI, ripgrep, btop, Neovim, Syncthing and AdGuard Home. Press Enter (or click) on one and ANGI installs it in place: the row shows live progress (real download bytes, then verifying, unpacking and installing), the launcher stays open so several apps can be queued, and a toast confirms when each is ready. The program is on the terminal's PATH immediately, even in terminals that were already open. Choosing an installed app opens it: full-screen tools such as btop, Neovim or lazygit start in their own terminal tab, others open a terminal with the command named. Installed apps show their version, and **Update available** when GitHub has a newer release, in which case Enter updates it. **Remove** (or Delete with an empty search) asks once more and then deletes the program; its settings and data are never touched. The Apps tab is one scrollable panel split into two sections: **INSTALLED** at the top, always first, then **AVAILABLE** (or **ALL APPS** when nothing is installed yet) below it, with the count in each heading. An app that is installing stays where it is until it finishes, then moves up into Installed and the selection follows it. When you search, installed matches are listed first. A **★ Recommended** badge marks a few broadly useful, small tools (GitHub CLI, ripgrep, fzf, jq, btop, Neovim, Zellij, Syncthing, AdGuard Home) and ANGI Web; it is deliberately rare. **Commands** holds window actions, workspaces and session controls. Power actions retain their confirmation step. **Settings** lists ANGI's built-in tools (Overview, Web, native Terminal, Files, Settings, System Console and the rest), including running tools; selecting a running tool focuses it or brings it to the current workspace.
+**Super+Space** opens Applications on **Apps**. This tab shows Web, Files, Terminal, and installed software. **Commands** contains window, workspace, and session actions. **Settings** contains ANGI’s built-in tools and preferences. **Install** starts with Blender, VS Code, VLC, and GStreamer, followed by compatible tools and servers from the catalogue.
 
-The Apps index is `apps/agent/apps.json`, compiled into the desktop so search works offline and also read by the installer. ANGI has no package manager (no apt, Snap or Flatpak) and no X11 or Wayland, so graphical applications such as Firefox, Chrome, VLC or LibreOffice cannot run and are deliberately not listed; the index holds only prebuilt aarch64 Linux binaries from GitHub releases. Each entry names its GitHub project, a pattern selecting the aarch64 release asset, the programs to expose, and whether to start one directly in a terminal tab.
+Choose a row in **Install** to start a background job. The launcher shows its progress and makes the app available in **Apps** when installation succeeds. A featured app that cannot run on the current device shows the reason. Newly installed commands are available in existing Terminal sessions. Select **Remove** or press Delete on an installed row to remove its runtime. App preferences and files are kept.
+
+The installer checks the running target before offering a package. Existing ARM64 command-line tools use their checked release artifacts. On the Pi 5, the native GStreamer package uses the matching Buildroot toolchain and exposes `gst-launch-1.0` and `gst-inspect-1.0` in ANGI Terminal. Blender, VS Code, and VLC are listed as unavailable until their native windows can run under the ANGI window manager. Previously installed Debian-runtime apps are excluded from Apps. Users can still remove those packages through `angi-update app remove ID` and retain their app settings and data.
 
 **Browsers.** ANGI Web uses WPE WebKit with GPU-accelerated rendering on the Pi. The appliance desktop runs directly on DRM/KMS. External graphical browsers require a display-server integration.
 
@@ -224,7 +226,7 @@ The Apps index is `apps/agent/apps.json`, compiled into the desktop so search wo
 
 All 51 entries were installed for real from GitHub into a scratch store during development (checksum-verified, unpacked and ELF-checked, never executed). They have not all been run on the device. To add an app, find its aarch64 Linux release asset, add an entry, and run `scripts/test-app-install.py`; the tests reject duplicates, unsafe paths and incomplete entries.
 
-Type to search across Settings, Apps and Commands at once, so autocomplete works from any tab (installed state included): a name match outranks a description match, and the open tab's results come first among equals. Search recognises terms such as Wi-Fi, RAM, disk, reboot, vlc and spotify. Up/Down select a result, Page Up/Page Down move five results, Enter opens it, Tab and Shift+Tab cycle Apps, Commands and Settings, and Escape closes the launcher. Mouse selection and scrolling work throughout the clipped results area. The panel adapts to the window height and shortens when search returns fewer results; unmatched queries show a useful no-results state. `/` remains a fallback shortcut when a VNC viewer intercepts Super. In Remmina, enable **Grab all keyboard events** to send Super shortcuts to ANGI while the viewer is focused.
+Type to search across Settings, Apps and Commands at once, so autocomplete works from any tab (installed state included): a name match outranks a description match, and the open tab's results come first among equals. Search in Install stays within the install catalogue. Search recognises terms such as Wi-Fi, RAM, disk, reboot, vlc and spotify. Up/Down select a result, Page Up/Page Down move five results, Enter opens it, Tab and Shift+Tab cycle Apps, Commands, Settings and Install, and Escape closes the launcher. Mouse selection and scrolling work throughout the clipped results area. The panel adapts to the window height and shortens when search returns fewer results; unmatched queries show a useful no-results state. `/` remains a fallback shortcut when a VNC viewer intercepts Super. In Remmina, enable **Grab all keyboard events** to send Super shortcuts to ANGI while the viewer is focused.
 
 On November 16, 2026, the launcher passed visual checks at 1280×900, 720×700 and 640×400, including app search, command scrolling, empty results, mouse activation and reaching the last app by keyboard in a small window. The Pi preview confirmed Super+Space, Wi-Fi search, opening Network and small-window navigation. The workspace tests and 71 GUI tests passed. The tested executable is installed on the development Pi, and both saved ANGI Remmina profiles enable keyboard grab; Right Ctrl twice toggles the grab with the workstation's current Remmina shortcuts. The previous executable link is saved under `/root/agx-launcher-backup/`.
 
@@ -246,7 +248,24 @@ On November 16, 2026, the launcher passed visual checks at 1280×900, 720×700 a
 | Alt+Tab | Cycle window focus |
 | Mod+`-` and Mod+`=` | Narrow or widen by 100px (Shift: height) |
 | a little / a lot | 25px or 300px steps |
-| Super+Space (`Mod+Space` with an explicit override), or `/` | Applications launcher; built-in tools under Settings, installable Pi apps under Apps, desktop/session actions under Commands |
+| Super+Space (`Mod+Space` with an explicit override), or `/` | Applications launcher; built-in tools under Settings, compatible software under Install, desktop/session actions under Commands |
+
+## Customize key bindings
+
+Open **Settings → Key bindings**, then choose **Keyboard** or **Mouse**. Search
+for an action by name or by its current binding. Select an existing binding to
+replace or remove it, or select **Add binding…** to give an action another input.
+
+Press a key or click in the mouse recording area. You can hold modifiers with
+the input or tap them separately while recording. The proposed shortcut stays
+in the recorder until you choose **Accept**. If another action uses the same
+input, the editor names it and asks you to choose **Replace binding**. You can
+change the input device in the recorder to move an assignment between keyboard
+and mouse. Plain left click stays available for clicking controls.
+
+Bindings apply immediately and are saved for the signed-in account. **Restore
+defaults…** applies to the selected input device. For Stream Deck buttons
+configured to send a Hotkey, record the emitted shortcut in the Keyboard tab.
 
 ## Mouse
 
@@ -342,7 +361,7 @@ service scope.
 
 A guarded desktop source change can be installed through
 `angi-update gui` after confirmation, retaining its revert guard and previous
-release. To load it, use **Settings → Refresh desktop…**. Services has no desktop
+release. To load it, use **Overview → Refresh desktop…**. Services has no desktop
 refresh action. Upstream availability does not imply an automatic installer:
 ANGI uses Buildroot, with no apt repository, and kernel/base updates still need a
 recovery-capable system-image installer. Staged-image checksums establish
@@ -364,3 +383,37 @@ opening their information overlay.
 
 CLI equivalents: `angi-update inventory` reads current inventory and cached
 checks and retries due transient failures; `angi-update check` refreshes publisher checks and validates a staged image.
+
+## Sound and radio
+
+Open **Settings → Sound** to select the default output and microphone. Pair
+Bluetooth devices in **Settings → Bluetooth** first. Select a compatible Bluetooth microphone in Sound to switch that device to
+hands-free audio. Choose A2DP under Bluetooth mode for stereo playback.
+The Pi 4's 3.5 mm jack is output-only. The Pi 5 can use HDMI, Bluetooth or a USB
+audio adapter, including adapters with analog jacks.
+
+ANGI plays a short confirmation tone after changes to the audio route. Use
+**Play test tone** to check the current output again. **Play Radio Paradise**
+opens CLIamp in ANGI Terminal. Use the output volume slider or the keyboard's
+volume and mute keys to adjust the current output. The input meter shows the
+selected microphone's level while Sound is open. Running `cliamp` in an existing Terminal also starts
+Radio Paradise and queues the channels published by
+[CLIamp Radio](https://radio.cliamp.stream/stations), including Omarchy.
+Press `/` to search the current playlist. To search the worldwide
+[Radio Browser directory](https://www.radio-browser.info/), press uppercase
+`R`, then `/`, enter a station name and press Enter. Esc returns to the station
+browse view. The **cliamp radio** row opens CLIamp’s current channels.
+CLIamp accepts its usual arguments.
+
+Omarchy launches the upstream player. Its
+[CLIamp package](https://github.com/omacom/omarchy-pkgs/blob/master/pkgbuilds/cliamp/PKGBUILD)
+and [TUI guide](https://github.com/omacom/omarchy/blob/quattro/manual/21-tuis.md#cliamp)
+are the reference for how Omarchy ships and opens it.
+
+On a running development Pi 5, `scripts/deploy-sound.sh` stages the built ALSA,
+PulseAudio, audio-enabled BlueZ and CLIamp runtime on NVMe. Build the
+`alsa-plugins`, `alsa-utils`, `bluez5_utils` and `agx-cliamp` Buildroot targets
+with the Pi 5 defconfig first. When enabling the BlueZ audio plugin in an
+existing build, clean that package with `bluez5_utils-dirclean` before rebuilding.
+Deploy the current init and desktop as well the first time. Init starts the new
+Sound service at the next boot.

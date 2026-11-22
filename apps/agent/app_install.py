@@ -2,7 +2,7 @@
 
     angi-update app install ID [--progress]    install (or update) an app
     angi-update app remove ID [--progress]     remove it; its settings and data are left alone
-    angi-update apps [--check]                 what is installed, as JSON; --check refreshes stale update checks
+    angi-update apps [--check]                 installed apps and compatibility, as JSON
 
 With --progress each line on stdout is one JSON event the desktop reads; the final one has state
 "succeeded" or "failed". Without it the same stages print as plain text.
@@ -17,6 +17,8 @@ import time
 
 import app_catalog
 import app_fetch
+import app_native
+import app_platform
 from app_store import AppError, Store, version_label
 
 STAGES = ('resolving', 'downloading', 'verifying', 'extracting', 'installing')
@@ -85,10 +87,11 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
     try:
         ledger = store.read()
         entry = ledger.get(app.id)
-        report.phase('resolving', f'Finding the latest {app.name} release…')
-        release = app_fetch.resolve(app, **kwargs)
+        report.phase('resolving', f'Finding the {app.name} release for this device…')
+        native = app_native.resolve(app.id) if app.native else None
+        release = native[0] if native else app_fetch.resolve(app, **kwargs)
         report.tag = release.tag
-        if entry and entry['tag'] == release.tag and healthy(store, app, entry):
+        if entry and entry['tag'] == release.tag and entry.get('sha256') == release.sha256 and healthy(store, app, entry):
             report.done(f'{app.name} {report.shown} is already installed and up to date.')
             return
         if store.free_bytes() < release.size * SPACE_FACTOR + SPACE_RESERVE:
@@ -100,29 +103,40 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
                 raise AppError(f'A different program called {program.name} is already installed here.')
         work = Path(tempfile.mkdtemp(prefix=app.id + '-', dir=store.root / 'tmp'))
         try:
-            report.phase('downloading', f'Downloading {app.name} {report.shown}…')
-            digest = app_fetch.download(release, work / 'asset', report.download, opener, pause)
-            report.phase('verifying', 'Checking the download against the checksum GitHub published…')
+            asset = work / 'asset'
+            if native:
+                report.phase('downloading', f'Copying the Buildroot package for {app.name}…')
+                digest = app_native.copy_package(native[1], asset, release.size)
+            else:
+                report.phase('downloading', f'Downloading {app.name} {report.shown}…')
+                digest = app_fetch.download(release, asset, report.download, opener, pause)
+            report.phase('verifying', 'Checking the package checksum…')
             app_fetch.verify(release, digest)
             report.phase('extracting', f'Unpacking {app.name}…')
             tree = work / 'tree'
-            app_fetch.unpack(work / 'asset', release.asset, tree)
+            app_fetch.unpack(asset, release.asset, tree)
             located = {program.name: app_fetch.find_program(tree, program) for program in app.programs}
             for name, relative in located.items():
                 app_fetch.check_program(tree / relative, name)
+            if native:
+                located = app_native.command_wrappers(tree, located)
             report.phase('installing', f'Installing {app.name}…')
-            target = store.pkg / app.id / release.tag
+            release_id = f'{release.tag}-{release.sha256[:12]}-{time.time_ns()}' if native else release.tag
+            target = store.pkg / app.id / release_id
             target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
             shutil.rmtree(target, ignore_errors=True)
             os.replace(tree, target)
-            store.switch(app.id, release.tag)
+            store.switch(app.id, release_id)
             for name, relative in located.items():
                 store.link(name, app.id, relative)
-            ledger[app.id] = dict(name=app.name, repo=app.repo, tag=release.tag, asset=release.asset,
+            ledger[app.id] = dict(name=app.name, tag=release.tag, asset=release.asset,
                                   sha256=release.sha256, size=release.size, bins=located,
                                   installed_at=time.time(), previous=entry['tag'] if entry else '')
+            if app.repo:
+                ledger[app.id]['repo'] = app.repo
             store.write(ledger)
-            store.prune(app.id, keep=release.tag)
+            if not native:
+                store.prune(app.id, keep=release_id)
         finally:
             shutil.rmtree(work, ignore_errors=True)
         names = ', '.join(sorted(located))
@@ -170,12 +184,17 @@ def listing(store=None, check=False):
     latest = app_updates.latest_cached()
     apps = {}
     for key, item in store.read().items():
+        if 'debian' in item:
+            continue
         name = item.get('name', key)
         newer = latest.get(key, '')
         apps[key] = {'tag': item['tag'], 'version': version_label(item['tag'], key, name),
                      'installed_at': item.get('installed_at', 0), 'bins': sorted(item['bins']),
                      'latest': newer, 'update': version_label(newer, key, name) if newer and newer != item['tag'] else ''}
-    return {'format': 'angi-apps-list-v1', 'bin': str(store.bin), 'apps': apps}
+    unavailable = {app.id: reason for app in app_catalog.load().values()
+                   if (reason := app_platform.unavailable(app))}
+    return {'format': 'angi-apps-list-v1', 'bin': str(store.bin), 'apps': apps,
+            'unavailable': unavailable, 'architecture': app_platform.architecture()}
 
 
 def main(args, store=None, stream=None):
@@ -200,6 +219,9 @@ def main(args, store=None, stream=None):
     store = store or Store()
     report = Report(app, stream, json_events=progress)
     try:
+        if args[1] != 'remove':
+            if reason := app_platform.unavailable(app):
+                raise AppError(reason)
         (remove if args[1] == 'remove' else install)(app, store, report)
         return 0
     except AppError as error:

@@ -1,0 +1,104 @@
+// Attachments in Chat: the tile, the strip above the composer, and the viewer that reads,
+// replaces or removes one. State lives in AgentChat (agent-chat.slint); src/agent_attachments.rs
+// owns the files.
+import { Theme } from "data.slint";
+import { Button, ButtonVariant, Icons } from "pebble/pebble.slint";
+
+export struct ChatAttachment { name: string, detail: string, picture: image, has-picture: bool, is-folder: bool }
+
+export component AttachmentTile inherits Rectangle {
+    in property <ChatAttachment> item;
+    in property <bool> editable;
+    callback open();
+    callback remove();
+    width: 64px; height: 64px;
+    border-radius: Theme.radius-md; border-width: 1px; border-color: Theme.line-strong;
+    background: Theme.surface; clip: true;
+    if root.item.has-picture: Image {
+        width: parent.width; height: parent.height;
+        source: root.item.picture; image-fit: cover;
+    }
+    if !root.item.has-picture: VerticalLayout {
+        padding: 6px; spacing: 4px; alignment: center;
+        Image { source: root.item.is-folder ? Icons.folder : Icons.doc; colorize: Theme.ink; width: 20px; height: 20px; }
+        Text {
+            text: root.item.name; overflow: elide; horizontal-alignment: center;
+            font-family: "Noto Sans"; font-size: 10px; color: Theme.ink;
+        }
+    }
+    TouchArea {
+        clicked => { root.open(); }
+        accessible-role: button; accessible-label: "View " + root.item.name;
+    }
+    if root.editable: Rectangle {
+        x: parent.width - 22px; y: 2px; width: 20px; height: 20px; border-radius: 10px;
+        background: Theme.surface; border-width: 1px; border-color: Theme.line-strong;
+        Image { source: Icons.x; colorize: Theme.ink; width: 11px; height: 11px; }
+        TouchArea {
+            clicked => { root.remove(); }
+            accessible-role: button; accessible-label: "Remove " + root.item.name;
+        }
+    }
+}
+
+export component AttachmentStrip inherits Flickable {
+    in property <[ChatAttachment]> items;
+    callback open(int);
+    callback remove(int);
+    height: 70px;
+    content-width: row.preferred-width;
+    content-height: self.height;
+    row := HorizontalLayout {
+        y: 3px; height: 64px; spacing: 8px;
+        for item[index] in root.items: AttachmentTile {
+            item: item; editable: true;
+            open => { root.open(index); }
+            remove => { root.remove(index); }
+        }
+    }
+}
+
+export component AttachmentViewer inherits Rectangle {
+    in property <ChatAttachment> item;
+    // Attachments still being composed can be replaced or removed; a sent one is only shown.
+    in property <bool> manage: true;
+    callback replace();
+    callback remove();
+    callback close();
+    background: Theme.scrim;
+    TouchArea { clicked => { root.close(); } }
+    Rectangle {
+        width: min(560px, parent.width - 24px); height: min(520px, parent.height - 24px);
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        background: Theme.surface; border-radius: Theme.radius-xl;
+        border-width: Theme.stroke-hair; border-color: Theme.line-strong;
+        TouchArea { }
+        VerticalLayout {
+            padding: 16px; spacing: 10px;
+            Text {
+                text: root.item.name; overflow: elide;
+                font-family: "Noto Sans"; font-size: Theme.text-heading-2; font-weight: 500; color: Theme.ink;
+            }
+            Rectangle {
+                vertical-stretch: 1; min-height: 0px;
+                if root.item.has-picture: Image {
+                    width: parent.width; height: parent.height;
+                    source: root.item.picture; image-fit: contain;
+                    accessible-role: image; accessible-label: root.item.name;
+                }
+                if !root.item.has-picture: Text {
+                    text: root.item.is-folder ? "A summary of this folder’s contents goes to Angi, not the files themselves." : "No preview for this kind of file. Angi will still receive it.";
+                    wrap: word-wrap; horizontal-alignment: center; vertical-alignment: center;
+                    font-family: "Noto Sans"; font-size: Theme.text-label; color: Theme.ink;
+                }
+            }
+            Text { text: root.item.detail; font-size: Theme.text-small; color: Theme.ink-muted; }
+            HorizontalLayout {
+                spacing: 10px; alignment: end;
+                if root.manage: Button { text: "Replace…"; clicked => { root.replace(); } }
+                if root.manage: Button { text: "Remove"; clicked => { root.remove(); } }
+                Button { text: "Done"; variant: ButtonVariant.primary; clicked => { root.close(); } }
+            }
+        }
+    }
+}

@@ -46,7 +46,7 @@ Most operating systems are made for people and later adapted for agents. ANGI st
 - **The ANGI layer is written in Rust.** Startup (`agx-init`, PID 1), the service supervisor, the network and account services, the `agx` command line, the terminal dashboard, and the desktop are all Rust, about 11,000 lines in one workspace. The init program is a 0.5 MB binary.
 - **Everything is scriptable.** Status, services, logs, Wi-Fi, accounts, and power each have an `agx` command with `--json` output. The terminal dashboard and the CLI use the same service interfaces, so what an agent can do is what a person can do. The desktop is meant to join them; that wiring is not finished.
 - **Agents already build it.** The setup below is a single prompt: your coding agent downloads the code, builds ANGI, flashes the card, and checks that it boots.
-- **It is small on purpose.** A fresh image has about 93 MB of files, boots to a reachable SSH login in about 2.5 seconds after Linux starts, and used roughly 120 MB of the Pi's 16 GB of RAM while idle. These are development measurements, not release benchmarks.
+- **It is small on purpose.** A fresh image has about 120 MB (Pi Zero 2 W) to 650 MB (Pi 5) of files once fully deployed, boots to a reachable SSH login in about 2.5 seconds after Linux starts, and used roughly 120 MB of the Pi's 16 GB of RAM while idle. These are development measurements, not release benchmarks.
 
 ### What ANGI is built on
 

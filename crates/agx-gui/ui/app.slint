@@ -11,6 +11,7 @@ export { Web, WebOption, BookmarkItem, BookmarkRow }
 import { Terminal, TerminalRow, TerminalRun, TerminalPanel, TerminalView } from "terminal.slint";
 export { Terminal, TerminalRow, TerminalRun, TerminalView }
 import { BrowserPopup } from "browser-popup.slint";
+import { PanelMenu } from "panel-menu.slint";
 import { DesktopInput } from "desktop-input.slint";
 import { StorageView, StorageCell, StorageTrashRow } from "storage.slint";
 import { EmptyTrashDialog } from "storage-trash.slint";
@@ -308,8 +309,11 @@ export component AppWindow inherits Window {
     in-out property <string> confirm-text: "";
     in-out property <bool> session-open: false;
     in-out property <int> session-index: 0;
+    in property <bool> panel-menu-open: false;
+    in property <length> panel-menu-x;
+    in property <length> panel-menu-y;
     property <bool> custom-resize-cursor: root.resize-cursor-overlay
-        && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && root.confirm-text == "";
+        && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && !root.panel-menu-open && root.confirm-text == "";
 
     callback key(string, bool, bool, bool, bool) -> bool;
     callback browser-key(string, bool, bool, bool, bool, bool) -> bool;
@@ -325,6 +329,9 @@ export component AppWindow inherits Window {
     callback session-action(int);
     callback layout-toggle();
     callback settings-open();
+    callback panel-menu-dismiss();
+    callback panel-menu-move(int);
+    callback panel-menu-close();
 
     function choose-session(index: int) {
         if (index == 0) { root.settings-open(); }
@@ -595,6 +602,17 @@ export component AppWindow inherits Window {
                     }
                 }
             }
+        }
+
+        if root.panel-menu-open: PanelMenu {
+            anchor-x: root.panel-menu-x;
+            anchor-y: root.panel-menu-y;
+            workspace: root.workspace;
+            workspace-count: root.ws-occupied.length;
+            pointer-moved(x, y) => { root.track-cursor(x, y); }
+            dismissed => { root.panel-menu-dismiss(); }
+            send-to(workspace) => { root.panel-menu-move(workspace); }
+            close-panel => { root.panel-menu-close(); }
         }
 
         if Files.chooser-open: FolderPicker {

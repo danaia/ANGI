@@ -527,11 +527,19 @@ impl Desktop {
             return;
         }
         let was_float = self.ws[self.cur].floats.contains(&k);
-        let rect = self.rect_of(k);
+        let was_collapsed = self.collapsed.contains(&k);
+        let rect = if was_collapsed {
+            self.float_rect.get(&k).copied()
+        } else {
+            self.rect_of(k)
+        };
         self.detach(k);
         self.attach(target, k);
         if let Some(r) = rect {
             self.float_rect.insert(k, r);
+        }
+        if was_collapsed {
+            self.collapsed.insert(k);
         }
         if was_float {
             // Keep it floating on the other side too.

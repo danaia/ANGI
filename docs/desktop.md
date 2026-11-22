@@ -256,7 +256,7 @@ Verified on November 16, 2026 in both the software preview and on the Pi over VN
 - Drag a title bar to move a window. A tiled window shows a ghost and swaps with the tile it is dropped on; a floating window moves freely.
 - Drag the gap between two tiles to resize the split. Drag the edges or corners of a floating window to resize it.
 - Mod+left-drag moves a window from anywhere in it; Mod+right-drag resizes it. Mod+scroll changes workspace.
-- Title bar buttons: float or tile, fullscreen, close. Right-click a title bar for the menu.
+- The title bar buttons float or tile the window, enter fullscreen, and close it. Right-click a title bar to send that window to another workspace or close it. Sending a window leaves you on the current workspace. Use the arrow keys and Enter to choose, or Escape to dismiss.
 
 ## Layout
 

@@ -294,9 +294,8 @@ impl App {
                 if held && let Some(k) = owner(hit) {
                     self.desk.focus(k);
                     self.begin_resize(k, x, y);
-                } else if let Hit::Header(k) = hit {
-                    self.desk.focus(k);
-                    self.open_menu(ui);
+                } else if let Hit::Header(k) | Hit::Button(k, _) = hit {
+                    self.open_panel_menu(ui, k, x, y);
                 }
             }
             _ => {}

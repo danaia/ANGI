@@ -377,6 +377,16 @@ fn move_window_between_workspaces() {
     d.focus(Kind::Overview);
     d.move_to_workspace(3, true);
     assert_eq!(d.current(), 3);
+    d.cycle_layout();
+    let full_rect = rect(&d, Kind::Overview);
+    d.toggle_collapsed(Kind::Overview);
+    d.cycle_layout();
+    d.move_to_workspace(4, false);
+    d.goto(4);
+    d.cycle_layout();
+    assert!(d.is_collapsed(Kind::Overview));
+    d.toggle_collapsed(Kind::Overview);
+    assert_eq!(rect(&d, Kind::Overview), full_rect);
 }
 
 #[test]

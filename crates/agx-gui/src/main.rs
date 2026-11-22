@@ -29,6 +29,8 @@ mod app;
 mod cpu_temperature;
 mod network_safety;
 #[cfg(test)]
+mod panel_menu_tests;
+#[cfg(test)]
 mod pointer_tests;
 mod runtime;
 mod services;

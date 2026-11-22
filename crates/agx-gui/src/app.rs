@@ -37,6 +37,7 @@ pub(super) struct App {
     /// Logical size of the window as last laid out.
     pub(super) size: (f32, f32),
     pub(super) header_clicks: input::HeaderClicks,
+    panel_menu_target: Option<Kind>,
 }
 
 pub(super) fn session_action(index: i32) -> Option<Cmd> {
@@ -75,6 +76,7 @@ impl App {
             pending: None,
             size: (1280.0, 720.0),
             header_clicks: input::HeaderClicks::default(),
+            panel_menu_target: None,
         }
     }
 
@@ -110,7 +112,8 @@ impl App {
                 .windows
                 .iter()
                 .any(|w| w.kind.is_terminal() && !w.collapsed);
-        if !terminal_search
+        if !ui.get_panel_menu_open()
+            && !terminal_search
             && self.desk.focused() != Some(Kind::Settings)
             && self.desk.focused() != Some(Kind::AgentAngi)
             && self.desk.focused() != Some(Kind::Files)
@@ -166,7 +169,34 @@ impl App {
     }
 
     // --- commands -----------------------------------------------------------
+    pub(super) fn open_panel_menu(&mut self, ui: &AppWindow, kind: Kind, x: f32, y: f32) {
+        self.desk.focus(kind);
+        self.panel_menu_target = Some(kind);
+        ui.set_panel_menu_x(x);
+        ui.set_panel_menu_y(y);
+        ui.set_panel_menu_open(true);
+    }
+
+    pub(super) fn dismiss_panel_menu(&mut self, ui: &AppWindow) {
+        if self.panel_menu_target.take().is_some() {
+            ui.set_panel_menu_open(false);
+            ui.invoke_focus_desktop();
+        }
+    }
+
+    pub(super) fn panel_menu_command(&mut self, ui: &AppWindow, command: Cmd) {
+        if let Some(kind) = self.panel_menu_target
+            && self.view.scene.borrow().rect_of(kind).is_some()
+        {
+            self.desk.focus(kind);
+            self.run(ui, command);
+        } else {
+            self.dismiss_panel_menu(ui);
+        }
+    }
+
     pub(super) fn run(&mut self, ui: &AppWindow, cmd: Cmd) {
+        self.dismiss_panel_menu(ui);
         self.header_clicks = input::HeaderClicks::default();
         let m = self.modk.name();
         match cmd {

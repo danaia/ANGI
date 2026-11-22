@@ -43,7 +43,7 @@ component AgentWelcome inherits Flickable {
             }
         }
         Text {
-            text: AgentScope.mode == "os" ? "Use agent swarms to extend Angi."
+            text: AgentScope.mode == "os" ? "Extend ANGI."
                 : AgentScope.mode == "project" ? "Build custom projects" : "Talk to me about your projects";
             font-family: "Noto Sans"; font-weight: 400;
             font-size: root.wide ? 32px : root.width >= 350px ? 22px : 18px;
@@ -73,8 +73,12 @@ component AgentComposer inherits Rectangle {
     in property <bool> active;
     in property <int> focus-request;
     property <bool> chatting: AgentScope.mode == "chat";
+    // Reserve the Build button, three gaps and the composer padding at narrow widths.
+    property <length> scope-controls-width: max(0px, root.width - 83px);
+    property <length> control-width: min(130px, root.scope-controls-width / 2);
     property <bool> can-send: root.draft != "" && AgentScope.ready && !AgentHistory.loading && (!root.chatting || !AgentChat.busy);
     callback build(string);
+    callback pointer-moved(length, length);
     forward-focus: input;
     changed active => { if (root.active) { input.focus(); } }
     changed focus-request => { if (root.active) { input.focus(); } }
@@ -131,12 +135,23 @@ component AgentComposer inherits Rectangle {
             }
             if AgentScope.mode != "os": AgentButton {
                 property <string> folder: root.chatting ? AgentScope.chat-folder : AgentScope.project;
-                width: folder == "" ? 130px : min(max(92px, root.width * 0.38), 285px);
-                label: folder != "" ? folder : root.chatting ? "Home folder" : "Select folder…";
+                width: root.chatting ? (folder == "" ? 130px : min(max(92px, root.width * 0.38), 285px))
+                    : folder == "" ? root.control-width : min(max(root.control-width, root.width * 0.38), 285px, root.scope-controls-width - root.control-width);
+                label: folder != "" ? folder : root.chatting ? "Home folder" : self.width < 120px ? "Folder…" : "Select folder…";
                 action-label: root.chatting ? "Change Chat folder" : "Choose project folder";
-                symbol: "▱"; minimum: 33px;
+                symbol: root.chatting || self.width >= 148px ? "▱" : ""; minimum: 33px;
                 enabled: (!root.chatting || !AgentChat.busy) && !AgentScope.checking;
                 activated => { AgentScope.choose-project(); }
+            }
+            if !root.chatting: AgentButton {
+                width: root.control-width;
+                minimum: 33px;
+                label: AgentScope.single-agent ? (self.width >= 112px ? "Single agent" : "Single") : "Swarm";
+                action-label: AgentScope.single-agent ? "Single agent selected. Switch to Swarm."
+                    : "Swarm selected. Switch to Single agent.";
+                highlighted: AgentScope.single-agent;
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                activated => { AgentScope.single-agent = !AgentScope.single-agent; }
             }
             if root.chatting && AgentScope.chat-folder != "": AgentButton {
                 label: "Use Home"; width: 82px; minimum: 33px;
@@ -148,16 +163,29 @@ component AgentComposer inherits Rectangle {
                 text: "Shift+Enter for a new line"; color: Theme.ink;
                 font-size: Theme.text-small; font-family: "Noto Sans"; vertical-alignment: center;
             }
-            AgentButton {
+            send-button := AgentButton {
                 label: root.chatting ? "Send" : "Build";
-                symbol: "↑"; width: 78px;
+                icon: Icons.arrow-up;
+                icon-only: !root.chatting;
+                symbol: root.chatting ? "↑" : "";
+                width: root.chatting ? 78px : 33px;
                 minimum: 33px; primary: true; enabled: root.can-send;
-                activated => { root.send(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                activated => { build-dwell.dismiss(); root.send(); }
             }
         }
         if AgentScope.mode == "project" && AgentScope.error != "": AgentText {
             text: AgentScope.error; color: Theme.danger; font-size: Theme.text-small; wrap: word-wrap;
         }
+    }
+    build-dwell := HoverDwell { hovered: !root.chatting && send-button.hovered; }
+    HoverTip {
+        shown: build-dwell.ready;
+        text: send-button.label;
+        width: 64px;
+        x: send-button.absolute-position.x - root.absolute-position.x + send-button.width - self.width;
+        // At the bottom of the panel, keep the tooltip above the action.
+        y: send-button.absolute-position.y - root.absolute-position.y - self.height - Theme.space-2;
     }
 }
 
@@ -168,6 +196,7 @@ export component AgentWorkspace inherits Rectangle {
     in property <length> notice-height;
     out property <length> header-height: 62px;
     callback build(string);
+    callback pointer-moved(length, length);
     property <bool> chatting: AgentScope.mode == "chat";
     property <bool> has-transcript: root.chatting && (AgentChat.messages.length > 0 || AgentChat.busy);
     property <int> composer-focus;
@@ -274,10 +303,12 @@ export component AgentWorkspace inherits Rectangle {
             if AgentScope.mode == "os": AgentComposer {
                 draft <=> AgentScope.os-draft; active: root.active; focus-request: root.composer-focus; vertical-stretch: 0;
                 build(prompt) => { root.build(prompt); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
             }
             if AgentScope.mode == "project": AgentComposer {
                 draft <=> AgentScope.project-draft; active: root.active; focus-request: root.composer-focus; vertical-stretch: 0;
                 build(prompt) => { root.build(prompt); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
             }
         }
     }

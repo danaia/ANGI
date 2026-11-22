@@ -5,7 +5,7 @@ from pathlib import Path
 import sqlite3
 
 from messaging import current_run
-from models import atomic_write
+from models import SINGLE_ROLE, atomic_write
 from scope import OS_SOURCE
 
 
@@ -19,8 +19,8 @@ def folder(path):
 
 def save(summary, paths):
     run = current_run()
-    if os.environ.get("AGX_SWARM_ROLE") not in ("os", "orchestrator") or not (run / "run.json").is_file():
-        raise ValueError("Save the work summary from the OS agent or project orchestrator.")
+    if os.environ.get("AGX_SWARM_ROLE") not in ("os", SINGLE_ROLE, "orchestrator") or not (run / "run.json").is_file():
+        raise ValueError("Save the work summary from the single agent or swarm orchestrator.")
     summary = summary.strip()
     if not summary or len(summary) > 12000:
         raise ValueError("Enter a work summary between 1 and 12000 characters.")
@@ -35,14 +35,20 @@ def save(summary, paths):
         print(f"ANGI could not capture the changed files: {error}", flush=True)
 
 
-def matching_session(db, directory, brief, started):
-    """Match legacy runs by workspace, exact first prompt and start time."""
+def matching_session(db, directory, brief, started, *, agent=None):
+    """Match a run by workspace, exact first prompt and start time."""
     if db is None or not directory:
         return None
-    rows = db.execute("""
+    agent_filter = "AND s.agent=?" if agent is not None else ""
+    parameters = [directory, started - 10000, started + 180000]
+    if agent is not None:
+        parameters.append(agent)
+    parameters.extend((brief.strip(), "The user wants: " + brief.strip()))
+    rows = db.execute(f"""
         SELECT s.id
         FROM session s
         WHERE s.parent_id IS NULL AND s.directory=? AND s.time_created BETWEEN ? AND ?
+          {agent_filter}
           AND trim((SELECT json_extract(p.data,'$.text')
                     FROM message m JOIN part p ON p.session_id=m.session_id AND p.message_id=m.id
                     WHERE m.session_id=s.id AND json_extract(m.data,'$.role')='user'
@@ -51,7 +57,7 @@ def matching_session(db, directory, brief, started):
                       AND COALESCE(json_extract(p.data,'$.ignored'),0)=0
                     ORDER BY m.time_created,m.id,p.id LIMIT 1)) IN (?,?)
         LIMIT 2
-    """, (directory, started - 10000, started + 180000, brief.strip(), "The user wants: " + brief.strip())).fetchall()
+    """, parameters).fetchall()
     return rows[0][0] if len(rows) == 1 else None
 
 

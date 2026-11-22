@@ -96,12 +96,13 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
             if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
                 // OS mode builds the operating system; Project mode builds in the chosen folder.
                 let scope = ui.global::<crate::AgentScope>();
+                let single = scope.get_single_agent();
                 let run = match scope.get_mode().as_str() {
                     "project" if scope.get_project().is_empty() => return,
-                    "project" => terminal::AgentRun::Project(scope.get_project().to_string()),
+                    "project" => terminal::AgentRun::Project { folder: scope.get_project().to_string(), single },
                     // Chat is the bubble view's own send; it never opens a terminal.
                     "chat" => return,
-                    _ => terminal::AgentRun::Os,
+                    _ => terminal::AgentRun::Os { single },
                 };
                 app.terminal_open_agent(&ui, prompt.to_string(), run);
             }

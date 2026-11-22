@@ -85,6 +85,7 @@ export component AgentPanel inherits Rectangle {
         notice-height: AgentAngi.running-agents > 0 ? 66px : 0px;
         active: root.active && !root.drawer-open && !AgentWork.open && !AgentKnowledge.open;
         build(prompt) => { AgentAngi.submit(prompt); }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if !AgentWork.open && AgentAngi.running-agents > 0: HerdrCta {
         width: min(450px, max(0px, root.body-width - 24px));

@@ -199,12 +199,12 @@ def default_model(profiles, config):
 def effective(choices, config, swarm_roles, all_roles):
     """The Apple model each role will run on, for display: what was chosen, else what a run would fall back to.
 
-    Mirrors default_model(): a swarm role with none takes the first one chosen for another swarm role, the
-    OS-update agent (which runs alone) takes the server's first model, and either falls back to the first."""
+    Mirrors default_model(): swarm roles can inherit a swarm model, while standalone agents
+    default to the server's first model."""
     first = next(iter(config.get("models", {})), None)
     first = f"apple/{first}" if first else None
     swarm = next((choices[role] for role in swarm_roles if str(choices.get(role, "")).startswith("apple/")), None)
-    return {role: choices.get(role) or (first if role == "os" else swarm or first) for role in all_roles if choices.get(role) or first}
+    return {role: choices.get(role) or ((swarm or first) if role in swarm_roles else first) for role in all_roles if choices.get(role) or first}
 
 
 def provider_config(config):

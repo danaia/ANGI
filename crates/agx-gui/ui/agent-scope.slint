@@ -10,6 +10,7 @@ import { AgentText } from "agent-controls.slint";
 //   use-project(path)  a folder was chosen by any means. The agent runtime validates it.
 export global AgentScope {
     in-out property <string> mode: "os";
+    in-out property <bool> single-agent;
     in-out property <string> project;
     in-out property <string> os-draft;
     in-out property <string> project-draft;
@@ -75,6 +76,6 @@ export component ScopeTip inherits HoverTip {
     text: root.hint == 2
         ? "Chat: talk with Angi, browse folders, and save text files. Chat starts in your home folder."
         : root.hint == 1
-        ? "Project: build your own software. Herdr’s orchestrator, builder, and tester work inside the folder you choose."
-        : "OS: Herdr’s orchestrator, builder, and tester work on ANGI’s desktop, services, and system files.";
+        ? "Project: build your own software inside the folder you choose."
+        : "OS: work on ANGI’s desktop, services, and system files.";
 }

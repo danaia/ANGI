@@ -319,12 +319,13 @@ class SyncTests(unittest.TestCase):
 
 
 class SoloTests(unittest.TestCase):
-    """OS updates are one OpenCode agent with its own model; Herdr stays for projects."""
+    """Single-agent work and compatibility with older standalone OS runs."""
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         root = Path(self.directory.name)
         (root / "profiles").mkdir()
         (root / "profiles/os.md").write_text("OS PROFILE")
+        (root / "profiles/single.md").write_text("SINGLE PROFILE")
         (root / "skills/angi-gui").mkdir(parents=True)
         (root / "skills/angi-gui/SKILL.md").write_text("gui skill")
         self.source = root / "angi-dev"
@@ -340,21 +341,21 @@ class SoloTests(unittest.TestCase):
 
     def test_the_os_agent_is_alone_and_uses_the_model_chosen_for_os_updates(self):
         with patch.object(solo, "active_selections", return_value={"os": "openai/fast", "builder": "openai/slow"}), patch.object(session, "active", return_value=None):
-            agents = json.loads(solo.config())["agent"]
+            agents = json.loads(solo.config(None, "", legacy=True))["agent"]
         self.assertEqual(list(agents), ["angi-os"])
         self.assertEqual(agents["angi-os"]["model"], "openai/fast")
         self.assertTrue(agents["angi-os"]["prompt"].startswith("OS PROFILE"))
         self.assertIn("angi-update", agents["angi-os"]["prompt"])
 
-    def test_without_an_os_model_opencode_picks_its_default(self):
+    def test_without_a_single_agent_model_opencode_picks_its_default(self):
         with patch.object(solo, "active_selections", return_value={"builder": "openai/slow"}), patch.object(session, "active", return_value=None):
-            self.assertNotIn("model", json.loads(solo.config())["agent"]["angi-os"])
+            self.assertNotIn("model", json.loads(solo.config(None, ""))["agent"]["angi-single"])
 
     def test_an_os_run_starts_opencode_directly_without_herdr(self):
         with patch.object(solo, "active_selections", return_value={}), patch.object(session, "active", return_value=None), \
                 patch.object(session, "herdr", side_effect=AssertionError("Herdr must not run for OS updates")), patch.object(solo.os, "execvp") as execute:
             solo.launch(self.state, "add a happy face")
-        execute.assert_called_once_with("opencode", ["opencode", "--agent", "angi-os", "--prompt", "add a happy face"])
+        execute.assert_called_once_with("opencode", ["opencode", "--agent", "angi-single", "--prompt", "add a happy face"])
         self.assertTrue((self.state / "os-current").exists())
         self.assertEqual((Path(os.environ["XDG_CONFIG_HOME"]) / "opencode/skills/angi-gui/SKILL.md").read_text(), "gui skill")
 
@@ -369,6 +370,16 @@ class SoloTests(unittest.TestCase):
             main.main()
             swarm.assert_called_once_with(self.state / "angi-swarm", "x", "/home/dana/shop")
             os_run.launch.assert_not_called()
+
+    def test_single_flag_routes_os_and_project_runs_to_one_agent(self):
+        for folder in (None, "/home/dana/shop"):
+            options = ["--project", folder] if folder else []
+            args = ["agent", "angi", "--prompt", "x", *options, "--single"]
+            with patch.object(main.sys, "argv", args), patch.object(main.os, "getuid", return_value=1000), \
+                    patch.object(main, "solo") as single, patch.object(main, "launch") as swarm:
+                main.main()
+                single.launch.assert_called_once_with(self.state / "angi-swarm", "x", folder)
+                swarm.assert_not_called()
 
     def test_resume_follows_whichever_run_is_newest(self):
         (self.state / "current").write_text("angi-old")

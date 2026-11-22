@@ -129,16 +129,16 @@ class OnlyAppleTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         root = Path(self.directory.name)
         (root / "profiles").mkdir()
-        for name in ("orchestrator", "builder", "tester", "os"):
+        for name in ("orchestrator", "builder", "tester", "os", "single"):
             (root / f"profiles/{name}.md").write_text(name.upper())
         self.root = root
 
-    def configs(self, service, selections=None):
-        """(swarm config, OS-update config) as JSON objects with `service` active and both local servers saved."""
+    def configs(self, service, selections=None, *, legacy=False):
+        """(swarm config, standalone config) with `service` active and both local servers saved."""
         with patch.object(session, "ASSETS", self.root), patch.object(session, "active", return_value=service), \
                 patch.object(providers, "apple_config", return_value=self.APPLE), patch.object(providers, "lmstudio_config", return_value=self.LMSTUDIO), \
                 patch.object(solo, "active_selections", return_value=selections or {}), patch.object(session, "active_selections", return_value=selections or {}):
-            return json.loads(session.role_config()), json.loads(solo.config())
+            return json.loads(session.role_config()), json.loads(solo.config(None, "", legacy=legacy))
 
     def test_apple_runs_are_limited_and_routed_through_the_guard(self):
         for config in self.configs("apple"):
@@ -156,14 +156,16 @@ class OnlyAppleTests(unittest.TestCase):
 
     def test_the_drawer_shows_the_model_each_role_will_actually_run_on(self):
         # The drawer and the launcher must agree, whatever mix of roles has a saved Apple model.
-        everything = ("orchestrator", "builder", "tester", "os")
-        for saved in ({}, {"orchestrator": "apple/permissive"}, {"builder": "apple/permissive"}, {"os": "apple/permissive"}, {"tester": "apple/base", "builder": "apple/permissive"}):
+        everything = ("orchestrator", "builder", "tester", "os", "single")
+        for saved in ({}, {"orchestrator": "apple/permissive"}, {"builder": "apple/permissive"}, {"os": "apple/permissive"}, {"single": "apple/permissive"}, {"tester": "apple/base", "builder": "apple/permissive"}):
             with self.subTest(saved=saved):
                 shown = applefit.effective(saved, self.APPLE | {"models": {"base": {}, "permissive": {}}}, everything[:3], everything)
                 swarm, solo_config = self.configs("apple", saved)
                 for role in everything[:3]:
                     self.assertEqual(shown[role], swarm["agent"]["angi-" + role]["model"])
-                self.assertEqual(shown["os"], solo_config["agent"]["angi-os"]["model"])
+                self.assertEqual(shown["single"], solo_config["agent"]["angi-single"]["model"])
+                _, legacy_config = self.configs("apple", saved, legacy=True)
+                self.assertEqual(shown["os"], legacy_config["agent"]["angi-os"]["model"])
 
     def test_no_server_models_means_nothing_is_invented(self):
         self.assertEqual(applefit.effective({}, {"models": {}}, ("orchestrator",), ("orchestrator", "os")), {})

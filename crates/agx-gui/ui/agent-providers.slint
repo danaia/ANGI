@@ -20,8 +20,9 @@ export global AgentProviders {
     in-out property <string> orchestrator;
     in-out property <string> builder;
     in-out property <string> tester;
-    // The model for OS updates: one fast agent, no swarm.
+    // Chat retains the original model settings key (os).
     in-out property <string> os-updates;
+    in-out property <string> single-agent;
     // Providers in display order. Only one service is active.
     out property <[string]> ids: ["apple", "openai", "lmstudio"];
     out property <[string]> names: ["Apple Intelligence", "OpenAI", "LM Studio"];
@@ -29,7 +30,7 @@ export global AgentProviders {
     in-out property <int> active-index: -1;
     // Models saved per provider, without the provider prefix.
     // Position of each role's saved model in `models` (-1 when none), for the drawer's dropdowns.
-    in-out property <[int]> role-index: [-1, -1, -1, -1];
+    in-out property <[int]> role-index: [-1, -1, -1, -1, -1];
     in-out property <[CardModels]> card-models: [{ orchestrator: "", builder: "", tester: "", os: "" }, { orchestrator: "", builder: "", tester: "", os: "" }, { orchestrator: "", builder: "", tester: "", os: "" }];
     callback action(int, string);
     callback save(string, string);
@@ -140,7 +141,8 @@ export component ProviderPanel inherits FocusScope {
                         alignment: start; spacing: 18px;
                         AgentText { text: "Models"; color: Theme.ink; font-size: Theme.text-title; font-weight: 600; }
                         RoleModel { role: "os"; label: "Chat"; selected: AgentProviders.os-updates; index: AgentProviders.role-index[3]; }
-                        AgentText { text: "OS and Project builds"; color: Theme.ink; font-size: Theme.text-body; font-weight: 600; }
+                        RoleModel { role: "single"; label: "Single agent (OS and Project)"; selected: AgentProviders.single-agent; index: AgentProviders.role-index[4]; }
+                        AgentText { text: "Swarm (OS and Project)"; color: Theme.ink; font-size: Theme.text-body; font-weight: 600; }
                         RoleModel { role: "orchestrator"; selected: AgentProviders.orchestrator; index: AgentProviders.role-index[0]; }
                         RoleModel { role: "builder"; selected: AgentProviders.builder; index: AgentProviders.role-index[1]; }
                         RoleModel { role: "tester"; selected: AgentProviders.tester; index: AgentProviders.role-index[2]; }

@@ -40,6 +40,7 @@ export component AgentButton inherits Rectangle {
     in property <length> minimum: 36px;
     callback activated();
     callback secondary-click(length, length);
+    callback pointer-moved(length, length);
     forward-focus: focus;
     min-height: root.minimum;
     // Pebble Line: pill for a single line, a radius-md card when it carries a detail line.
@@ -57,7 +58,8 @@ export component AgentButton inherits Rectangle {
         width: parent.width - 6px; height: self.width;
     }
     if root.icon-only && !root.brand-mark && root.icon.width > 0: Icon {
-        source: root.icon; color: mouse.has-hover ? Theme.ink : Theme.ink-muted;
+        source: root.icon;
+        color: !root.enabled ? Theme.ink-subtle : root.primary ? Theme.on-accent : mouse.has-hover ? Theme.ink : Theme.ink-muted;
         width: 20px; height: 20px; x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
     }
     if root.icon-only && !root.brand-mark && root.icon.width == 0: Text {
@@ -112,6 +114,7 @@ export component AgentButton inherits Rectangle {
             enabled: root.enabled; mouse-cursor: pointer;
             clicked => { focus.focus(); root.activated(); }
             pointer-event(event) => {
+                root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
                 if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
                     root.secondary-click(self.mouse-x, self.mouse-y);
                 }

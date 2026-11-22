@@ -7,10 +7,9 @@ import tempfile
 
 from messaging import ROLES
 
-# The swarm roles (Herdr runs, project mode) plus the model for OS updates. OS updates run as one
-# fast agent with ANGI's update script and no Herdr, so they get a model of their own.
-OS_ROLE = "os"
-ALL_ROLES = (*ROLES, OS_ROLE)
+# Chat and legacy OS runs share the original "os" key.
+SINGLE_ROLE = "single"
+ALL_ROLES = (*ROLES, "os", SINGLE_ROLE)
 
 
 # Services Agent Angi can use, one at a time.

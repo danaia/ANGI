@@ -14,16 +14,19 @@ from scope import describe, validate_project
 
 
 def angi_request(args):
-    """(brief, project, chat) from `angi`, `angi --prompt BRIEF`, `... --project DIR` or `... --chat`; False if malformed."""
+    """Return (brief, project, chat, single), or False for malformed arguments."""
     if args == ["angi"]:
-        return None, None, False
+        return None, None, False, False
+    single = len(args) in (4, 6) and args[-1] == "--single"
+    if single:
+        args = args[:-1]
     if args[:2] == ["angi", "--prompt"] and len(args) in (3, 4, 5) and args[2].strip():
         if len(args) == 3:
-            return args[2].strip(), None, False
+            return args[2].strip(), None, False, single
         if len(args) == 4 and args[3] == "--chat":
-            return args[2].strip(), None, True
+            return args[2].strip(), None, True, False
         if len(args) == 5 and args[3] == "--project" and args[4].strip():
-            return args[2].strip(), args[4], False
+            return args[2].strip(), args[4], False, single
     return False
 
 
@@ -102,8 +105,8 @@ def main():
         inbox()
         return
     if args[:1] == ["report"] and len(args) >= 2:
-        from work_history import save
-        save(args[1], args[2:])
+        from work_history import save as save_report
+        save_report(args[1], args[2:])
         print("Saved ANGI work summary.")
         return
     if args == ["status"]:
@@ -116,9 +119,9 @@ def main():
         return
     request = angi_request(args)
     if request is False:
-        print("Usage: agent angi [--prompt BRIEF [--project DIR | --chat]] | agent attach | agent status | agent tell ROLE MESSAGE | agent inbox | agent report SUMMARY [PATH ...] | agent memory [COMMAND]")
+        print("Usage: agent angi [--prompt BRIEF [[--project DIR] [--single] | --chat]] | agent attach | agent status | agent tell ROLE MESSAGE | agent inbox | agent report SUMMARY [PATH ...] | agent memory [COMMAND]")
         return
-    brief, project, talk = request
+    brief, project, talk, single = request
     if os.getuid() == 0:
         raise RuntimeError("Run agent angi as your desktop account. Use angi-root for privileged work.")
     state = Path(os.environ["XDG_STATE_HOME"]) / "angi-swarm"
@@ -127,11 +130,13 @@ def main():
     if action == "connect":
         os.execvp("opencode", ["opencode", "/var/lib/agx-data/angi-dev"])
     elif action == "resume":
-        # The most recent run decides: resume Chat, a legacy solo OS run, or a Herdr work session.
+        # Resume the most recent Chat, single-agent or Herdr work session.
         (chat.resume if chat.newest(state) else solo.resume if solo.newest(state) else resume)(state)
     elif action == "start":
         if talk:
             chat.launch(state, brief)
+        elif single:
+            solo.launch(state, brief, project)
         else:
             launch(state, brief, project)
 

@@ -110,15 +110,14 @@ and the [Herdr CLI reference](https://herdr.dev/tui/docs/cli-reference/).
 
 ## What Agent Angi does: OS, Project or Chat
 
-A three-way switch under the prompt chooses the scope of a run; hovering a side explains it.
+A three-way switch above the prompt chooses the scope of a run. Hover over an option for details.
 
-* **OS** (the default) uses Herdr's orchestrator, builder and tester on the operating system.
+* **OS** (the default) works on the operating system.
   Install the native SDK and source in `/var/lib/agx-data/angi-dev` before starting OS work.
   OS builds use `angi-build`, and desktop releases are installed through `angi-update`.
-* **Project** builds the user's own software with Herdr's orchestrator, builder and tester. A
+* **Project** builds the user's own software. A
   **Select folder…** button appears for the project folder. **Build** stays disabled until one is
-  chosen. All three Herdr panes start in that folder, and the agents are told to work only inside
-  it, to leave the operating system and its source alone, and not to use `angi-root`.
+  chosen. The run starts in that folder and the agent instructions limit work to that folder.
 
 * **Chat** is a conversation with Angi in the panel. Your messages sit on the right, with
   selectable replies on the left and a status while Angi works. Starter prompts fill the
@@ -133,10 +132,18 @@ A three-way switch under the prompt chooses the scope of a run; hovering a side 
   requires an explicit overwrite request. The conversation works in a private `chat` folder
   in the swarm state directory; the first message of a conversation passes `--new`, later ones
   continue that session by ID. `agent angi --prompt BRIEF --chat` still runs the same agent in a terminal.
-  The provider drawer has a **Chat** model and three role models shared by OS and Project. With Apple Intelligence
+  With Apple Intelligence
   active, Chat starts the local request guard and uses the server's first model if no model
   was chosen. For other providers, OpenCode supplies its default when no model was chosen.
   The AI button in the upper-right corner opens provider setup from any mode.
+
+The button at the bottom of the OS and Project composer switches between **Swarm**
+and **Single agent**. Swarm is the default and starts the Herdr orchestrator, builder
+and tester. Single agent starts one OpenCode session in the selected scope. Choose
+its model in **AI providers → Models → Single agent (OS and Project)**. This choice
+applies to new single-agent runs and has its own setting alongside Chat and the
+three swarm roles. Without a selection, Apple Intelligence uses the local server's
+first model. Other providers use the OpenCode default.
 
 The Angi logo opens a history drawer on the left. It lists past conversations and build briefs
 by subject, with **OS update**, **Project**, and **Chat** badges. For sessions without a subject,
@@ -144,13 +151,12 @@ the drawer uses a short title based on the first prompt. Selecting a Chat entry 
 transcript and file workspace. Selecting an OS or Project entry opens the original request, the recorded outcome, and
 links to relevant folders in ANGI Files. Right-click an entry to rename it or remove it from the drawer.
 These changes stay in Agent Angi history and preserve the original chat, run and project files.
-The OS and Project orchestrators save results with `agent report SUMMARY [PATH ...]`.
+The single agent and swarm orchestrator save results with `agent report SUMMARY [PATH ...]`.
 Older entries show the last recorded reply when the run can be matched to its OpenCode session.
 
-Provider setup lists the shared model next to the project roles. It is saved like the others
-(per service, applied to new runs) and, until one is chosen, OpenCode's default model is used.
-`agent angi` resumes the most recent run, whichever kind it was (chat, OS update or swarm). Runs started before this change that
-were OS swarms still resume as swarms.
+`agent angi` resumes the most recent Chat, Single agent or Swarm run.
+Use `agent angi --prompt BRIEF --single` to start a single OS agent from the
+terminal, or add `--project DIR` before `--single` to work in a project.
 
 The scope is the folder the agents start in plus a scope block appended to each prompt
 (`apps/agent/scope.py`); the swarm role profiles themselves are scope-neutral. It steers the agents but is

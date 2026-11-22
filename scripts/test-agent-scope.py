@@ -213,6 +213,37 @@ class LaunchTests(unittest.TestCase):
             self.assertIn("project at " + str(box.home / "shop"), seen["project"])
             self.assertIn("Scope: the ANGI operating system", seen["legacy"])
 
+    def test_single_agent_uses_its_own_model_and_the_requested_workspace(self):
+        for mode in ("os", "project"):
+            with self.subTest(mode=mode), Sandbox() as box:
+                root = Path(box.directory.name)
+                state = root / "angi-swarm"
+                state.mkdir()
+                workdir = box.source if mode == "os" else box.home / "shop"
+                workdir.mkdir(exist_ok=True)
+                (box.source / "Cargo.toml").touch()
+                assets = Path(__file__).resolve().parents[1] / "apps/agent"
+                project = str(workdir) if mode == "project" else None
+                with patch.dict(os.environ, {"XDG_STATE_HOME": str(root), "XDG_CONFIG_HOME": str(root)}), \
+                        patch.object(session, "ASSETS", assets), patch.object(solo, "OS_SOURCE", box.source), \
+                        patch.object(session, "install_skills"), patch.object(solo.os, "chdir") as chdir, \
+                        patch.object(solo.os, "execvp") as execvp, \
+                        patch.object(models, "catalog", return_value=["openai/work", "openai/chat"]):
+                    models.activate("openai")
+                    models.save("os", "openai/chat")
+                    models.save("single", "openai/work")
+                    solo.launch(state, "review this", project)
+                    config = json.loads(os.environ["OPENCODE_CONFIG_CONTENT"])["agent"]
+                    self.assertEqual(list(config), ["angi-single"])
+                    self.assertEqual(config["angi-single"]["model"], "openai/work")
+                    self.assertEqual(config["angi-single"]["permission"]["task"], "deny")
+                    self.assertIn(scope.scope_text(Path(project) if project else None), config["angi-single"]["prompt"])
+                    chdir.assert_called_once_with(workdir)
+                    execvp.assert_called_once_with("opencode", ["opencode", "--agent", "angi-single", "--prompt", "review this"])
+                    run = state / (state / solo.MARKER).read_text()
+                    manifest = json.loads((run / "run.json").read_text())
+                    self.assertEqual((manifest["mode"], manifest["project"], manifest["solo"]), (mode, project, True))
+
 
 class ChatTests(unittest.TestCase):
     """Chat uses one agent with Angi's persona and bounded file tools."""
@@ -309,11 +340,14 @@ class ChatTests(unittest.TestCase):
 
 class CommandTests(unittest.TestCase):
     def test_angi_request_forms(self):
-        self.assertEqual(main.angi_request(["angi"]), (None, None, False))
-        self.assertEqual(main.angi_request(["angi", "--prompt", " build a thing "]), ("build a thing", None, False))
-        self.assertEqual(main.angi_request(["angi", "--prompt", "build", "--project", "/home/dana/shop"]), ("build", "/home/dana/shop", False))
-        self.assertEqual(main.angi_request(["angi", "--prompt", " hi Angi ", "--chat"]), ("hi Angi", None, True))
-        for bad in ([], ["angi", "--prompt"], ["angi", "--prompt", ""], ["angi", "--prompt", "x", "--project"], ["angi", "--prompt", "x", "--other", "y"], ["angi", "--prompt", "x", "--project", " "], ["angi", "--prompt", "x", "--chat", "y"], ["angi", "--prompt", "x", "--project", "/a", "--chat"], ["status"]):
+        self.assertEqual(main.angi_request(["angi"]), (None, None, False, False))
+        self.assertEqual(main.angi_request(["angi", "--prompt", " build a thing "]), ("build a thing", None, False, False))
+        self.assertEqual(main.angi_request(["angi", "--prompt", "build", "--project", "/home/dana/shop"]), ("build", "/home/dana/shop", False, False))
+        self.assertEqual(main.angi_request(["angi", "--prompt", " hi Angi ", "--chat"]), ("hi Angi", None, True, False))
+        self.assertEqual(main.angi_request(["angi", "--prompt", "--single"]), ("--single", None, False, False))
+        self.assertEqual(main.angi_request(["angi", "--prompt", "build", "--single"]), ("build", None, False, True))
+        self.assertEqual(main.angi_request(["angi", "--prompt", "build", "--project", "/a", "--single"]), ("build", "/a", False, True))
+        for bad in ([], ["angi", "--prompt"], ["angi", "--prompt", ""], ["angi", "--prompt", "x", "--project"], ["angi", "--prompt", "x", "--other", "y"], ["angi", "--prompt", "x", "--project", " "], ["angi", "--prompt", "x", "--chat", "y"], ["angi", "--prompt", "x", "--chat", "--single"], ["angi", "--prompt", "x", "--project", "/a", "--chat"], ["status"]):
             self.assertIs(main.angi_request(bad), False, bad)
 
     def test_project_check_reports_a_path_or_an_error_as_one_json_line(self):

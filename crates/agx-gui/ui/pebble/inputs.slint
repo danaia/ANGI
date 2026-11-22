@@ -5,6 +5,7 @@ import { Theme } from "tokens.slint";
 import { Icons } from "icons.slint";
 import { Icon } from "type.slint";
 import { FocusRing } from "actions.slint";
+import { ScrollView } from "std-widgets.slint";
 
 // Single-line text field. Mirrors the parts of std LineEdit the desktop uses.
 export component TextField inherits Rectangle {
@@ -75,6 +76,8 @@ export component Select inherits Rectangle {
     forward-focus: keys;
     // Focus taken by a click shows no ring; keyboard focus (Tab, arrows) does.
     private property <bool> pointer-focus: false;
+    private property <length> row-height: Theme.space-10;
+    private property <int> visible-rows: min(6, root.model.length);
     changed has-focus => { if (!self.has-focus) { root.pointer-focus = false; } }
     function choose(index: int) {
         if (index < 0 || index >= root.model.length || index == root.current-index) { return; }
@@ -117,27 +120,36 @@ export component Select inherits Rectangle {
     popup := PopupWindow {
         x: 0; y: root.height + 6px;
         width: root.width;
-        height: root.model.length * 40px + 2 * Theme.space-2 + 2px;
+        height: root.visible-rows * root.row-height + 2 * Theme.space-2;
         Rectangle {
             background: Theme.surface;
             border-radius: Theme.radius-md;
             border-width: Theme.stroke-hair;
             border-color: Theme.line-strong;
-            VerticalLayout {
-                padding: Theme.space-2;
+            rows := ScrollView {
+                x: Theme.space-2; y: Theme.space-2;
+                width: parent.width - 2 * Theme.space-2;
+                height: parent.height - 2 * Theme.space-2;
+                horizontal-scrollbar-policy: always-off;
+                vertical-scrollbar-policy: as-needed;
+                content-width: self.visible-width;
+                content-height: root.model.length * root.row-height;
+                init => { self.content-y = -clamp(root.current-index - 2, 0, root.model.length - root.visible-rows) * root.row-height; }
                 for item[i] in root.model: Rectangle {
-                    height: 40px;
+                    y: i * root.row-height;
+                    width: rows.visible-width;
+                    height: root.row-height;
                     border-radius: Theme.radius-xs;
                     background: row.has-hover ? Theme.surface-hover : transparent;
                     accessible-role: list-item;
                     accessible-label: item;
+                    accessible-action-default => { root.choose(i); popup.close(); }
                     Text { x: Theme.space-3; width: parent.width - 48px; height: parent.height; text: item; color: Theme.ink; font-size: Theme.text-body; vertical-alignment: center; overflow: elide; }
                     if i == root.current-index: Icon { source: Icons.check; color: Theme.ink; x: parent.width - 30px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; }
                     row := TouchArea {
                         mouse-cursor: MouseCursor.pointer;
                         clicked => { root.choose(i); popup.close(); }
-                        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
-        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+                        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
                     }
                 }
             }

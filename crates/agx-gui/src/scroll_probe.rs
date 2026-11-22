@@ -37,7 +37,7 @@ fn provider_panel_scrolls() {
     };
     let base = frame(&mut buffer);
     let mut dead = Vec::new();
-    let mut live = 0;
+    let mut live = 0; let mut lives: Vec<(i32,i32)> = Vec::new();
     for y in (260..1000).step_by(60) {
         for x in (1300..1890).step_by(60) {
             let at = LogicalPosition::new(x as f32, y as f32);
@@ -47,10 +47,14 @@ fn provider_panel_scrolls() {
             let moved = frame(&mut buffer);
             ui.window().dispatch_event(WindowEvent::PointerScrolled { position: at, delta_x: 0.0, delta_y: 600.0 });
             frame(&mut buffer);
-            if moved == still { dead.push((x, y)); } else { live += 1; }
+            if moved == still { dead.push((x, y)); } else { live += 1; lives.push((x, y)); }
         }
     }
     let _ = base;
+    let (lx0, lx1) = (lives.iter().map(|p| p.0).min().unwrap(), lives.iter().map(|p| p.0).max().unwrap());
+    let (ly0, ly1) = (lives.iter().map(|p| p.1).min().unwrap(), lives.iter().map(|p| p.1).max().unwrap());
+    let inside: Vec<_> = dead.iter().filter(|p| p.0 >= lx0 && p.0 <= lx1 && p.1 >= ly0 && p.1 <= ly1).collect();
+    println!("LIVE x {lx0}..{lx1} y {ly0}..{ly1}; dead inside that box: {inside:?}");
     println!("SWEEP live={live} dead={} first_dead={:?}", dead.len(), &dead[..dead.len().min(12)]);
     let before = 0u64; let after = 1u64;
     println!("SCROLL_CHANGED_FRAME={}", before != after);

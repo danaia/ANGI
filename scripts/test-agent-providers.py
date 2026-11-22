@@ -182,7 +182,7 @@ class ProviderTests(unittest.TestCase):
                 chosen = {"builder": "openai/gpt-x"}
                 models.atomic_write(models.settings_path(), chosen)
                 # Apple has no saved choice, so its card shows the model every role would fall back to, not nothing.
-                everything = {role: "apple/base" for role in ("orchestrator", "builder", "tester", "os")}
+                everything = {role: "apple/base" for role in ("orchestrator", "builder", "tester", "os", "single")}
                 self.assertTrue(service.status("apple")["connected"])
                 self.assertEqual(providers.overview(service.apple_health), {"apple": {"configured": True, "connected": True, "active": False, "models": everything}, "openai": {"connected": True, "active": True, "models": chosen}, "lmstudio": {"connected": False, "active": False, "models": {}}})
                 self.assertTrue(service.use("apple")["active"])

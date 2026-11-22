@@ -100,16 +100,22 @@ impl EventListener for Proxy {
 /// bubble view, `agent_chat.rs`.)
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum AgentRun {
-    Os,
+    Os { single: bool },
     /// A folder the agent runtime validates.
-    Project(String),
+    Project { folder: String, single: bool },
 }
 /// Command line for Agent Angi: the operating system by default, or `--project DIR`.
 pub(super) fn agent_arguments(prompt: String, run: AgentRun) -> Vec<String> {
     let mut arguments = vec!["angi".into(), "--prompt".into(), prompt];
-    match run {
-        AgentRun::Os => {}
-        AgentRun::Project(project) => arguments.extend(["--project".into(), project]),
+    let single = match run {
+        AgentRun::Os { single } => single,
+        AgentRun::Project { folder, single } => {
+            arguments.extend(["--project".into(), folder]);
+            single
+        }
+    };
+    if single {
+        arguments.push("--single".into());
     }
     arguments
 }

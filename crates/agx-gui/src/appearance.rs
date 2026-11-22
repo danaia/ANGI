@@ -67,6 +67,7 @@ impl Appearance {
         }
     }
     fn apply(self, ui: &AppWindow) {
+        crate::night_light::set(self.night_light, f32::from(self.warmth));
         ui.global::<Theme>().set_dark(self.dark);
         let night = ui.global::<NightLight>();
         night.set_enabled(self.night_light);
@@ -93,6 +94,10 @@ fn load() -> Appearance {
 
 /// Apply the saved appearance and save it again whenever Settings changes the theme or night light.
 pub fn install(ui: &AppWindow) {
+    if std::env::var("SLINT_BACKEND").as_deref() == Ok("vnc-software") {
+        crate::night_light::use_software_frames(ui);
+    }
+    crate::night_light::install_preview(ui);
     load().apply(ui);
     let save = {
         let weak = ui.as_weak();
@@ -100,10 +105,14 @@ pub fn install(ui: &AppWindow) {
             let Some(ui) = weak.upgrade() else {
                 return;
             };
+            let prefs = Appearance::read(&ui);
+            // The slider commits on release, so this is the only time the screen is re-filtered.
+            crate::night_light::set(prefs.night_light, f32::from(prefs.warmth));
+            ui.window().request_redraw();
             let status = match crate::settings::config_file(FILE)
                 .ok_or_else(|| io::Error::other("Home directory unavailable"))
                 .and_then(|path| {
-                    crate::settings::write_private(&path, &Appearance::read(&ui).encode())
+                    crate::settings::write_private(&path, &prefs.encode())
                 }) {
                 Ok(()) => "Saved for your account".to_owned(),
                 Err(error) => format!("Applied for this session. Could not save: {error}"),

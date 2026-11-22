@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import time
 
+import graph_capture
+import graph_recall
 from models import active_selections
 from scope import OS_SOURCE, scope_text
 import session
@@ -16,30 +18,31 @@ import session
 AGENT = "angi-os"
 
 
-def config():
+def config(memory=""):
     """OpenCode configuration with the single OS agent and the model chosen for OS updates."""
     profile = {"description": "ANGI OS updates", "mode": "primary", "permission": {"*": "allow", "task": "deny"},
-               "prompt": (session.ASSETS / "profiles/os.md").read_text() + "\n" + scope_text()}
+               "prompt": (session.ASSETS / "profiles/os.md").read_text() + "\n" + scope_text() + ("\n\n" + memory if memory else "")}
     model = active_selections().get("os")
     if model:
         profile["model"] = model
     return session.opencode_config({AGENT: profile})
 
 
-def prepare(state):
+def prepare(state, brief=""):
     if not (OS_SOURCE / "Cargo.toml").is_file():
         raise RuntimeError("Native source checkout is missing. Install the ANGI development SDK first.")
     session.install_skills()
     session.start_size_guard()
-    os.environ["OPENCODE_CONFIG_CONTENT"] = config()
+    os.environ["OPENCODE_CONFIG_CONTENT"] = config(graph_recall.prompt_text(state, "os", brief, shell=True))
     os.chdir(OS_SOURCE)
 
 
 def launch(state, brief):
-    prepare(state)
+    prepare(state, brief)
     run = state / ("angi-os-" + time.strftime("%Y%m%d-%H%M%S") + f"-{os.getpid()}")
     run.mkdir(mode=0o700)
     (run / "run.json").write_text(json.dumps({"mode": "os", "solo": True, "brief": brief}, indent=2))
+    graph_capture.run_started(state, run.name, "os", brief)
     from work_changes import begin
     begin(run, OS_SOURCE)
     marker = state / f"os-current.{os.getpid()}.new"

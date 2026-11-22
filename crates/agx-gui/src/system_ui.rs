@@ -1,4 +1,4 @@
-//! System snapshot presentation, units, clock and optional preview palette.
+//! System snapshot presentation, units and optional preview palette.
 use crate::{AppWindow, HwRow, NetRow, Sys};
 use agx_core::Snapshot;
 use slint::{ComponentHandle, ModelRc, VecModel};
@@ -108,36 +108,5 @@ fn duration(secs: u64) -> String {
         format!("{h}h {m}m")
     } else {
         format!("{m}m {}s", secs % 60)
-    }
-}
-
-/// Short date for the top bar, such as "Sat 21 Nov".
-pub(super) fn local_date() -> String {
-    const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    // SAFETY: localtime_r writes only into the zeroed tm we pass.
-    unsafe {
-        let now = libc::time(std::ptr::null_mut());
-        let mut tm: libc::tm = std::mem::zeroed();
-        if libc::localtime_r(&now, &mut tm).is_null() {
-            return String::new();
-        }
-        let day = DAYS.get(tm.tm_wday as usize).copied().unwrap_or("");
-        let month = MONTHS.get(tm.tm_mon as usize).copied().unwrap_or("");
-        format!("{day} {} {month}", tm.tm_mday)
-    }
-}
-
-pub(super) fn local_time() -> String {
-    // SAFETY: localtime_r writes only into the zeroed tm we pass.
-    unsafe {
-        let now = libc::time(std::ptr::null_mut());
-        let mut tm: libc::tm = std::mem::zeroed();
-        if libc::localtime_r(&now, &mut tm).is_null() {
-            return String::new();
-        }
-        format!("{:02}:{:02}", tm.tm_hour, tm.tm_min)
     }
 }

@@ -1,5 +1,5 @@
 import { Theme } from "data.slint";
-import { FocusRing } from "pebble/pebble.slint";
+import { FocusRing, Icon } from "pebble/pebble.slint";
 import "fonts/NotoSans-Regular.ttf";
 import "fonts/NotoSans-Bold.ttf";
 
@@ -27,6 +27,8 @@ export component AgentButton inherits Rectangle {
     in property <string> action-label;
     in property <string> detail;
     in property <string> symbol;
+    // A Pebble Line icon for an icon-only button; without one the button draws `symbol`.
+    in property <image> icon;
     in property <string> badge;
     in property <color> badge-color: Theme.accent;
     in property <bool> brand-mark;
@@ -54,7 +56,11 @@ export component AgentButton inherits Rectangle {
     if root.icon-only && root.brand-mark: AngiMark {
         width: parent.width - 6px; height: self.width;
     }
-    if root.icon-only && !root.brand-mark: Text {
+    if root.icon-only && !root.brand-mark && root.icon.width > 0: Icon {
+        source: root.icon; color: mouse.has-hover ? Theme.ink : Theme.ink-muted;
+        width: 20px; height: 20px; x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+    }
+    if root.icon-only && !root.brand-mark && root.icon.width == 0: Text {
         text: root.symbol; font-family: "Noto Sans"; font-size: Theme.text-title; color: mouse.has-hover ? Theme.ink : Theme.ink-muted;
         horizontal-alignment: center; vertical-alignment: center;
     }

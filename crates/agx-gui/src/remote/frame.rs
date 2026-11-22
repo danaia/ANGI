@@ -27,7 +27,11 @@ pub struct Rect {
 }
 
 impl Frame {
-    pub fn from_snapshot(pixels: SharedPixelBuffer<Rgba8Pixel>) -> Self {
+    pub fn from_snapshot(mut pixels: SharedPixelBuffer<Rgba8Pixel>) -> Self {
+        // The software display has no GPU colour pass, so night light scales the captured pixels.
+        if crate::night_light::frame_gain().is_some() {
+            crate::night_light::filter_pixels(pixels.make_mut_bytes());
+        }
         Self {
             width: pixels.width() as usize,
             height: pixels.height() as usize,

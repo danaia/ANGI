@@ -5,10 +5,13 @@ import { AgentProviders, CardModels, ProviderPanel } from "agent-providers.slint
 import { AgentScope } from "agent-scope.slint";
 import { AgentChat, ChatMessage } from "agent-chat.slint";
 import { AgentHistory, HistoryEntry, HistoryPanel } from "agent-history.slint";
+import { AgentKnowledge, KnowledgeNode, KnowledgeLink, KnowledgeEvent, KnowledgeUse, KnowledgeDetail } from "agent-knowledge.slint";
+import { KnowledgePanel } from "agent-knowledge-view.slint";
 import { AgentWorkspace } from "agent-conversation.slint";
 import { AgentWork } from "agent-work-summary.slint";
 import { AgentWorkView } from "agent-work-view.slint";
 export { AgentProviders, CardModels, AgentScope, AgentChat, ChatMessage, AgentHistory, HistoryEntry }
+export { AgentKnowledge, KnowledgeNode, KnowledgeLink, KnowledgeEvent, KnowledgeUse, KnowledgeDetail }
 
 export global AgentAngi {
     // Agents and swarms still running for this account, kept current by agent_swarm.rs. A swarm
@@ -80,7 +83,7 @@ export component AgentPanel inherits Rectangle {
         body-width: root.body-width;
         body-offset: root.body-offset;
         notice-height: AgentAngi.running-agents > 0 ? 66px : 0px;
-        active: root.active && !root.drawer-open && !AgentWork.open;
+        active: root.active && !root.drawer-open && !AgentWork.open && !AgentKnowledge.open;
         build(prompt) => { AgentAngi.submit(prompt); }
     }
     if !AgentWork.open && AgentAngi.running-agents > 0: HerdrCta {
@@ -99,6 +102,10 @@ export component AgentPanel inherits Rectangle {
     }
     if !AgentWork.open && AgentProviders.open: ProviderPanel {
         x: root.width - root.drawer-width; width: root.drawer-width;
+        y: workspace.header-height; height: max(0px, root.height - self.y);
+    }
+    if !AgentWork.open && AgentKnowledge.open: KnowledgePanel {
+        x: 0px; width: root.width;
         y: workspace.header-height; height: max(0px, root.height - self.y);
     }
     if AgentWork.open: AgentWorkView {

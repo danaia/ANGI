@@ -1,0 +1,393 @@
+import { ListView, ScrollView } from "std-widgets.slint";
+import { Button, ButtonVariant, Floating, Heading2, Hint, Label, TextField, Theme } from "pebble/pebble.slint";
+
+import { CalendarGrid, CalendarDay, CalendarEntry } from "calendar-grid.slint";
+import { CalendarSchedule } from "calendar-schedule.slint";
+export { CalendarDay, CalendarEntry }
+export struct CalendarEvent { title: string, details: string }
+export struct CalendarDraft { date: string, end-date: string, color: int, title: string, start: string, end: string, location: string, description: string }
+export enum CalendarPage { month, agenda, event, time-zone }
+
+export global Calendar {
+    in-out property <bool> open;
+    in-out property <CalendarPage> page;
+    in-out property <CalendarPage> editor-back;
+    in-out property <length> panel-width: 440px;
+    in-out property <length> panel-height: 470px;
+    in property <bool> twelve-hour;
+    in property <string> zone;
+    in property <[string]> zones;
+    in property <string> month;
+    in property <int> weeks;
+    in property <string> selected-date;
+    in property <[CalendarDay]> days;
+    in property <[CalendarEvent]> events;
+    in property <string> holiday;
+    in property <CalendarDraft> draft;
+    in property <[string]> times-12;
+    in property <[string]> times-24;
+    in property <[CalendarDay]> picker-days;
+    in property <string> picker-month;
+    in property <string> picker-prefix;
+    in property <bool> editing-saved;
+    in-out property <string> error;
+    callback opened();
+    callback navigate(int);
+    callback select-day(int);
+    callback time-format(bool);
+    callback search-zones(string);
+    callback choose-zone(string);
+    callback open-editor(int);
+    callback save-event(CalendarDraft);
+    callback delete-event();
+    callback pick-month(string, int);
+}
+
+export component CalendarOverlay inherits Rectangle {
+    callback dismissed();
+    callback pointer-moved(length, length);
+    init => { keys.focus(); }
+    private property <CalendarPage> page: Calendar.page;
+    private property <bool> editing: root.page == CalendarPage.event;
+    private property <bool> choosing-zone: root.page == CalendarPage.time-zone;
+    private property <bool> zone-pane;
+    private property <bool> entered;
+    private property <bool> confirm-delete;
+    private property <int> event-color;
+    private property <int> slide: root.page == CalendarPage.month ? 0
+        : root.page == CalendarPage.event && Calendar.editor-back == CalendarPage.agenda ? 2 : 1;
+    Timer { interval: 1ms; running: !root.entered; triggered => { root.entered = true; } }
+
+    function back() {
+        if root.page == CalendarPage.month { root.dismissed(); return; }
+        Calendar.error = "";
+        Calendar.page = root.editing ? Calendar.editor-back : CalendarPage.month;
+    }
+
+    changed page => {
+        if root.page != CalendarPage.month { root.zone-pane = root.choosing-zone; }
+        if root.choosing-zone {
+            zone-query.text = "";
+            Calendar.search-zones("");
+            zone-query.focus();
+        } else if !root.editing {
+            keys.focus();
+        }
+    }
+
+    changed editing => {
+        if root.editing {
+            title.text = Calendar.draft.title;
+            schedule.start-date = Calendar.draft.date;
+            schedule.end-date = Calendar.draft.end-date;
+            schedule.start-time = Calendar.draft.start;
+            schedule.end-time = Calendar.draft.end;
+            schedule.reset();
+            root.event-color = Calendar.draft.color;
+            root.confirm-delete = false;
+            location.text = Calendar.draft.location;
+            notes.text = Calendar.draft.description;
+            event-scroll.content-y = 0px;
+            title.focus();
+        }
+    }
+
+    keys := FocusScope {
+        key-pressed(e) => {
+            if e.text == Key.Escape {
+                root.back();
+                return accept;
+            }
+            reject
+        }
+        TouchArea {
+            pointer-event(e) => { root.pointer-moved(self.mouse-x, self.mouse-y); }
+            clicked => { root.dismissed(); }
+            scroll-event(e) => { accept }
+        }
+
+        Floating {
+            private property <length> top: Theme.space-12 + Theme.space-4;
+            private property <length> available-width: max(1px, parent.width - 2 * Theme.space-4);
+            private property <length> available-height: max(1px, parent.height - self.top - Theme.space-2);
+            x: round((parent.width - self.width) / 2 / 1px) * 1px;
+            y: root.entered ? self.top : self.top - Theme.space-8;
+            animate y { duration: 180ms; easing: ease-out; }
+            width: min(Calendar.panel-width, self.available-width);
+            height: min(Calendar.panel-height, self.available-height);
+            clip: true;
+            TouchArea {
+                pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+            }
+            Rectangle {
+                x: -root.slide * parent.width;
+                width: parent.width;
+                height: parent.height;
+                animate x { duration: 200ms; easing: ease-in-out; }
+
+                month-scroll := ScrollView {
+                    width: parent.width;
+                    height: parent.height;
+                    enabled: root.page == CalendarPage.month;
+                    VerticalLayout {
+                        alignment: LayoutAlignment.start;
+                        padding: Theme.space-4;
+                        spacing: Theme.space-1;
+                        HorizontalLayout {
+                            alignment: space-between;
+                            Button { text: "‹"; accessible-label: "Previous month"; clicked => { Calendar.navigate(-1); } pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                            Heading2 { text: Calendar.month; vertical-alignment: center; horizontal-alignment: center; }
+                            Button { text: "›"; accessible-label: "Next month"; clicked => { Calendar.navigate(1); } pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                        }
+                        CalendarGrid {
+                            days: Calendar.days;
+                            weeks: Calendar.weeks;
+                            detailed: month-scroll.width >= 620px;
+                            // Reserve the month heading, the preferences row, and their padding.
+                            grid-space: month-scroll.height - 112px;
+                            chosen(day) => { Calendar.select-day(day); }
+                            pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                        }
+                        HorizontalLayout {
+                            spacing: Theme.space-1;
+                            if month-scroll.width >= 500px: Hint { text: "Time format"; vertical-alignment: center; }
+                            for twelve-hour in [true, false]: Button {
+                                text: twelve-hour ? "12-hour" : "24-hour";
+                                accessible-label: self.text + (Calendar.twelve-hour == twelve-hour ? ", selected" : "");
+                                height: 28px;
+                                width: Theme.space-12 + Theme.space-5;
+                                horizontal-padding: Theme.space-1;
+                                variant: Calendar.twelve-hour == twelve-hour ? ButtonVariant.secondary : ButtonVariant.ghost;
+                                checked: Calendar.twelve-hour == twelve-hour;
+                                clicked => { Calendar.time-format(twelve-hour); }
+                                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                            }
+                            Hint {
+                                text: "Time zone";
+                                width: Theme.space-12 + Theme.space-5;
+                                wrap: no-wrap;
+                                vertical-alignment: center;
+                            }
+                            Button {
+                                text: Calendar.zone;
+                                accessible-label: "Change time zone, current " + Calendar.zone;
+                                height: 28px;
+                                horizontal-padding: Theme.space-2;
+                                min-width: Theme.space-8;
+                                max-width: 230px;
+                                clicked => { Calendar.page = CalendarPage.time-zone; }
+                                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                            }
+                            Rectangle { horizontal-stretch: 1; }
+                        }
+                        if Calendar.error != "": Hint { text: Calendar.error; wrap: word-wrap; }
+                    }
+                }
+
+                Rectangle {
+                    x: parent.width;
+                    width: parent.width;
+                    height: parent.height;
+                    visible: !root.zone-pane && (!root.editing || Calendar.editor-back == CalendarPage.agenda);
+                    VerticalLayout {
+                        padding: Theme.space-4;
+                        spacing: Theme.space-2;
+                        HorizontalLayout {
+                            spacing: Theme.space-3;
+                            Button { text: "Back"; enabled: root.page == CalendarPage.agenda; clicked => { root.back(); } pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                            Heading2 { text: Calendar.selected-date; vertical-alignment: center; }
+                        }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            enabled: root.page == CalendarPage.agenda;
+                            VerticalLayout {
+                                alignment: LayoutAlignment.start;
+                                spacing: Theme.space-2;
+                                if Calendar.holiday != "": VerticalLayout {
+                                    spacing: Theme.space-1;
+                                    Label { text: Calendar.holiday; wrap: word-wrap; }
+                                    Hint { text: "U.S. federal holiday"; }
+                                }
+                                for event[index] in Calendar.events: VerticalLayout {
+                                    spacing: Theme.space-1;
+                                    Button {
+                                        text: event.title;
+                                        horizontal-stretch: 1;
+                                        accessible-label: "Edit event, " + event.title;
+                                        clicked => { Calendar.open-editor(index); }
+                                        pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                                    }
+                                    if event.details != "": Hint { text: event.details; wrap: word-wrap; }
+                                }
+                            }
+                        }
+                        Button {
+                            text: "New event";
+                            variant: ButtonVariant.primary;
+                            enabled: root.page == CalendarPage.agenda;
+                            clicked => { Calendar.open-editor(-1); }
+                            pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    x: parent.width;
+                    width: parent.width;
+                    height: parent.height;
+                    visible: root.zone-pane;
+                    VerticalLayout {
+                        padding: Theme.space-4;
+                        spacing: Theme.space-2;
+                        HorizontalLayout {
+                            spacing: Theme.space-3;
+                            Button { text: "Back"; enabled: root.choosing-zone; clicked => { root.back(); } pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                            Heading2 { text: "Time zone"; vertical-alignment: center; }
+                        }
+                        zone-query := TextField {
+                            placeholder-text: "Search region or city";
+                            enabled: root.choosing-zone;
+                            edited(query) => { Calendar.search-zones(query); }
+                            pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                        }
+                        if Calendar.error != "": Hint { text: Calendar.error; wrap: word-wrap; }
+                        if Calendar.zones.length == 0: Hint { text: "No matching time zones"; }
+                        ListView {
+                            vertical-stretch: 1;
+                            enabled: root.choosing-zone;
+                            for zone in Calendar.zones: Button {
+                                width: parent.width;
+                                text: zone;
+                                variant: ButtonVariant.ghost;
+                                checked: zone == Calendar.zone;
+                                clicked => { Calendar.choose-zone(zone); }
+                                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    x: Calendar.editor-back == CalendarPage.agenda ? 2 * parent.width : parent.width;
+                    width: parent.width;
+                    height: parent.height;
+                    visible: !root.zone-pane;
+                    VerticalLayout {
+                        padding: Theme.space-4;
+                        spacing: Theme.space-2;
+                        HorizontalLayout {
+                            spacing: Theme.space-3;
+                            Button { text: "Back"; enabled: root.editing; clicked => { root.back(); } pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                            Heading2 { text: Calendar.selected-date; vertical-alignment: center; }
+                        }
+                        event-scroll := ScrollView {
+                            vertical-stretch: 1;
+                            enabled: root.editing;
+                            VerticalLayout {
+                                alignment: LayoutAlignment.start;
+                                spacing: Theme.space-2;
+                                Label { text: Calendar.editing-saved ? "Edit event" : "New event"; }
+                                title := TextField { placeholder-text: "Event title"; pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                                schedule := CalendarSchedule {
+                                    times-12: Calendar.times-12;
+                                    times-24: Calendar.times-24;
+                                    default-twelve-hour: Calendar.twelve-hour;
+                                    picker-days: Calendar.picker-days;
+                                    picker-month: Calendar.picker-month;
+                                    picker-prefix: Calendar.picker-prefix;
+                                    pick-month(value, delta) => { Calendar.pick-month(value, delta); }
+                                    pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                                }
+                                Hint { text: "Event color"; }
+                                HorizontalLayout {
+                                    spacing: Theme.space-1;
+                                    for color-name[index] in ["Gray", "Green", "Amber", "Rose"]: Button {
+                                        text: color-name;
+                                        accessible-label: color-name + (root.event-color == index ? ", selected" : "");
+                                        horizontal-padding: Theme.space-1;
+                                        horizontal-stretch: 1;
+                                        checked: root.event-color == index;
+                                        variant: root.event-color == index ? ButtonVariant.primary : ButtonVariant.secondary;
+                                        clicked => { root.event-color = index; }
+                                        pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                                    }
+                                }
+                                location := TextField { placeholder-text: "Location"; pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                                notes := TextField { placeholder-text: "Description"; pointer-moved(x,y) => { root.pointer-moved(x,y); } }
+                                if Calendar.error != "": Hint { text: Calendar.error; wrap: word-wrap; }
+                            }
+                        }
+                        if root.confirm-delete: Hint { text: "Delete this event from all its dates?"; wrap: word-wrap; }
+                        HorizontalLayout {
+                            spacing: Theme.space-2;
+                            if Calendar.editing-saved: Button {
+                                text: root.confirm-delete ? "Confirm delete" : "Delete";
+                                variant: ButtonVariant.danger;
+                                enabled: root.editing;
+                                clicked => {
+                                    if root.confirm-delete { Calendar.delete-event(); }
+                                    else { root.confirm-delete = true; }
+                                }
+                                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                            }
+                            Button {
+                                text: root.confirm-delete ? "Cancel" : "Save event";
+                                variant: root.confirm-delete ? ButtonVariant.secondary : ButtonVariant.primary;
+                                horizontal-stretch: 1;
+                                enabled: root.editing && (root.confirm-delete || title.text != "");
+                                clicked => {
+                                    if root.confirm-delete { root.confirm-delete = false; }
+                                    else {
+                                        Calendar.save-event({
+                                            date: schedule.start-date,
+                                            end-date: schedule.end-date,
+                                            color: root.event-color,
+                                            title: title.text,
+                                            start: schedule.start-time,
+                                            end: schedule.end-time,
+                                            location: location.text,
+                                            description: notes.text,
+                                        });
+                                    }
+                                }
+                                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+                            }
+                        }
+                    }
+                }
+            }
+            grip := TouchArea {
+                x: parent.width - self.width;
+                y: parent.height - self.height;
+                width: Theme.space-6;
+                height: Theme.space-6;
+                mouse-cursor: MouseCursor.nwse-resize;
+                private property <length> start-x;
+                private property <length> start-y;
+                private property <length> start-width;
+                private property <length> start-height;
+                pointer-event(e) => {
+                    root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+                    if e.kind == PointerEventKind.down && e.button == PointerEventButton.left {
+                        self.start-x = self.absolute-position.x + self.mouse-x;
+                        self.start-y = self.absolute-position.y + self.mouse-y;
+                        self.start-width = parent.width;
+                        self.start-height = parent.height;
+                    }
+                }
+                moved => {
+                    Calendar.panel-width = clamp(self.start-width + 2 * (self.absolute-position.x + self.mouse-x - self.start-x), min(320px, parent.available-width), parent.available-width);
+                    Calendar.panel-height = clamp(self.start-height + self.absolute-position.y + self.mouse-y - self.start-y, min(280px, parent.available-height), parent.available-height);
+                }
+                Rectangle {
+                    x: parent.width - Theme.space-3;
+                    y: parent.height - Theme.space-3;
+                    width: Theme.space-2;
+                    height: Theme.space-2;
+                    border-width: Theme.stroke-hair;
+                    border-color: parent.has-hover ? Theme.ink : Theme.line-strong;
+                }
+            }
+        }
+    }
+}

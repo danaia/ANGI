@@ -127,6 +127,8 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
             shutil.rmtree(work, ignore_errors=True)
         names = ', '.join(sorted(located))
         old = version_label(entry['tag'], app.id, app.name) if entry else ''
+        import graph_capture
+        graph_capture.app_change(app.id, app.name, 'Installed' if not entry else 'Repaired' if entry['tag'] == release.tag else 'Updated', report.shown)
         report.done(f'{app.name} {report.shown} is installed. Run {names} in Terminal.' if not entry
                     else f'{app.name} {report.shown} was repaired.' if entry['tag'] == release.tag
                     else f'{app.name} updated from {old} to {report.shown}.')
@@ -148,6 +150,8 @@ def remove(app, store, report):
         del ledger[app.id]
         store.write(ledger)
         report.fraction = 1.0
+        import graph_capture
+        graph_capture.app_change(app.id, app.name, 'Removed')
         report.done(f'{app.name} was removed. Its settings and data were not touched.')
     finally:
         lock.close()

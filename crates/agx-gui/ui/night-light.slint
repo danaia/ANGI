@@ -10,6 +10,9 @@ export global NightLight {
     in-out property <bool> enabled: false;
     // 0 is the gentlest glow, 100 the deepest night.
     in-out property <float> warmth: 40;
+    // Set by src/night_light.rs once the display scales its own colour channels (a GPU pass, or
+    // the VNC frames). The amber overlay below is only the fallback when that is unavailable.
+    in-out property <bool> native: false;
     callback changed();
     // A short word for a warmth, shown beside the slider (which may be mid-drag, ahead of `warmth`).
     public pure function level-for(w: float) -> string {
@@ -21,11 +24,11 @@ export global NightLight {
     out property <float> strength: 0.12 + 0.43 * ratio;
 }
 
-// The filter layer. Pure paint: it has no TouchArea, so every click passes through.
+// The fallback filter layer (see `native`). Pure paint: it has no TouchArea, so every click passes through.
 export component NightLightFilter inherits Rectangle {
     background: NightLight.tint;
     opacity: NightLight.enabled ? NightLight.strength : 0;
-    visible: self.opacity > 0;
+    visible: self.opacity > 0 && !NightLight.native;
     // One short fade when night light turns on or off, or a new warmth is committed on release.
     animate opacity, background { duration: 400ms; easing: ease-in-out; }
 }

@@ -7,6 +7,8 @@ import sys
 import time
 
 from messaging import ROLES, database
+import graph_capture
+import graph_recall
 from models import active, active_selections
 from scope import OS_SOURCE, scope_text, validate_project
 
@@ -66,14 +68,14 @@ def start_server(name, run):
     raise RuntimeError(f"Herdr did not start. Inspect {run / 'server.log'}")
 
 
-def role_config(project=None):
+def role_config(project=None, memory=""):
     """Agent profiles for a run: the operating system when project is None, else that project folder."""
     choices = active_selections()
     profiles = {}
     for role in ROLES:
         profiles[f"angi-{role}"] = {
             "description": f"ANGI {role}", "mode": "primary",
-            "prompt": (ASSETS / f"profiles/{role}.md").read_text() + "\n" + scope_text(project),
+            "prompt": (ASSETS / f"profiles/{role}.md").read_text() + "\n" + scope_text(project) + ("\n\n" + memory if memory else ""),
             "permission": {"*": "allow", "task": "deny"},
         }
         if role in choices:
@@ -125,7 +127,8 @@ def launch(state, brief, project=None):
     run = state / name
     run.mkdir(mode=0o700)
     (run / "brief.txt").write_text(brief + "\n")
-    config = role_config(workdir if project is not None else None)
+    memory = graph_recall.prompt_text(state, "os" if project is None else "project", brief, workdir if project is not None else None, shell=True)
+    config = role_config(workdir if project is not None else None, memory)
     os.environ["OPENCODE_CONFIG_CONTENT"] = config
     start_server(name, run)
     workspace = herdr(name, "workspace", "create", "--cwd", str(workdir), "--label", label, "--env", f"AGX_SWARM_RUN={run}", "--env", "AGX_SWARM_ROLE=orchestrator", "--env", "OPENCODE_CONFIG_CONTENT=" + config, "--no-focus")
@@ -136,6 +139,7 @@ def launch(state, brief, project=None):
     bottom = herdr(name, "pane", "split", right, "--direction", "down", "--cwd", str(workdir), "--env", f"AGX_SWARM_RUN={run}", "--env", "AGX_SWARM_ROLE=tester", "--no-focus")["pane"]["pane_id"]
     manifest = {"session": name, "panes": dict(zip(ROLES, (root, right, bottom))), "brief": brief, "mode": "os" if project is None else "project", "project": None if project is None else str(workdir)}
     (run / "run.json").write_text(json.dumps(manifest, indent=2))
+    graph_capture.run_started(state, name, manifest["mode"], brief, manifest["project"])
     from work_changes import begin
     begin(run, workdir)
     temporary = state / f"current.{os.getpid()}.new"

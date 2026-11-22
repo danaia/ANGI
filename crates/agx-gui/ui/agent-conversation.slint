@@ -5,6 +5,8 @@ import { AgentHistory } from "agent-history.slint";
 import { AgentProviders } from "agent-providers.slint";
 import { AgentScope, ModeSwitch, ScopeTip } from "agent-scope.slint";
 import { HoverDwell, HoverTip } from "hover-tip.slint";
+import { AgentKnowledge } from "agent-knowledge.slint";
+import { Icons } from "pebble/pebble.slint";
 
 struct AgentSuggestion { label: string, detail: string, prompt: string }
 component AgentWelcome inherits Flickable {
@@ -169,6 +171,8 @@ export component AgentWorkspace inherits Rectangle {
     property <bool> chatting: AgentScope.mode == "chat";
     property <bool> has-transcript: root.chatting && (AgentChat.messages.length > 0 || AgentChat.busy);
     property <int> composer-focus;
+    // The size shows beside the button when there is room; the Memory view always shows it.
+    property <bool> show-size: root.width >= 640px;
     background: Theme.surface;
     clip: true;
 
@@ -190,6 +194,7 @@ export component AgentWorkspace inherits Rectangle {
             activated => {
                 history-dwell.dismiss();
                 AgentProviders.open = false;
+                AgentKnowledge.open = false;
                 AgentHistory.toggle();
             }
         }
@@ -197,11 +202,11 @@ export component AgentWorkspace inherits Rectangle {
         scope := ModeSwitch {
             x: parent.width < 500px ? 52px : parent.width < 600px ? 64px : (parent.width - self.width) / 2;
             y: 14px; height: 34px;
-            width: parent.width < 370px ? clamp(parent.width - 192px, 96px, 126px) : parent.width < 600px ? 165px : 236px;
+            width: parent.width < 370px ? clamp(parent.width - 241px, 90px, 126px) : parent.width < 600px ? 165px : 236px;
         }
         HorizontalLayout {
             x: parent.width - self.width - (parent.width < 500px ? 8px : 20px);
-            y: 13px; width: root.chatting ? (parent.width < 370px ? 123px : 135px) : 35px; height: 36px;
+            y: 13px; width: (root.chatting ? (parent.width < 370px ? 88px : 100px) : 0px) + 78px + (root.show-size ? 62px : 0px); height: 36px;
             spacing: 8px;
             if root.chatting: AgentButton {
                 width: root.width < 370px ? 80px : 92px;
@@ -213,6 +218,22 @@ export component AgentWorkspace inherits Rectangle {
                     root.composer-focus += 1;
                 }
             }
+            if root.show-size: Text {
+                width: 54px; text: AgentKnowledge.size; color: Theme.ink-muted; font-size: Theme.text-small;
+                horizontal-alignment: right; vertical-alignment: center; overflow: elide;
+                accessible-role: text; accessible-label: "Memory size " + AgentKnowledge.size;
+            }
+            memory := AgentButton {
+                width: 35px;
+                label: AgentKnowledge.open ? "Close memory" : "What ANGI remembers";
+                icon: Icons.graph; icon-only: true; highlighted: AgentKnowledge.open;
+                activated => {
+                    memory-dwell.dismiss();
+                    AgentHistory.open = false;
+                    AgentProviders.open = false;
+                    AgentKnowledge.toggle();
+                }
+            }
             providers := AgentButton {
                 width: 35px;
                 label: AgentProviders.open ? "Close AI providers" : "AI providers";
@@ -220,11 +241,13 @@ export component AgentWorkspace inherits Rectangle {
                 activated => {
                     provider-dwell.dismiss();
                     AgentHistory.open = false;
+                    AgentKnowledge.open = false;
                     AgentProviders.toggle();
                 }
             }
         }
         provider-dwell := HoverDwell { hovered: providers.hovered; }
+        memory-dwell := HoverDwell { hovered: memory.hovered; }
     }
 
     body := Rectangle {
@@ -264,6 +287,13 @@ export component AgentWorkspace inherits Rectangle {
         width: min(330px, root.width - 18px);
         x: clamp(scope.x, 9px, root.width - self.width - 9px);
         y: scope.y + scope.height + 8px;
+    }
+    HoverTip {
+        shown: memory-dwell.ready;
+        width: 170px;
+        x: max(8px, memory.absolute-position.x - root.absolute-position.x + memory.width - self.width);
+        y: memory.absolute-position.y - root.absolute-position.y + memory.height + 8px;
+        text: memory.label;
     }
     HoverTip {
         shown: provider-dwell.ready;

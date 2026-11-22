@@ -7,6 +7,8 @@ import time
 
 from models import active_selections
 from scope import chat_scope_text, validate_project
+import graph_capture
+import graph_recall
 import session
 
 AGENT = "angi-chat"
@@ -14,14 +16,14 @@ SKILL = "angi-chat"
 MARKER = "chat-current"
 
 
-def config(folder):
-    """Include Angi's persona in the prompt so it is available on every provider."""
+def config(folder, memory=""):
+    """Include Angi's persona and remembered context in the prompt so they are available on every provider."""
     skill = (session.ASSETS / "skills" / SKILL / "SKILL.md").read_text().split("---", 2)[2].strip()
     prompt = (session.ASSETS / "profiles/chat.md").read_text().strip()
     from chat_files import TOOLS
     permission = {"*": "deny", **{f"angi_files_{name}": "allow" for name in TOOLS}}
     profile = {"description": "Angi, in conversation", "mode": "primary", "permission": permission,
-               "prompt": "\n\n".join((prompt, chat_scope_text(folder), skill))}
+               "prompt": "\n\n".join(part for part in (prompt, chat_scope_text(folder), skill, memory) if part)}
     # Chat is a single agent like an OS update, so it shares that role's model; none chosen means OpenCode's default.
     model = active_selections().get("os")
     if model:
@@ -34,24 +36,27 @@ def config(folder):
     return json.dumps(result)
 
 
-def prepare(state, folder=None):
+def prepare(state, folder=None, message="", conversation=None):
     if folder is None:
         folder = str(Path.home().resolve())
     selected = validate_project(folder, allow_home=True)
     if str(selected) != folder:
         raise ValueError("The Chat folder has moved. Select it again.")
     session.start_size_guard()
-    os.environ["OPENCODE_CONFIG_CONTENT"] = config(selected)
+    # Remembered context is chosen from what was just asked, before this exchange is itself remembered.
+    memory = graph_recall.prompt_text(state, "chat", message, selected, ("conversation", conversation) if conversation else None)
+    os.environ["OPENCODE_CONFIG_CONTENT"] = config(selected, memory)
     home = state / "chat"
     home.mkdir(mode=0o700, exist_ok=True)
     os.chdir(home)
 
 
 def launch(state, brief):
-    prepare(state)
+    prepare(state, message=brief)
     run = state / ("angi-chat-" + time.strftime("%Y%m%d-%H%M%S") + f"-{os.getpid()}")
     run.mkdir(mode=0o700)
     (run / "run.json").write_text(json.dumps({"mode": "chat", "solo": True, "brief": brief}, indent=2))
+    graph_capture.run_started(state, run.name, "chat", brief)
     marker = state / f"{MARKER}.{os.getpid()}.new"
     marker.write_text(run.name)
     marker.replace(state / MARKER)
@@ -95,7 +100,7 @@ def turn(state, message, new=False, timeout=300, folder=None, session_id=None):
     try:
         if session_id and not history.can_continue(state, session_id):
             return {"error": "This chat is no longer available."}
-        prepare(state, folder)
+        prepare(state, folder, message, session_id)
     except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
         return {"error": str(error)}
     try:
@@ -110,6 +115,7 @@ def turn(state, message, new=False, timeout=300, folder=None, session_id=None):
         answer["session_id"] = returned_id
         history.remember_folder(state, returned_id, folder)
     if reply:
+        graph_capture.chat_turn(state, answer.get("session_id") or session_id or "chat-" + time.strftime("%Y%m%d"), message, reply, folder)
         return {**answer, "text": reply}
     lines = result.stderr.strip().splitlines()
     return {**answer, "error": error or (lines[-1] if lines else "Angi did not answer. Check the model in Agent Angi's provider setup.")}

@@ -1,3 +1,5 @@
+import { Calendar, CalendarDay, CalendarDraft, CalendarEntry, CalendarEvent, CalendarOverlay, CalendarPage } from "calendar.slint";
+export { Calendar, CalendarDay, CalendarDraft, CalendarEntry, CalendarEvent, CalendarPage }
 // AGX desktop shell. The tiling engine lives in Rust (src/wm.rs); this file
 // draws what it places and forwards raw keyboard and pointer input to it.
 import { Theme, Sys, NetRow, HwRow, MenuRow, Win } from "data.slint";
@@ -26,6 +28,8 @@ export { MemoryProcesses, ProcessRow }
 export { StorageView, StorageCell, StorageTrashRow }
 import { AgentPanel, AgentAngi, AgentChat, AgentHistory, AgentProviders, AgentScope, CardModels, ChatMessage, HistoryEntry } from "agent.slint";
 export { AgentAngi, AgentChat, AgentHistory, AgentProviders, AgentScope, CardModels, ChatMessage, HistoryEntry }
+import { AgentKnowledge, KnowledgeNode, KnowledgeLink, KnowledgeEvent, KnowledgeUse, KnowledgeDetail } from "agent.slint";
+export { AgentKnowledge, KnowledgeNode, KnowledgeLink, KnowledgeEvent, KnowledgeUse, KnowledgeDetail }
 import { AgentWork, WorkRecord, WorkResource } from "agent-work-summary.slint";
 export { AgentWork, WorkRecord, WorkResource }
 import { FilesPanel, Files, FileRow, Crumb, PlaceRow, PaneState } from "files.slint";
@@ -261,7 +265,7 @@ export component AppWindow inherits Window {
     in property <[HeaderMenuRow]> header-menu-rows;
     private property <bool> inline-clock: root.width < 876px + max(0, root.ws-occupied.length - 5) * 64px && root.ws-occupied.length > 5;
     property <bool> custom-resize-cursor: root.resize-cursor-overlay
-        && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && !root.header-menu-open && root.confirm-text == "";
+        && !DriveMount.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && root.cursor >= 1 && root.cursor <= 5 && !root.menu-open && !root.session-open && !root.header-menu-open && !Calendar.open && root.confirm-text == "";
 
     callback key(string, bool, bool, bool, bool) -> bool;
     callback browser-key(string, bool, bool, bool, bool, bool) -> bool;
@@ -280,6 +284,13 @@ export component AppWindow inherits Window {
     callback header-menu-dismiss();
     callback header-menu-action(int);
     callback workspace-menu(int, length, length);
+
+    function open-calendar() {
+        root.menu-open = false;
+        root.session-open = false;
+        root.header-menu-dismiss();
+        Calendar.opened();
+    }
 
     function choose-session(index: int) {
         if (index == 0) { root.settings-open(); }
@@ -302,6 +313,8 @@ export component AppWindow inherits Window {
     root-keys := FocusScope {
         key-pressed(e) => {
             if DriveMount.open || Services.progress-open || Services.review-open || StorageView.empty-confirming || StorageView.selected-open || MemoryProcesses.open || Files.chooser-open { return accept; }
+            if Calendar.open { return reject; }
+            if e.modifiers.meta && e.text == Key.F10 { root.open-calendar(); return accept; }
             if (root.session-open) {
                 if (e.text == Key.Escape) { root.session-open = false; }
                 if (e.text == Key.DownArrow) { root.session-index = mod(root.session-index + 1, 5); }
@@ -321,7 +334,7 @@ export component AppWindow inherits Window {
             reject
         }
         key-released(e) => {
-            if (!Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && !root.session-open && root.confirm-text == "" && root.browser-key(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta, false)) { return accept; }
+            if (!Calendar.open && !Services.progress-open && !Services.review-open && !StorageView.selected-open && !MemoryProcesses.open && !Files.chooser-open && !root.session-open && root.confirm-text == "" && root.browser-key(e.text, e.modifiers.control, e.modifiers.alt, e.modifiers.shift, e.modifiers.meta, false)) { return accept; }
             reject
         }
 
@@ -431,6 +444,9 @@ export component AppWindow inherits Window {
                 Text { text: root.focus-title; color: Theme.ink-muted; font-size: Theme.text-body; vertical-alignment: center; overflow: elide; horizontal-stretch: 1; max-width: max(0px, root.width / 2 - 340px - max(0, root.ws-occupied.length - 5) * 32px); }
                 if root.inline-clock: HeaderClock {
                     clock: root.clock;
+                    clicked => { root.open-calendar(); }
+                    context-menu(x,y) => { root.workspace-menu(-1, x, y); }
+                    pointer-moved(x,y) => { root.track-cursor(x,y); }
                     date: root.width >= 900px ? root.date : "";
                 }
                 Rectangle { horizontal-stretch: 1; }
@@ -465,6 +481,9 @@ export component AppWindow inherits Window {
             }
             if !root.inline-clock: HeaderClock {
                 clock: root.clock;
+                clicked => { root.open-calendar(); }
+                context-menu(x,y) => { root.workspace-menu(-1, x, y); }
+                pointer-moved(x,y) => { root.track-cursor(x,y); }
                 date: root.width >= 900px ? root.date : "";
             }
             // Layout toggle tooltip, same pattern as the Agent Angi scope tip.
@@ -566,6 +585,11 @@ export component AppWindow inherits Window {
             pointer-moved(x, y) => { root.track-cursor(x, y); }
             dismissed => { root.header-menu-dismiss(); }
             chosen(index) => { root.header-menu-action(index); }
+        }
+
+        if Calendar.open: CalendarOverlay {
+            dismissed => { Calendar.open = false; root-keys.focus(); }
+            pointer-moved(x,y) => { root.track-cursor(x,y); }
         }
 
         if Files.chooser-open: FolderPicker {

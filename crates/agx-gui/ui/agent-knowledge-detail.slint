@@ -1,0 +1,164 @@
+import { Theme } from "data.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Icons, Icon } from "pebble/pebble.slint";
+import { AgentButton, AgentText } from "agent-controls.slint";
+import { AgentKnowledge, KnowledgeKind, KnowledgeDetail } from "agent-knowledge.slint";
+
+// A boxed, wrapping text editor: Pebble's TextField is one line, and a memory's wording can run longer.
+component TextArea inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> label;
+    min-height: 88px;
+    border-radius: Theme.radius-md; border-width: Theme.stroke-hair;
+    border-color: input.has-focus ? Theme.ink : Theme.line-strong; background: Theme.surface;
+    accessible-role: text-input; accessible-label: root.label;
+    input := TextInput {
+        x: 12px; y: 10px; width: parent.width - 24px; height: parent.height - 20px;
+        wrap: word-wrap; single-line: false; accessible-role: none;
+        font-family: "Noto Sans"; font-size: Theme.text-body-sm; color: Theme.ink;
+        selection-background-color: Theme.selection; selection-foreground-color: Theme.ink;
+    }
+}
+
+component Section inherits Text {
+    font-size: Theme.text-body-sm; font-weight: 600; color: Theme.ink;
+}
+
+// What was shared with agents, newest first: the audit trail for what left the graph.
+export component KnowledgeLog inherits ScrollView {
+    content-width: self.visible-width;
+    VerticalLayout {
+        padding: 20px; spacing: 12px; alignment: start;
+        AgentText { text: "Shared with agents"; font-size: Theme.text-title; font-weight: 600; }
+        AgentText {
+            text: "When an agent starts, ANGI adds the few memories that look relevant to its instructions, on any AI provider. These are the most recent times it did.";
+            font-size: Theme.text-body-sm; color: Theme.ink-muted; wrap: word-wrap;
+        }
+        if AgentKnowledge.used.length == 0: AgentText {
+            text: AgentKnowledge.enabled ? "Nothing has been shared yet." : "Memory is off, so nothing is shared.";
+            font-size: Theme.text-body-sm; color: Theme.ink-muted; wrap: word-wrap;
+        }
+        for use in AgentKnowledge.used: Rectangle {
+            border-radius: Theme.radius-md; border-width: Theme.stroke-hair; border-color: Theme.line; background: Theme.surface;
+            VerticalLayout {
+                padding: 12px; spacing: 4px;
+                AgentText {
+                    text: (use.mode == "os" ? "OS update" : use.mode == "project" ? "Project" : "Chat") + " · " + use.when;
+                    font-size: Theme.text-small; font-weight: 600; color: Theme.ink-muted;
+                }
+                AgentText { text: use.names; font-size: Theme.text-body-sm; wrap: word-wrap; }
+            }
+        }
+    }
+}
+
+export component KnowledgeDetailPane inherits Rectangle {
+    in property <bool> narrow;
+    callback back();
+    property <bool> editing;
+    property <bool> confirming;
+    property <string> name-draft;
+    property <string> summary-draft;
+    property <KnowledgeDetail> shown: AgentKnowledge.detail;
+    // Leave edit and confirmation states whenever another memory opens.
+    changed shown => { root.editing = false; root.confirming = false; }
+    function begin-edit() {
+        root.name-draft = root.shown.node.name;
+        root.summary-draft = root.shown.node.summary;
+        root.editing = true;
+    }
+    function save() {
+        if (root.name-draft == "") { return; }
+        AgentKnowledge.edit(root.shown.node.id, root.name-draft, root.summary-draft);
+        root.editing = false;
+    }
+    background: Theme.surface;
+    ScrollView {
+        content-width: self.visible-width;
+        VerticalLayout {
+            padding: 20px; spacing: 14px; alignment: start;
+            if root.narrow: HorizontalLayout {
+                alignment: start;
+                AgentButton { width: 96px; label: "Back"; symbol: "←"; activated => { root.back(); } }
+            }
+            HorizontalLayout {
+                spacing: 10px;
+                Rectangle {
+                    width: 76px; height: 22px; y: 3px; border-radius: 11px; border-width: Theme.stroke-hair; border-color: Theme.line-strong;
+                    Rectangle { x: 9px; y: 8px; width: 6px; height: 6px; border-radius: 3px; background: KnowledgeKind.tone(root.shown.node.kind); }
+                    Text {
+                        x: 19px; width: parent.width - 25px; text: KnowledgeKind.label(root.shown.node.kind);
+                        color: Theme.ink; font-size: Theme.text-caption; font-weight: 500; horizontal-alignment: center; vertical-alignment: center;
+                    }
+                }
+                AgentText {
+                    text: root.shown.node.when + (root.shown.node.edited ? " · edited by you" : "");
+                    font-size: Theme.text-small; color: Theme.ink-muted; vertical-alignment: center; overflow: elide;
+                }
+            }
+            if !root.editing: AgentText {
+                text: root.shown.node.name; font-size: Theme.text-heading-2; font-weight: 600; wrap: word-wrap;
+            }
+            if !root.editing: AgentText {
+                text: root.shown.node.summary == "" ? "No summary." : root.shown.node.summary;
+                font-size: Theme.text-body; wrap: word-wrap; color: root.shown.node.summary == "" ? Theme.ink-muted : Theme.ink;
+            }
+            if root.editing: VerticalLayout {
+                spacing: 8px;
+                Section { text: "Name"; }
+                TextArea { label: "Memory name"; text <=> root.name-draft; min-height: 56px; }
+                Section { text: "What ANGI remembers"; }
+                TextArea { label: "Memory summary"; text <=> root.summary-draft; min-height: 120px; }
+                AgentText {
+                    text: "Your wording is kept. ANGI will not overwrite it when it learns more.";
+                    font-size: Theme.text-small; color: Theme.ink-muted; wrap: word-wrap;
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px; alignment: start;
+                if !root.editing && !root.confirming: AgentButton { width: 84px; label: "Edit"; activated => { root.begin-edit(); } }
+                if !root.editing && !root.confirming: AgentButton {
+                    width: 108px; label: root.shown.node.pinned ? "Unpin" : "Always use";
+                    action-label: root.shown.node.pinned ? "Stop always sharing this memory" : "Always share this memory with agents";
+                    highlighted: root.shown.node.pinned;
+                    activated => { AgentKnowledge.pin(root.shown.node.id, !root.shown.node.pinned); }
+                }
+                if !root.editing && !root.confirming: AgentButton { width: 84px; label: "Forget"; activated => { root.confirming = true; } }
+                if root.editing: AgentButton { width: 84px; label: "Cancel"; activated => { root.editing = false; } }
+                if root.editing: AgentButton { width: 84px; label: "Save"; primary: true; enabled: root.name-draft != ""; activated => { root.save(); } }
+                if root.confirming: AgentText {
+                    text: "Forget this and its links?"; font-size: Theme.text-body-sm; color: Theme.danger; vertical-alignment: center;
+                }
+                if root.confirming: AgentButton {
+                    width: 84px; label: "Forget"; primary: true; action-label: "Confirm forgetting this memory";
+                    activated => { AgentKnowledge.forget(root.shown.node.id); }
+                }
+                if root.confirming: AgentButton { width: 72px; label: "Keep"; activated => { root.confirming = false; } }
+            }
+            if root.shown.links.length > 0: Section { text: "Connected to"; }
+            for link in root.shown.links: HorizontalLayout {
+                spacing: 6px;
+                AgentButton {
+                    horizontal-stretch: 1;
+                    label: link.name; detail: KnowledgeKind.label(link.kind) + " · " + KnowledgeKind.relation(link.relation, link.outgoing);
+                    action-label: "Open " + link.name;
+                    activated => { AgentKnowledge.choose(link.id); }
+                }
+                AgentButton {
+                    width: 36px; icon-only: true; icon: Icons.x; label: "Remove link to " + link.name;
+                    activated => { AgentKnowledge.unlink(root.shown.node.id, link.id); }
+                }
+            }
+            if root.shown.events.length > 0: Section { text: "What was recorded"; }
+            for event in root.shown.events: VerticalLayout {
+                spacing: 2px;
+                AgentText { text: event.when; font-size: Theme.text-caption; color: Theme.ink-muted; }
+                AgentText { text: event.text; font-size: Theme.text-body-sm; wrap: word-wrap; }
+            }
+            AgentText {
+                text: "First saved " + root.shown.created + (root.shown.node.source == "" ? "" : " · from " + root.shown.node.source);
+                font-size: Theme.text-caption; color: Theme.ink-subtle; wrap: word-wrap;
+            }
+        }
+    }
+}

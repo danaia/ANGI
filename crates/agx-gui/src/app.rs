@@ -114,7 +114,7 @@ impl App {
                 .windows
                 .iter()
                 .any(|w| w.kind.is_terminal() && !w.collapsed);
-        if !ui.get_header_menu_open()
+        if !ui.global::<crate::Calendar>().get_open() && !ui.get_header_menu_open()
             && !terminal_search
             && self.desk.focused() != Some(Kind::Settings)
             && self.desk.focused() != Some(Kind::AgentAngi)

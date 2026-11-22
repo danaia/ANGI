@@ -68,6 +68,11 @@ def main():
         state = Path(os.environ["XDG_STATE_HOME"]) / "angi-swarm"
         print(json.dumps(request(state, args[1:])))
         return
+    if args[:1] == ["memory"]:
+        # ANGI's knowledge graph, for the desktop's Memory view and for agents saving a note.
+        from knowledge import request as memory
+        print(json.dumps(memory(Path(os.environ["XDG_STATE_HOME"]) / "angi-swarm", args[1:])))
+        return
     if args[:1] == ["chat-turn"] and len(args) >= 2:
         # One exchange for the desktop's chat bubbles: a single JSON line, text or error.
         if os.getuid() == 0:
@@ -111,7 +116,7 @@ def main():
         return
     request = angi_request(args)
     if request is False:
-        print("Usage: agent angi [--prompt BRIEF [--project DIR | --chat]] | agent attach | agent status | agent tell ROLE MESSAGE | agent inbox | agent report SUMMARY [PATH ...]")
+        print("Usage: agent angi [--prompt BRIEF [--project DIR | --chat]] | agent attach | agent status | agent tell ROLE MESSAGE | agent inbox | agent report SUMMARY [PATH ...] | agent memory [COMMAND]")
         return
     brief, project, talk = request
     if os.getuid() == 0:

@@ -1,5 +1,5 @@
 //! Window creation, callback wiring, timers and background system sampling.
-use crate::system_ui::{apply, apply_network_safety, local_time};
+use crate::system_ui::{apply, apply_network_safety};
 use crate::{
     App, AppWindow, Sys, browser, graphics, keymap::Cmd, mods, remote, session_action, terminal,
 };
@@ -145,6 +145,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let _provider_watch = crate::agent_providers::install(&ui, &app);
     let _chat_watch = crate::agent_chat::install(&ui);
     let _history_watch = crate::agent_history::install(&ui, &app);
+    let _knowledge_watch = crate::agent_knowledge::install(&ui);
     let _files_watch = crate::files::install(&ui, &app);
     let _project_watch = crate::agent_project::install(&ui);
     let _bluetooth_watch = crate::bluetooth::install(&ui, &app);
@@ -171,19 +172,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    // Clock on the UI thread.
-    let clock = Timer::default();
-    {
-        let weak = ui.as_weak();
-        let tick = move || {
-            if let Some(ui) = weak.upgrade() {
-                ui.set_clock(local_time().into());
-                ui.set_date(crate::system_ui::local_date().into());
-            }
-        };
-        tick();
-        clock.start(TimerMode::Repeated, Duration::from_secs(1), tick);
-    }
+    let _clock = crate::calendar::install(&ui);
 
     // Sampling stays off the UI thread; results are applied via the event loop.
     let weak = ui.as_weak();

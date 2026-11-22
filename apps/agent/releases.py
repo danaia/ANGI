@@ -124,6 +124,9 @@ def record(release, origin, tree, parent):
     write_ledger(items)
     snapshot(release, tree, f"Desktop release {release} ({origin})")
     marker().write_text(release + "\n")
+    import graph_capture
+    # A root workstation deploy writes into the owner of the checkout's memory, not root's.
+    graph_capture.release(release, origin, parent, SOURCE.stat().st_uid if os.getuid() == 0 else None)
 
 
 def release_name(binary):

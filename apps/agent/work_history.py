@@ -26,6 +26,8 @@ def save(summary, paths):
         raise ValueError("Enter a work summary between 1 and 12000 characters.")
     folders = list(dict.fromkeys(str(path) for value in paths if (path := folder(value))))[:12]
     atomic_write(run / "report.json", {"summary": summary, "folders": folders})
+    import graph_capture
+    graph_capture.run_report(run.parent, run.name, summary, folders)
     from work_changes import finish
     try:
         finish(run)

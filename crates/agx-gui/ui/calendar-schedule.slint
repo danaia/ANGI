@@ -1,0 +1,140 @@
+import { ListView } from "std-widgets.slint";
+import { Button, ButtonVariant, Hint, Label, TextField, Theme } from "pebble/pebble.slint";
+import { CalendarDay, CalendarGrid } from "calendar-grid.slint";
+
+export component CalendarSchedule inherits VerticalLayout {
+    in-out property <string> start-date;
+    in-out property <string> end-date;
+    in-out property <string> start-time;
+    in-out property <string> end-time;
+    in property <[string]> times-12;
+    in property <[string]> times-24;
+    in property <bool> default-twelve-hour;
+    in property <string> picker-month;
+    in property <string> picker-prefix;
+    in property <[CalendarDay]> picker-days;
+    callback pick-month(string, int);
+    callback pointer-moved(length, length);
+    private property <int> picker;
+    private property <bool> twelve-hour: root.default-twelve-hour;
+    private property <bool> date-picker: root.picker == 1 || root.picker == 2;
+    private property <bool> end-picker: root.picker == 2 || root.picker == 4;
+    spacing: Theme.space-2;
+
+    public function reset() { root.picker = 0; }
+
+    function toggle(which: int) {
+        root.picker = root.picker == which ? 0 : which;
+        if root.date-picker {
+            root.pick-month(root.end-picker ? root.end-date : root.start-date, 0);
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Theme.space-2;
+        for target in [0, 1]: VerticalLayout {
+            spacing: Theme.space-1;
+            Label { text: target == 0 ? "Starts" : "Ends"; }
+            TextField {
+                text: target == 0 ? root.start-date : root.end-date;
+                placeholder-text: "YYYY-MM-DD";
+                edited(value) => {
+                    if target == 0 {
+                        if root.end-date == root.start-date { root.end-date = value; }
+                        root.start-date = value;
+                    } else { root.end-date = value; }
+                }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+            Button {
+                text: "Choose date";
+                accessible-label: target == 0 ? "Choose start date" : "Choose end date";
+                height: Theme.space-8;
+                horizontal-stretch: 1;
+                checked: root.picker == target + 1;
+                clicked => { root.toggle(target + 1); }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+            TextField {
+                text: target == 0 ? root.start-time : root.end-time;
+                placeholder-text: target == 0 ? "Start time" : "End time";
+                edited(value) => { if target == 0 { root.start-time = value; } else { root.end-time = value; } }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+            Button {
+                text: "Choose time";
+                accessible-label: target == 0 ? "Choose start time" : "Choose end time";
+                height: Theme.space-8;
+                horizontal-stretch: 1;
+                checked: root.picker == target + 3;
+                clicked => { root.toggle(target + 3); }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+        }
+    }
+
+    if root.date-picker: VerticalLayout {
+        spacing: Theme.space-1;
+        HorizontalLayout {
+            alignment: space-between;
+            Button {
+                text: "‹";
+                accessible-label: "Previous date picker month";
+                clicked => { root.pick-month(root.end-picker ? root.end-date : root.start-date, -1); }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+            Label { text: root.picker-month; vertical-alignment: center; }
+            Button {
+                text: "›";
+                accessible-label: "Next date picker month";
+                clicked => { root.pick-month(root.end-picker ? root.end-date : root.start-date, 1); }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+        }
+        CalendarGrid {
+            days: root.picker-days;
+            chosen(day) => {
+                let value = root.picker-prefix + (day < 10 ? "0" : "") + day;
+                if root.end-picker { root.end-date = value; }
+                else {
+                    if root.start-date == root.end-date { root.end-date = value; }
+                    root.start-date = value;
+                }
+                root.reset();
+            }
+            pointer-moved(x,y) => { root.pointer-moved(x,y); }
+        }
+    }
+
+    if !root.date-picker && root.picker != 0: VerticalLayout {
+        spacing: Theme.space-1;
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Hint { text: root.end-picker ? "End time" : "Start time"; vertical-alignment: center; }
+            Rectangle { horizontal-stretch: 1; }
+            for format in [true, false]: Button {
+                text: format ? "12-hour" : "24-hour";
+                height: Theme.space-6;
+                horizontal-padding: Theme.space-2;
+                checked: root.twelve-hour == format;
+                clicked => { root.twelve-hour = format; }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+        }
+        ListView {
+            height: 168px;
+            for time in (root.twelve-hour ? root.times-12 : root.times-24): Button {
+                width: parent.width;
+                text: time;
+                variant: ButtonVariant.ghost;
+                checked: time == (root.end-picker ? root.end-time : root.start-time);
+                clicked => {
+                    if root.end-picker { root.end-time = time; }
+                    else { root.start-time = time; }
+                    root.reset();
+                }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+        }
+    }
+}

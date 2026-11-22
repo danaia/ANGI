@@ -22,6 +22,7 @@ export component FocusRing inherits Rectangle {
 }
 
 export component Button inherits Rectangle {
+    in property <length> horizontal-padding: root.size == ControlSize.sm ? Theme.space-4 : root.size == ControlSize.md ? Theme.space-6 : Theme.space-8;
     in property <string> text;
     in property <image> icon;
     in property <image> icon-right;
@@ -70,7 +71,7 @@ export component Button inherits Rectangle {
 
     HorizontalLayout {
         alignment: center;
-        padding-left: root.size == ControlSize.sm ? Theme.space-4 : root.size == ControlSize.md ? Theme.space-6 : Theme.space-8;
+        padding-left: root.horizontal-padding;
         padding-right: self.padding-left;
         spacing: Theme.space-2;
         if root.icon.width > 0: VerticalLayout {

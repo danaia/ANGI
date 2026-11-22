@@ -1,0 +1,170 @@
+import { Theme } from "data.slint";
+import { ListView } from "std-widgets.slint";
+import { TextField, Switch, Icons } from "pebble/pebble.slint";
+import { AgentButton, AgentText } from "agent-controls.slint";
+import { AgentKnowledge, KnowledgeKind } from "agent-knowledge.slint";
+import { KnowledgeDetailPane, KnowledgeLog } from "agent-knowledge-detail.slint";
+
+component KindChip inherits AgentButton {
+    in property <string> kind;
+    in property <string> chosen;
+    label: KnowledgeKind.plural(root.kind);
+    action-label: "Show " + KnowledgeKind.plural(root.kind).to-lowercase();
+    minimum: 30px;
+    height: 30px;
+    highlighted: root.chosen == root.kind;
+}
+
+// The list column: search, filters, memories, a note field and the audit and clear actions.
+component KnowledgeList inherits Rectangle {
+    callback show-log();
+    property <bool> clearing;
+    property <string> query;
+    property <string> chosen-kind;
+    function choose-kind(kind: string) { root.chosen-kind = kind; root.reload(); }
+    function reload() { AgentKnowledge.reload(root.query, root.chosen-kind); }
+    background: Theme.surface;
+    VerticalLayout {
+        padding: 16px; spacing: 10px;
+        TextField {
+            icon: Icons.search; placeholder-text: "Search what ANGI remembers"; accessible-label: "Search memory";
+            text <=> root.query;
+            edited => { root.reload(); }
+        }
+        GridLayout {
+            spacing: 6px; height: 66px;
+            Row {
+                KindChip { kind: ""; chosen: root.chosen-kind; activated => { root.choose-kind(""); } }
+                KindChip { kind: "project"; chosen: root.chosen-kind; activated => { root.choose-kind("project"); } }
+                KindChip { kind: "system"; chosen: root.chosen-kind; activated => { root.choose-kind("system"); } }
+                KindChip { kind: "conversation"; chosen: root.chosen-kind; activated => { root.choose-kind("conversation"); } }
+            }
+            Row {
+                KindChip { kind: "work"; chosen: root.chosen-kind; activated => { root.choose-kind("work"); } }
+                KindChip { kind: "topic"; chosen: root.chosen-kind; activated => { root.choose-kind("topic"); } }
+                KindChip { kind: "note"; chosen: root.chosen-kind; activated => { root.choose-kind("note"); } }
+                Rectangle { }
+            }
+        }
+        if AgentKnowledge.nodes.length == 0: AgentText {
+            text: AgentKnowledge.pending > 0 ? "Loading…"
+                : AgentKnowledge.total > 0 ? "Nothing matches. Clear the search or choose All."
+                : "Nothing is remembered yet. As you chat with Angi, update ANGI and build projects, what matters is kept here.";
+            color: Theme.ink-muted; font-size: Theme.text-body-sm; wrap: word-wrap;
+        }
+        ListView {
+            vertical-stretch: 1;
+            for node in AgentKnowledge.nodes: Rectangle {
+                height: 58px;
+                AgentButton {
+                    width: parent.width; height: 52px;
+                    label: node.name;
+                    detail: (node.pinned ? "Pinned · " : "") + node.when + (node.summary == "" ? "" : " · " + node.summary);
+                    action-label: KnowledgeKind.label(node.kind) + ": " + node.name;
+                    badge: KnowledgeKind.label(node.kind); badge-color: KnowledgeKind.tone(node.kind);
+                    highlighted: node.id == AgentKnowledge.selected;
+                    activated => { AgentKnowledge.choose(node.id); }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 6px; height: 40px;
+            note := TextField {
+                horizontal-stretch: 1; placeholder-text: "Add a note for ANGI to remember"; accessible-label: "New note";
+                accepted => { if (self.text != "") { AgentKnowledge.add-note(self.text); self.text = ""; } }
+            }
+            AgentButton {
+                width: 64px; label: "Add"; primary: true; enabled: note.text != "";
+                activated => { AgentKnowledge.add-note(note.text); note.text = ""; }
+            }
+        }
+        HorizontalLayout {
+            spacing: 6px; height: 40px;
+            if !root.clearing: AgentButton { horizontal-stretch: 1; label: "Shared with agents"; activated => { root.show-log(); } }
+            if !root.clearing: AgentButton {
+                width: 92px; label: "Clear all"; enabled: AgentKnowledge.total > 0;
+                activated => { root.clearing = true; }
+            }
+            if root.clearing: AgentText {
+                horizontal-stretch: 1; text: "Forget all \{AgentKnowledge.total}?"; color: Theme.danger;
+                font-size: Theme.text-body-sm; vertical-alignment: center;
+            }
+            if root.clearing: AgentButton {
+                width: 84px; label: "Clear all"; primary: true; action-label: "Confirm clearing all memory";
+                activated => { root.clearing = false; AgentKnowledge.clear-all(); }
+            }
+            if root.clearing: AgentButton { width: 72px; label: "Keep"; activated => { root.clearing = false; } }
+        }
+    }
+}
+
+export component KnowledgePanel inherits FocusScope {
+    property <bool> wide: self.width >= 720px;
+    property <bool> log-open;
+    forward-focus: close-button;
+    init => { close-button.focus(); }
+    changed visible => { if (self.visible) { close-button.focus(); } }
+    // Narrow windows show one page at a time: the list, one memory, or the sharing log.
+    function back() { AgentKnowledge.selected = -1; root.log-open = false; }
+    key-pressed(event) => {
+        if (event.text == Key.Escape) {
+            if (!root.wide && (AgentKnowledge.selected >= 0 || root.log-open)) { root.back(); }
+            else { AgentKnowledge.open = false; }
+            return accept;
+        }
+        reject
+    }
+    Rectangle {
+        background: Theme.surface;
+        clip: true;
+        TouchArea { }
+        Rectangle { y: 0px; width: parent.width; height: 1px; background: Theme.line-strong; }
+        VerticalLayout {
+            HorizontalLayout {
+                padding-left: 20px; padding-right: 16px; padding-top: 14px; padding-bottom: 12px; spacing: 12px;
+                height: 62px;
+                VerticalLayout {
+                    horizontal-stretch: 1; alignment: center; spacing: 2px;
+                    AgentText { text: "Memory"; font-size: Theme.text-title; font-weight: 600; overflow: elide; }
+                    AgentText {
+                        text: AgentKnowledge.enabled ? (AgentKnowledge.counts == "" ? "Kept here, shared with any AI provider you choose." : AgentKnowledge.counts) + " · " + AgentKnowledge.size : "Off. Nothing is recorded or shared.";
+                        font-size: Theme.text-small; color: Theme.ink-muted; overflow: elide;
+                    }
+                }
+                Switch {
+                    label: "Remember activity"; checked: AgentKnowledge.enabled;
+                    toggled(on) => { AgentKnowledge.set-enabled(on); }
+                }
+                close-button := AgentButton {
+                    width: 36px; icon-only: true; icon: Icons.x; label: "Close memory";
+                    activated => { AgentKnowledge.open = false; }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.line-strong; }
+            if AgentKnowledge.error != "": HorizontalLayout {
+                padding-left: 20px; padding-right: 20px; padding-top: 8px;
+                AgentText { text: AgentKnowledge.error; color: Theme.danger; font-size: Theme.text-body-sm; wrap: word-wrap; }
+            }
+            HorizontalLayout {
+                vertical-stretch: 1;
+                if root.wide || (AgentKnowledge.selected < 0 && !root.log-open): KnowledgeList {
+                    width: root.wide ? 360px : root.width; horizontal-stretch: root.wide ? 0 : 1;
+                    show-log => { AgentKnowledge.selected = -1; root.log-open = true; }
+                }
+                if root.wide: Rectangle { width: 1px; background: Theme.line-strong; }
+                if AgentKnowledge.selected >= 0: KnowledgeDetailPane {
+                    horizontal-stretch: 1; narrow: !root.wide;
+                    back => { root.back(); }
+                }
+                if AgentKnowledge.selected < 0 && (root.wide || root.log-open): VerticalLayout {
+                    horizontal-stretch: 1;
+                    if !root.wide: HorizontalLayout {
+                        padding: 16px; alignment: start;
+                        AgentButton { width: 96px; label: "Back"; symbol: "←"; activated => { root.back(); } }
+                    }
+                    KnowledgeLog { vertical-stretch: 1; }
+                }
+            }
+        }
+    }
+}

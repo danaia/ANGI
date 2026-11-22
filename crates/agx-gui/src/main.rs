@@ -5,6 +5,7 @@
 //! 0 = quit.
 mod bluetooth;
 mod browser;
+mod calendar;
 mod files;
 mod graphics;
 mod input;
@@ -22,12 +23,14 @@ mod work_editor;
 
 mod agent_chat;
 mod agent_history;
+mod agent_knowledge;
 mod agent_project;
 mod agent_providers;
 mod agent_swarm;
 mod app;
 mod cpu_temperature;
 mod network_safety;
+mod night_light;
 #[cfg(test)]
 mod panel_menu_tests;
 #[cfg(test)]

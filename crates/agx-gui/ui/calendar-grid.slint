@@ -1,0 +1,163 @@
+import { Button, ButtonVariant, FocusRing, Hint, Theme } from "pebble/pebble.slint";
+
+export struct CalendarEntry { title: string, time: string, holiday: bool, color: int, continues-before: bool, continues-after: bool }
+export struct CalendarDay { number: int, today: bool, has-events: bool, holiday: string, entries: [CalendarEntry] }
+
+component DateCell inherits Rectangle {
+    in property <CalendarDay> day;
+    in property <bool> detailed;
+    callback chosen(int);
+    callback pointer-moved(length, length);
+    private property <string> date-label: "Day " + root.day.number
+        + (root.day.has-events ? ", events saved" : "")
+        + (root.day.holiday != "" ? ", " + root.day.holiday : "");
+
+    if !root.detailed && root.day.number > 0: Button {
+        width: parent.width;
+        horizontal-padding: Theme.space-1;
+        text: "" + root.day.number;
+        accessible-label: root.date-label;
+        variant: root.day.today ? ButtonVariant.primary : root.day.has-events ? ButtonVariant.secondary : ButtonVariant.ghost;
+        clicked => { root.chosen(root.day.number); }
+        pointer-moved(x,y) => { root.pointer-moved(x,y); }
+    }
+    if !root.detailed && (root.day.has-events || root.day.holiday != ""): Rectangle {
+        width: Theme.space-1;
+        height: self.width;
+        x: (parent.width - self.width) / 2;
+        y: parent.height - Theme.space-1 - self.height;
+        border-radius: self.width / 2;
+        background: root.day.today ? Theme.on-accent : Theme.ink;
+    }
+
+    if root.detailed && root.day.number == 0: Rectangle {
+        border-radius: Theme.radius-xs;
+        background: Theme.surface-muted;
+    }
+    if root.detailed && root.day.number > 0: tile := Rectangle {
+        border-radius: Theme.radius-xs;
+        background: hit.has-hover ? Theme.surface-hover : Theme.surface;
+        border-width: !hit.has-hover ? Theme.stroke-hair : 0px;
+        border-color: Theme.line;
+        accessible-role: button;
+        accessible-label: root.date-label;
+        accessible-action-default => { root.chosen(root.day.number); }
+        private property <bool> pointer-focus;
+        private property <bool> focused: keys.has-focus;
+        changed focused => { if !self.focused { self.pointer-focus = false; } }
+        private property <int> capacity: max(1, floor((self.height - Theme.space-8) / Theme.space-5));
+        private property <int> shown: root.day.entries.length > self.capacity ? self.capacity - 1 : self.capacity;
+
+        VerticalLayout {
+            alignment: LayoutAlignment.start;
+            padding: Theme.space-1;
+            spacing: Theme.space-1;
+            HorizontalLayout {
+                alignment: end;
+                Rectangle {
+                    width: Theme.space-6;
+                    height: Theme.space-5;
+                    border-radius: self.height / 2;
+                    background: root.day.today ? Theme.accent : transparent;
+                    Hint {
+                        text: "" + root.day.number;
+                        color: root.day.today ? Theme.on-accent : Theme.ink;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            for index in min(root.day.entries.length, tile.shown): Rectangle {
+                property <CalendarEntry> entry: root.day.entries[index];
+                height: Theme.space-4;
+                border-radius: Theme.radius-xs;
+                background: entry.holiday ? Theme.accent-soft
+                    : entry.color == 1 ? Theme.success-soft
+                    : entry.color == 2 ? Theme.warning-soft
+                    : entry.color == 3 ? Theme.danger-soft : Theme.surface-muted;
+                Hint {
+                    x: Theme.space-1;
+                    height: parent.height;
+                    text: (parent.entry.continues-before ? "‹ " : "")
+                        + (root.width >= 128px && parent.entry.time != "" ? parent.entry.time + "  " : "")
+                        + parent.entry.title;
+                    font-size: Theme.text-caption;
+                    font-weight: parent.entry.holiday ? 500 : 400;
+                    color: parent.entry.color == 1 ? Theme.success-ink
+                        : parent.entry.color == 2 ? Theme.warning-ink
+                        : parent.entry.color == 3 ? Theme.danger-ink : Theme.ink;
+                    width: parent.width - (parent.entry.continues-after ? 3 : 2) * Theme.space-1;
+                    overflow: elide;
+                    vertical-alignment: center;
+                }
+                if entry.continues-after: Hint {
+                    x: parent.width - 2 * Theme.space-1;
+                    width: 2 * Theme.space-1;
+                    text: "›";
+                    font-size: Theme.text-caption;
+                    vertical-alignment: center;
+                }
+            }
+            if root.day.entries.length > tile.capacity: Hint {
+                text: "+" + (root.day.entries.length - tile.shown) + " more";
+                font-size: Theme.text-caption;
+                height: Theme.space-4;
+                vertical-alignment: center;
+            }
+        }
+        keys := FocusScope {
+            key-pressed(e) => {
+                if e.text == Key.Return || e.text == " " { root.chosen(root.day.number); return accept; }
+                reject
+            }
+        }
+        hit := TouchArea {
+            mouse-cursor: MouseCursor.pointer;
+            clicked => { tile.pointer-focus = true; keys.focus(); root.chosen(root.day.number); }
+            pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+        }
+        FocusRing { shown: keys.has-focus && !tile.pointer-focus; radius: Theme.radius-xs; }
+    }
+}
+
+export component CalendarGrid inherits Rectangle {
+    in property <[CalendarDay]> days;
+    in property <int> weeks: 6;
+    in property <length> grid-space;
+    in property <bool> detailed;
+    callback chosen(int);
+    callback pointer-moved(length, length);
+    private property <int> rows: root.detailed ? max(1, root.weeks) : 6;
+    private property <length> cell-height: root.detailed
+        ? max(72px, floor((root.grid-space - Theme.space-6 - root.rows * Theme.space-1) / root.rows / 1px) * 1px)
+        : 36px;
+    height: Theme.space-5 + root.rows * (root.cell-height + Theme.space-1);
+    VerticalLayout {
+        spacing: Theme.space-1;
+        HorizontalLayout {
+            height: Theme.space-5;
+            spacing: root.detailed ? Theme.space-1 : 0px;
+            for weekday in ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]: Rectangle {
+                horizontal-stretch: 1;
+                Hint {
+                    width: parent.width;
+                    height: parent.height;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    text: weekday;
+                }
+            }
+        }
+        for week in root.rows: HorizontalLayout {
+            height: root.cell-height;
+            spacing: root.detailed ? Theme.space-1 : 0px;
+            for column in 7: DateCell {
+                horizontal-stretch: 1;
+                day: root.days[week * 7 + column];
+                detailed: root.detailed;
+                chosen(day) => { root.chosen(day); }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+        }
+    }
+}

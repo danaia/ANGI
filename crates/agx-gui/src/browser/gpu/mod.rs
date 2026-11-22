@@ -20,19 +20,24 @@ pub(super) fn install(ui: &crate::AppWindow, app: &std::rc::Rc<std::cell::RefCel
     }
     let (weak, state) = (ui.as_weak(), app.clone());
     let mut renderer: Option<renderer::Renderer> = None;
+    // Night light shares this render hook: Slint allows only one.
+    let mut night_light: Option<crate::night_light::gl::Pass> = None;
     let result = ui
         .window()
         .set_rendering_notifier(move |event, api| match event {
-            RenderingState::RenderingSetup => match unsafe { renderer::Renderer::new(api) } {
-                Ok(gpu) => {
-                    renderer = Some(gpu);
-                    AVAILABLE.store(true, Ordering::Relaxed);
-                    eprintln!("agx-web: native GPU bridge ready");
+            RenderingState::RenderingSetup => {
+                night_light = crate::night_light::gl::setup(&weak, api);
+                match unsafe { renderer::Renderer::new(api) } {
+                    Ok(gpu) => {
+                        renderer = Some(gpu);
+                        AVAILABLE.store(true, Ordering::Relaxed);
+                        eprintln!("agx-web: native GPU bridge ready");
+                    }
+                    Err(error) => {
+                        eprintln!("agx-web: GPU bridge unavailable: {error}; using CPU frames")
+                    }
                 }
-                Err(error) => {
-                    eprintln!("agx-web: GPU bridge unavailable: {error}; using CPU frames")
-                }
-            },
+            }
             RenderingState::BeforeRendering => {
                 let Some(ui) = weak.upgrade() else { return };
                 let Some(gpu) = renderer.as_mut() else { return };
@@ -83,6 +88,9 @@ pub(super) fn install(ui: &crate::AppWindow, app: &std::rc::Rc<std::cell::RefCel
                 }
             }
             RenderingState::AfterRendering => {
+                if let Some(pass) = &night_light {
+                    unsafe { pass.draw() };
+                }
                 if let Some(gpu) = renderer.as_mut() {
                     if let Err(error) = unsafe { gpu.after_render() } {
                         AVAILABLE.store(false, Ordering::Relaxed);
@@ -99,6 +107,9 @@ pub(super) fn install(ui: &crate::AppWindow, app: &std::rc::Rc<std::cell::RefCel
                 }
             }
             RenderingState::RenderingTeardown => {
+                if let Some(pass) = night_light.take() {
+                    unsafe { pass.destroy() };
+                }
                 AVAILABLE.store(false, Ordering::Relaxed);
                 if let Some(ui) = weak.upgrade() {
                     ui.global::<Web>().set_frame(Image::default());

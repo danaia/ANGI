@@ -76,11 +76,34 @@ export component BarButton inherits Rectangle {
     }
 }
 
-export component HeaderClock inherits HorizontalLayout {
+export component HeaderClock inherits Rectangle {
     in property <string> clock;
     in property <string> date;
-    alignment: center;
-    spacing: Theme.space-2;
-    Text { text: root.clock; color: Theme.ink; font-size: Theme.text-title; font-weight: 500; vertical-alignment: center; }
-    if root.date != "": Text { text: root.date; color: Theme.ink-muted; font-size: Theme.text-body-sm; vertical-alignment: center; }
+    callback clicked();
+    callback context-menu(length, length);
+    callback pointer-moved(length, length);
+
+    HorizontalLayout {
+        alignment: center;
+        hit := Rectangle {
+            width: readout.preferred-width + Theme.space-4;
+            border-radius: self.height / 2;
+            background: touch.has-hover ? Theme.surface-hover : transparent;
+            accessible-role: button;
+            accessible-label: "Open calendar";
+            accessible-action-default => { root.clicked(); }
+            readout := HorizontalLayout {
+                alignment: center;
+                spacing: Theme.space-2;
+                Text { text: root.clock; color: Theme.ink; font-size: Theme.text-title; font-weight: 500; vertical-alignment: center; }
+                if root.date != "": Text { text: root.date; color: Theme.ink-muted; font-size: Theme.text-body-sm; vertical-alignment: center; }
+            }
+            touch := HeaderInput {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => { root.clicked(); }
+                context-menu(x,y) => { root.context-menu(x,y); }
+                pointer-moved(x,y) => { root.pointer-moved(x,y); }
+            }
+        }
+    }
 }

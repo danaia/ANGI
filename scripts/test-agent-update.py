@@ -10,6 +10,8 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/agent"))
+# Recording a release or an app in ANGI's knowledge graph must not touch this account's real one.
+os.environ['XDG_STATE_HOME'] = tempfile.mkdtemp(prefix='angi-test-state-')
 import main
 import models
 import refresh

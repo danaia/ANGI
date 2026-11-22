@@ -4,6 +4,8 @@
 
 The desktop starts in **windowed** mode: Settings fills the left half, with the ANGI overview above CPU and Memory and storage on the right. The overview uses `brand/brand-mark-text.svg`. All five workspaces start in windowed mode; click the layout icon in the top bar or press **Super+L** to switch to tiling. Windows still at their initial positions follow display size changes; moved or resized windows keep their custom geometry.
 
+Click the date or time in the top bar to open the calendar. Drag the lower-right corner to resize it. At larger sizes, the month grid shows saved events and recurring U.S. federal holidays, including observed dates. Wider cells show event start times, and taller cells fit more entries. Multi-day events carry their color across the dates they cover. Choose a date to see its agenda or add an event. Select a saved event to edit its start, end, color, or details, or to delete it. You can choose a date from a month grid and scroll through time choices in either 12-hour or 24-hour format. New events return you to the month after saving, and edits return you to the event’s agenda. The clock format, time zone, and events are saved for the current account.
+
 Click the **memory** bar in **Memory and storage** on workspace 1 to see live resident memory usage by process. Click the **Memory** heading to reverse the sort order. Select a row to see its risk explanation. **End process…** lets you request a normal stop or explicitly force it. System, other-account, and desktop startup processes are protected. A **Lower risk** label still means the process's current task will stop.
 
 The storage grid has tabs for All, Apps & Games, Media, Downloads, Documents,
@@ -271,6 +273,13 @@ Native **Terminal** opens with **Super+Enter** or from Apps. Its Alacritty engin
 Workspace 3 opens three independent Terminal windows in a tiled layout: one full-height terminal on the left and two stacked on the right. Hardware remains available in Apps. Choosing Terminal from Apps always adds a new window on the current workspace. Each terminal window has its own shell sessions, tabs, font size, selection and search state; there is no fixed application limit on terminal windows or tabs. Available memory and process resources determine practical capacity. Agent Angi uses a separate terminal window for Herdr.
 
 **Super+Return** opens a new terminal window in the focused terminal tab’s current working directory. New windows opened from Apps and new tabs inherit that directory too. With no terminal focused, a new terminal starts in your home directory.
+
+### Memory (knowledge graph)
+
+Agent Angi's header has a graph button, **What ANGI remembers**. It opens ANGI's own knowledge graph of chats,
+projects, system changes and agent work, where you can search, edit, pin, forget, audit what agents were
+told, turn remembering off or clear it all. It works the same on every AI provider. See
+[knowledge-graph.md](knowledge-graph.md).
 
 ### Services and updates
 

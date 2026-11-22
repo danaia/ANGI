@@ -46,7 +46,7 @@ fn collapsed_window_moves_as_a_header_and_restores_its_full_size() {
 }
 
 #[test]
-fn tiled_transition_expands_windows_and_remembers_floating_positions() {
+fn layout_round_trip_restores_collapsed_windows_and_floating_positions() {
     let mut desktop = desk();
     let tiled = desktop.rect_of(Kind::Overview).unwrap();
     desktop.toggle_collapsed(Kind::Overview);
@@ -58,6 +58,7 @@ fn tiled_transition_expands_windows_and_remembers_floating_positions() {
     desktop.move_floating(Kind::Overview, 50., 40.);
     let floating = desktop.rect_of(Kind::Overview).unwrap();
     desktop.toggle_collapsed(Kind::Overview);
+    desktop.toggle_collapsed(Kind::Memory);
     desktop.cycle_layout();
     assert_eq!(desktop.mode(), Mode::Tiled);
     assert_eq!(desktop.rect_of(Kind::Overview), Some(tiled));
@@ -69,6 +70,18 @@ fn tiled_transition_expands_windows_and_remembers_floating_positions() {
             .all(|window| !window.collapsed)
     );
     desktop.cycle_layout();
+    assert_eq!(desktop.mode(), Mode::Floating);
+    assert!(desktop.is_collapsed(Kind::Overview));
+    assert!(desktop.is_collapsed(Kind::Memory));
+    assert!(!desktop.is_collapsed(Kind::Cpu));
+    assert_eq!(
+        desktop.rect_of(Kind::Overview),
+        Some(Rect {
+            h: COLLAPSED_HEIGHT,
+            ..floating
+        })
+    );
+    desktop.toggle_collapsed(Kind::Overview);
     assert_eq!(desktop.rect_of(Kind::Overview), Some(floating));
 }
 

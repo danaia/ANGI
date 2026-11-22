@@ -94,7 +94,7 @@ Poppins is the interface font (the window's default). Use the Slint type compone
   `space-5` 20, `space-6` 24, `space-8` 32, `space-10` 40, `space-12` 48. Window content pads
   `space-6` (16 in narrow windows); dialogs pad `space-8`; the login card pads `space-10`.
 - Strokes: `stroke-hair` (1px) for every outline and divider; `stroke-rule` (1.5px) for the focused
-  window, the current tab underline, and checkbox and radio rings; `stroke-focus` (2px) for the
+  window (the `focus-stroke` fade when open, solid `ink-muted` when collapsed), the current tab underline, and checkbox and radio rings; `stroke-focus` (2px) for the
   focus ring.
 
 ### 5. Components (Slint)

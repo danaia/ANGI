@@ -107,7 +107,7 @@ impl Desktop {
             _ => Some((f, kind)),
         };
     }
-    /// Omarchy's workspace layout cycle: tiled, then window mode.
+    /// Switch layouts, keeping each window's floating geometry and collapsed state.
     pub fn cycle_layout(&mut self) {
         if self.ws[self.cur].mode == Mode::Tiled {
             let (tiled, _) = self.tiled(&self.ws[self.cur]);
@@ -119,10 +119,6 @@ impl Desktop {
                 }
             }
             self.ws[self.cur].has_windowed_layout = true;
-        } else {
-            for kind in &self.ws[self.cur].z {
-                self.collapsed.remove(kind);
-            }
         }
         let w = &mut self.ws[self.cur];
         w.full = None;

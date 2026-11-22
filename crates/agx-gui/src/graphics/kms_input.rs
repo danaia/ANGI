@@ -1,4 +1,4 @@
-//! Bridge Super keys and scrolling omitted by Slint 1.18 LinuxKMS.
+//! Bridge Super keys and apply ANGI's scroll preferences on LinuxKMS.
 //! Movement/clicks still go through Slint; mirror its cursor position for scroll targeting.
 use slint::{
     LogicalPosition, LogicalSize,

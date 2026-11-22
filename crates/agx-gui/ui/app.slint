@@ -67,9 +67,12 @@ component WindowFrame inherits Rectangle {
     animate x, y, width, height { duration: root.dragging ? 0ms : 110ms; easing: ease-out; }
     border-radius: min(Theme.radius-lg, self.height / 2);
     // The stroke is this shape's fill showing around the inset ground below: a gradient for the
-    // focused or drop-target window (Theme.focus-stroke), a flat hairline otherwise.
+    // focused or drop-target window (Theme.focus-stroke), a flat hairline otherwise. A collapsed
+    // window is only a header tall, so its focus stroke is a solid `ink-muted` all the way round.
     private property <length> stroke: win.focused || win.target ? Theme.stroke-rule : Theme.stroke-hair;
-    background: win.focused || win.target ? Theme.focus-stroke : Theme.line;
+    background: !(win.focused || win.target) ? Theme.line
+        : win.collapsed ? Theme.ink-muted
+        : Theme.focus-stroke;
     Rectangle {
         x: root.stroke;
         y: root.stroke;

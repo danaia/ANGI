@@ -1,5 +1,5 @@
 // Shared behaviour for every ANGI page: navigation, reveal-on-scroll, copy
-// buttons, and the image cards, image list and install guide rendered from
+// buttons, and the image cards and install guide rendered from
 // images.js (with prompts.js for the agent install prompt).
 (function () {
   const $ = (s, el = document) => el.querySelector(s);
@@ -8,8 +8,6 @@
   const icon = (id) => `<svg class="i" aria-hidden="true"><use href="#${id}"/></svg>`;
   const images = window.ANGI_IMAGES || [];
   const releases = window.ANGI_RELEASES || 'https://github.com/danaia/ANGI/releases';
-  const published = (img) => img.status === 'available';
-  const imageUrl = (img) => img.url || `${window.ANGI_DOWNLOADS}/${img.file}`;
 
   /* navigation */
   const nav = $('#nav');
@@ -35,36 +33,16 @@
           <p>${esc(img.blurb)}</p>
         </div>
         <div class="acts">
-          <a class="btn sm" href="get-started.html#${img.id}">${icon('i-chat')} Install prompt</a>
+          <a class="btn sm" href="download.html#${img.id}">${icon('i-chat')} Install prompt</a>
         </div>
       </article>`).join('');
   });
 
-  /* image list (images page) */
-  const list = $('#dl-list');
-  if (list) {
-    list.innerHTML = images.map((img) => `
-      <article class="dl-row panel reveal" id="dl-${img.id}">
-        <svg class="board" role="img" aria-label="${esc(img.name)}"><use href="#${img.icon}"/></svg>
-        <div>
-          <h3>${esc(img.name)}</h3>
-          <p>${esc(img.blurb)}</p>
-          <dl>
-            <dt>Written to</dt><dd>${esc(img.media)}</dd>
-            ${published(img) ? `<dt>File</dt><dd>${esc(img.file)}${img.size ? ' · ' + esc(img.size) : ''}</dd>
-            <dt>SHA-256</dt><dd>${img.sha256 ? esc(img.sha256) : `${esc(img.file)}.sha256, next to the image`}</dd>` : ''}
-          </dl>
-        </div>
-        <div class="acts">
-          <a class="btn" href="get-started.html#${img.id}">${icon('i-chat')} Install prompt</a>
-          ${published(img) ? `<a class="btn ghost" href="${esc(imageUrl(img))}">${icon('i-download')} Image file</a>` : ''}
-        </div>
-      </article>`).join('');
-  }
   $$('[data-releases]').forEach((a) => { a.href = releases; });
 
   window.ANGI_INSTALL_GUIDE?.({
-    guide: $('#guide'), tabs: $('#tabs'), images, esc, icon, bindCopy,
+    guide: $('#guide'), hardware: $('#install-hardware'), shortcuts: $('#install-targets'),
+    images, esc, icon, bindCopy,
   });
 
   const baseLink = $('.base-link');

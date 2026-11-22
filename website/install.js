@@ -1,26 +1,28 @@
 // Source installations share the same profiles on every published branch.
-window.ANGI_INSTALL_GUIDE = function ({guide, tabs, images, esc, icon, bindCopy}) {
-  if (!guide || !tabs) return;
+window.ANGI_INSTALL_GUIDE = function ({guide, hardware, shortcuts, images, esc, icon, bindCopy}) {
+  if (!guide || !hardware || !shortcuts) return;
 
   const profiles = window.ANGI_INSTALL_PROFILES;
-  const targets = Object.keys(profiles);
-  const legacy = {'x86-desktop': 'intel'};
-  const art = (profile) => images.find((image) => image.id === profile.board)?.icon;
+  const piTargets = ['rpizero2w', 'rpi4', 'rpi5'];
+  const targets = [...piTargets, ...Object.keys(profiles).filter((id) => !piTargets.includes(id))];
+  const imageFor = (profile) => images.find((image) => image.id === profile.board);
   const idForHash = () => {
-    const id = location.hash.slice(1);
-    return targets.includes(id) ? id : legacy[id] || 'rpi5';
+    const id = location.hash.slice(1).replace(/^dl-/, '');
+    if (id === 'x86-desktop') return 'intel';
+    return targets.includes(id) ? id : null;
   };
 
-  function select(id, focusTab) {
+  function select(row) {
+    const id = row.dataset.id;
+    history.replaceState(null, '', '#' + id);
+    for (const link of shortcuts.querySelectorAll('a')) {
+      if (link.hash === '#' + id) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    }
+    if (guide.parentElement === row) return;
     const profile = profiles[id];
     const modes = Object.entries(profile.modes);
-    tabs.querySelectorAll('[role="tab"]').forEach((tab) => {
-      const selected = tab.dataset.id === id;
-      tab.setAttribute('aria-selected', selected);
-      tab.tabIndex = selected ? 0 : -1;
-      if (selected && focusTab) tab.focus();
-    });
-    guide.setAttribute('aria-labelledby', 'tab-' + id);
+    const image = imageFor(profile);
     guide.innerHTML = `
       ${profile.status === 'experimental' ? '<p class="bring">Experimental target. Your agent will ask before building.</p>' : ''}
       ${modes.length === 1 ? `<p class="bring">${esc(modes[0][1].label)}</p>` : `
@@ -30,12 +32,19 @@ window.ANGI_INSTALL_GUIDE = function ({guide, tabs, images, esc, icon, bindCopy}
       <p class="bring" id="install-method-status" role="status" hidden></p>
       <div class="prompt panel">
         <div class="prompt-bar">
-          <div><h3>${esc(profile.name)}</h3><p>Paste this prompt into your coding agent.</p></div>
+          <p>Paste this prompt into your coding agent.</p>
           <button class="btn primary" type="button" data-copy="prompt-text">${icon('i-copy')} Copy prompt</button>
         </div>
         <pre id="prompt-text" tabindex="0"></pre>
         <button class="more" type="button" aria-expanded="false" aria-controls="prompt-text">Show the whole prompt</button>
-      </div>`;
+      </div>
+      ${image?.status === 'available' ? `
+        <div class="release-image">
+          <h3>Published image</h3>
+          <p>${esc(image.file)}${image.size ? ` · ${esc(image.size)}` : ''} · ${esc(image.media)}</p>
+          <p>SHA-256 ${esc(image.sha256 || 'is listed in the matching checksum file.')}</p>
+          <a class="link" href="${esc(image.url || `${window.ANGI_DOWNLOADS}/${image.file}`)}">Download image</a>
+        </div>` : ''}`;
     const prompt = guide.querySelector('#prompt-text');
     const medium = guide.querySelector('#install-medium');
     const update = () => {
@@ -55,34 +64,55 @@ window.ANGI_INSTALL_GUIDE = function ({guide, tabs, images, esc, icon, bindCopy}
       more.textContent = open ? 'Collapse' : 'Show the whole prompt';
     });
     bindCopy(guide);
-    history.replaceState(null, '', '#' + id);
+    row.append(guide);
+    guide.hidden = false;
   }
 
-  tabs.innerHTML = targets.map((id) => {
+  hardware.innerHTML = targets.map((id) => {
     const profile = profiles[id];
-    const symbol = art(profile);
-    return `<button type="button" role="tab" id="tab-${id}" data-id="${id}" aria-controls="guide" aria-selected="false">
-      ${symbol ? `<svg aria-hidden="true"><use href="#${symbol}"/></svg>` : ''}${esc(profile.short)}
-    </button>`;
+    const image = imageFor(profile);
+    const media = profile.modes.sd && profile.modes.usb ? 'microSD card or USB storage'
+      : profile.modes.sd ? 'microSD card' : 'USB stick or SD card in a USB reader';
+    return `<details class="install-row panel" name="install-hardware" id="${id}" data-id="${id}">
+      <summary aria-label="Install prompt for ${esc(profile.name)}">
+        <svg class="board" aria-hidden="true"><use href="#${esc(image.icon)}"/></svg>
+        <span class="install-row-copy">
+          <span class="install-row-title">${esc(profile.name)}</span>
+          <span>${esc(image.blurb)}</span>
+          <span class="install-row-media">Boot media <span>${media}</span></span>
+        </span>
+        <span class="btn" aria-hidden="true">${icon('i-chat')} <span class="install-row-open">Install prompt</span><span class="install-row-close">Hide prompt</span></span>
+      </summary>
+    </details>`;
   }).join('');
-  tabs.addEventListener('click', (event) => {
-    const tab = event.target.closest('[role="tab"]');
-    if (tab) select(tab.dataset.id);
-  });
-  tabs.addEventListener('keydown', (event) => {
-    const current = targets.indexOf(document.activeElement.dataset.id);
-    if (current < 0) return;
-    let next;
-    switch (event.key) {
-      case 'ArrowRight': next = (current + 1) % targets.length; break;
-      case 'ArrowLeft': next = (current + targets.length - 1) % targets.length; break;
-      case 'Home': next = 0; break;
-      case 'End': next = targets.length - 1; break;
-      default: return;
-    }
+  shortcuts.innerHTML = targets.map((id) => {
+    const profile = profiles[id];
+    const symbol = imageFor(profile)?.icon;
+    return `<a href="#${id}">
+      ${symbol ? `<svg aria-hidden="true"><use href="#${esc(symbol)}"/></svg>` : ''}${esc(profile.short)}
+    </a>`;
+  }).join('');
+  shortcuts.hidden = false;
+  const rows = [...hardware.querySelectorAll('details')];
+  const scrollToRow = (row) => row.scrollIntoView({block: 'start'});
+  rows.forEach((row) => row.addEventListener('toggle', () => {
+    if (!row.open) return;
+    select(row);
+    scrollToRow(row);
+  }));
+  function openRow(id, moveFocus = false) {
+    const row = rows.find((item) => item.dataset.id === id);
+    if (!row) return;
+    if (moveFocus) row.querySelector('summary').focus({preventScroll: true});
+    if (row.open) scrollToRow(row);
+    else row.open = true;
+  }
+  shortcuts.addEventListener('click', (event) => {
+    const link = event.target.closest('a');
+    if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    select(targets[next], true);
+    openRow(link.hash.slice(1), true);
   });
-  addEventListener('hashchange', () => select(idForHash()));
-  select(idForHash());
+  addEventListener('hashchange', () => openRow(idForHash()));
+  openRow(idForHash());
 };

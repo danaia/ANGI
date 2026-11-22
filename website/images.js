@@ -2,7 +2,7 @@
 //
 // The install prompts build from source. To offer an optional release image,
 // upload the image and its .sha256 file, then set status to 'available' here.
-// The image page can display its size and SHA-256.
+// The Install page can display its size and SHA-256.
 window.ANGI_RELEASES = 'https://github.com/danaia/ANGI/releases';
 window.ANGI_DOWNLOADS = 'https://github.com/danaia/ANGI/releases/latest/download';
 window.ANGI_REPO = 'https://github.com/danaia/ANGI.git';
@@ -26,7 +26,7 @@ window.ANGI_IMAGES = [
     name: 'Raspberry Pi 4 / 400',
     short: 'Pi 4 / 400',
     icon: 't-pi4',
-    blurb: 'The everyday favourite. Set up in a browser over USB-C.',
+    blurb: 'Desktop ANGI with setup over USB-C or Ethernet.',
     kind: 'pi',
     media: 'microSD card',
     port: "the Pi's USB-C port",
@@ -65,7 +65,7 @@ window.ANGI_IMAGES = [
     name: 'Intel / AMD computer',
     short: 'Intel / AMD',
     icon: 't-x86',
-    blurb: 'Any x86-64 desktop or laptop. Starts from a USB drive.',
+    blurb: 'Experimental build for x86-64 UEFI computers. Starts from a USB drive.',
     kind: 'desktop',
     media: 'USB drive',
     port: null,

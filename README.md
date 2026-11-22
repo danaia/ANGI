@@ -72,7 +72,7 @@ and subscription sign-in workflow remain separate roadmap work. The
 
 ## Get started with one prompt
 
-Choose your board on the [install page](website/get-started.html), select how
+Choose your board on the [install page](website/download.html), select how
 you want it to boot, and paste the prompt into a coding agent that can run
 commands on your computer. The agent builds ANGI locally in Linux, including
 a local Linux VM on macOS or Windows or WSL 2 with access to the hardware.

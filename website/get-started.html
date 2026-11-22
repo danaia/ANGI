@@ -3,87 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Get started — ANGI</title>
-<meta name="description" content="Install ANGI in a few steps: build from source for your system, write the boot media, and finish setup.">
-<meta name="theme-color" content="#ebebeb">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23ebebeb'/%3E%3Ccircle cx='50' cy='50' r='24' fill='%236e6e6e'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;800&display=swap">
-<link rel="stylesheet" href="tokens.css">
-<link rel="stylesheet" href="site.css">
-<script src="images.js"></script>
-<script src="prompts.js"></script>
-<script src="install.js"></script>
+<title>Install ANGI</title>
+<link rel="canonical" href="download.html">
+<script>location.replace('download.html' + location.search + location.hash);</script>
 </head>
 <body>
-<script src="assets.js"></script>
-
-<nav id="nav" aria-label="Main">
-  <div class="wrap">
-    <a href="index.html" aria-label="ANGI home"><svg class="logo" aria-hidden="true"><use href="#bug"/></svg></a>
-    <button class="menu" type="button" aria-label="Menu" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
-    <div class="links">
-      <a href="get-started.html" aria-current="page">Install</a>
-      <a href="download.html">Images</a>
-      <a href="develop.html">Develop</a>
-      <a href="https://github.com/danaia/ANGI">GitHub</a>
-      <a class="btn primary sm" href="get-started.html"><svg class="i"><use href="#i-chat"/></svg>Install ANGI</a>
-    </div>
-  </div>
-</nav>
-
-<main>
-<header class="hero page-hero">
-  <div class="wrap">
-    <h1><span class="grad">One prompt install</span><br></h1>
-    <p class="sub">Pick your system and copy its prompt into your coding agent. It builds ANGI on your computer, verifies the boot media, and guides you through first boot.</p>
-  </div>
-</header>
-
-<section class="tight" aria-label="Install steps">
-  <div class="wrap">
-    <div class="tabs" id="tabs" role="tablist" aria-label="Choose your system"></div>
-    <div id="guide" role="tabpanel" tabindex="-1">
-      <noscript><p class="lead">Turn on JavaScript to see the install prompt for your system.</p></noscript>
-    </div>
-  </div>
-</section>
-
-<hr class="sep">
-
-<section aria-labelledby="stuck-title">
-  <div class="wrap">
-    <div class="head reveal">
-      <h2 id="stuck-title"><span class="grad">Quick fixes.</span></h2>
-    </div>
-    <div class="faqs panel reveal">
-      <details class="faq"><summary>My agent cannot run the prompt</summary><p>Use an agent that can run commands on your computer, such as Claude Code, Codex, Cursor's agent mode or OpenCode. The agent needs access to a local Linux build environment and direct access to the media you plan to write.</p></details>
-      <details class="faq"><summary>The agent cannot find my card</summary><p>Take the card out and put it back in, then ask the agent to look again. Tell it the card's size and your card reader's model if it still cannot tell which disk it is.</p></details>
-      <details class="faq"><summary>The agent cannot connect to my Pi</summary><p>Give the Pi time to boot, then check power and use a cable that carries data. Your agent can check the route and verify the Pi’s identity.</p></details>
-      <details class="faq"><summary>The Pi keeps restarting</summary><p>Your computer's USB port may not supply enough power. Try another port, a powered USB hub, or a shorter, better cable.</p></details>
-      <details class="faq"><summary>My Wi-Fi network is not listed</summary><p>Check the country you chose, then scan again in the ANGI terminal dashboard. Use manual entry for a hidden network.</p></details>
-      <details class="faq"><summary>I want to set it up again</summary><p>Paste the prompt again. Your agent rewrites the card, which erases it and starts fresh.</p></details>
-    </div>
-  </div>
-</section>
-
-<div class="final">
-  <div class="wrap reveal">
-    <h2><span class="grad">Set up? Start building.</span></h2>
-    <p class="lead">Code on the device, or from your computer over USB-C or Ethernet with live updates.</p>
-    <div class="cta"><a class="btn primary" href="develop.html">Two ways to build <svg class="i"><use href="#i-arrow"/></svg></a></div>
-  </div>
-</div>
-</main>
-
-<footer>
-  <div class="wrap">
-    <svg class="mark" aria-hidden="true"><use href="#mark"/></svg>
-    <div class="flinks"><a href="get-started.html">Install</a><a href="download.html">Images</a><a href="develop.html">Develop</a><a href="https://github.com/danaia/ANGI">GitHub</a></div>
-    <span>Pronounced “AN-jee”. Early development; figures are development measurements.</span>
-  </div>
-</footer>
-<script src="site.js"></script>
+<p><a href="download.html">Continue to Install ANGI</a></p>
 </body>
 </html>

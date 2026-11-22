@@ -250,7 +250,7 @@
         "choices": [
           {
             "id": "amd",
-            "name": "Amd x86-64 computer",
+            "name": "AMD x86-64 computer",
             "short": "AMD",
             "cpu_vendor": "AuthenticAMD"
           },

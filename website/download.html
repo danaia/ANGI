@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ANGI images</title>
+<title>Install ANGI</title>
 <meta name="description" content="ANGI build prompts and release image information by hardware target.">
 <meta name="theme-color" content="#ebebeb">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='26' fill='%23ebebeb'/%3E%3Ccircle cx='50' cy='50' r='24' fill='%236e6e6e'/%3E%3C/svg%3E">
@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="site.css">
 <script src="images.js"></script>
+<script src="prompts.js"></script>
+<script src="install.js"></script>
 </head>
 <body>
 <script src="assets.js"></script>
@@ -22,11 +24,10 @@
     <a href="index.html" aria-label="ANGI home"><svg class="logo" aria-hidden="true"><use href="#bug"/></svg></a>
     <button class="menu" type="button" aria-label="Menu" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
     <div class="links">
-      <a href="get-started.html">Install</a>
-      <a href="download.html" aria-current="page">Images</a>
+      <a href="download.html" aria-current="page">Install</a>
       <a href="develop.html">Develop</a>
       <a href="https://github.com/danaia/ANGI">GitHub</a>
-      <a class="btn primary sm" href="get-started.html"><svg class="i"><use href="#i-chat"/></svg>Install ANGI</a>
+      <a class="btn primary sm" href="download.html"><svg class="i"><use href="#i-chat"/></svg>Install ANGI</a>
     </div>
   </div>
 </nav>
@@ -34,18 +35,17 @@
 <main>
 <header class="hero page-hero">
   <div class="wrap">
-    <h1><span class="grad">Build your own OS</span><br></h1>
-    <p class="sub">Choose your hardware and give its build prompt to your agent. Any published image files are listed alongside the prompts.</p>
-    <div class="cta">
-      <a class="btn primary" href="get-started.html"><svg class="i"><use href="#i-chat"/></svg> Get the install prompt</a>
-      <a class="btn ghost" data-releases href="https://github.com/danaia/ANGI/releases"><svg class="i"><use href="#i-gh"/></svg> All releases</a>
-    </div>
+    <h1><span class="grad">Build your own OS</span></h1>
+    <p class="sub">Choose your hardware and copy its build prompt into your coding agent. Your agent builds ANGI locally and guides you through first boot.</p>
+    <div class="install-targets" id="install-targets" role="navigation" aria-label="Hardware shortcuts" hidden></div>
   </div>
 </header>
 
-<section class="tight" aria-label="Images">
+<section class="install-hardware" aria-label="Choose your hardware">
   <div class="wrap">
-    <div class="dl" id="dl-list"></div>
+    <div class="install-rows" id="install-hardware"></div>
+    <div class="install-guide" id="guide" hidden></div>
+    <noscript><p class="lead">Turn on JavaScript to see the install prompt for your system.</p></noscript>
   </div>
 </section>
 
@@ -53,8 +53,12 @@
   <div class="wrap">
     <div class="head reveal"><h2 id="faq-title"><span class="grad">Questions</span></h2></div>
     <div class="faqs panel reveal">
-      <details class="faq"><summary>Do I need to build anything?</summary><p>Your agent clones ANGI, builds for your selected hardware and verifies the image before writing it.</p></details>
-      <details class="faq"><summary>Which image do I pick for a Pi 400?</summary><p>The Pi 4 / 400 image. Both use the same board support.</p></details>
+      <details class="faq"><summary>My agent cannot run the prompt</summary><p>Use an agent that can run commands on your computer, such as Claude Code, Codex, Cursor's agent mode or OpenCode. The agent needs access to a local Linux build environment and direct access to the media you plan to write.</p></details>
+      <details class="faq"><summary>The agent cannot find my card</summary><p>Take the card out and put it back in, then ask the agent to look again. Tell it the card's size and your card reader's model if it still cannot tell which disk it is.</p></details>
+      <details class="faq"><summary>The agent cannot connect to my Pi</summary><p>Give the Pi time to boot, then check power and use a cable that carries data. Your agent can check the route and verify the Pi’s identity.</p></details>
+      <details class="faq"><summary>The Pi keeps restarting</summary><p>Your computer's USB port may not supply enough power. Try another port, a powered USB hub, or a shorter, better cable.</p></details>
+      <details class="faq"><summary>My Wi-Fi network is not listed</summary><p>Check the country you chose, then scan again in the ANGI terminal dashboard. Use manual entry for a hidden network.</p></details>
+      <details class="faq"><summary>Which target do I pick for a Pi 400?</summary><p>Choose Pi 4. The Pi 4 and Pi 400 share a build configuration.</p></details>
       <details class="faq"><summary>Does the image include my passwords or keys?</summary><p>You create your administrator account and join Wi-Fi after first boot. A locally prepared image can include your SSH public key. Your workstation private key stays on your computer.</p></details>
       <details class="faq"><summary>Will writing the image erase my card?</summary><p>Yes. Your agent shows you the card first and erases nothing until you type <code>erase</code> followed by the card's exact device path.</p></details>
       <details class="faq"><summary>How does the agent check the image?</summary><p>The agent checks the local build against the selected hardware, verifies its checksum, and compares the written media with the validated image.</p></details>
@@ -64,9 +68,12 @@
 
 <div class="final">
   <div class="wrap reveal">
-    <h2><span class="grad">Let your agent do it.</span></h2>
-    <p class="lead">Copy the prompt for your system and see what to expect at each step.</p>
-    <div class="cta"><a class="btn primary" href="get-started.html"><svg class="i"><use href="#i-chat"/></svg> Get the install prompt</a></div>
+    <h2><span class="grad">Set up? Start building.</span></h2>
+    <p class="lead">Code on the device, or from your computer over USB-C or Ethernet with live updates.</p>
+    <div class="cta">
+      <a class="btn primary" href="develop.html">Two ways to build <svg class="i"><use href="#i-arrow"/></svg></a>
+      <a class="btn ghost" data-releases href="https://github.com/danaia/ANGI/releases"><svg class="i"><use href="#i-gh"/></svg> All releases</a>
+    </div>
   </div>
 </div>
 </main>
@@ -74,7 +81,7 @@
 <footer>
   <div class="wrap">
     <svg class="mark" aria-hidden="true"><use href="#mark"/></svg>
-    <div class="flinks"><a href="get-started.html">Install</a><a href="download.html">Images</a><a href="develop.html">Develop</a><a href="https://github.com/danaia/ANGI">GitHub</a></div>
+    <div class="flinks"><a href="download.html">Install</a><a href="develop.html">Develop</a><a href="https://github.com/danaia/ANGI">GitHub</a></div>
     <span>Pronounced “AN-jee”. Early development; figures are development measurements.</span>
   </div>
 </footer>

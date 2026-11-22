@@ -123,7 +123,7 @@ window.ANGI_INSTALL_PROFILES = {
   },
   "amd": {
     "id": "amd",
-    "name": "Amd x86-64 computer",
+    "name": "AMD x86-64 computer",
     "short": "AMD",
     "cpu_vendor": "AuthenticAMD",
     "board": "x86-desktop",

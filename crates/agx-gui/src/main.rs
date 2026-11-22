@@ -15,6 +15,7 @@ mod library;
 mod login;
 mod memory_processes;
 mod open_request;
+mod web_preview;
 mod remote;
 mod scene_model;
 mod terminal;

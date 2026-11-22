@@ -64,7 +64,7 @@ impl Browser {
 }
 
 impl App {
-    pub(super) fn browser_tab_command(&mut self, ui: &AppWindow, action: i32, index: i32) {
+    pub(crate) fn browser_tab_command(&mut self, ui: &AppWindow, action: i32, index: i32) {
         if ui.global::<Web>().get_popup_kind() != 0 || self.browser.closing.is_some() {
             return;
         }

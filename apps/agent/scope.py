@@ -81,3 +81,11 @@ def scope_text(project=None):
     if project is None:
         return OS_SCOPE.format(source=OS_SOURCE)
     return PROJECT_SCOPE.format(project=project, source=OS_SOURCE)
+
+
+PREVIEW_HINT = """When the user asks for HTML or a web app, create the requested files and show
+the result in ANGI Web. Call `agent preview PATH` with the HTML file, its static
+output folder, or the loopback address of the app you have already started and
+checked. For an app that needs a server, use the project's documented start
+command with loopback binding. Keep the checked app reachable after previewing
+it. In a swarm, the orchestrator shows the result once the tester confirms it."""

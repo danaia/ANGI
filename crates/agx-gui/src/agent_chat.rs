@@ -23,7 +23,7 @@ fn parse_reply(stdout: &[u8]) -> Result<Reply, String> {
     })
 }
 
-fn ask(message: &str, session_id: &str, folder: &str) -> Result<Reply, String> {
+fn ask(message: &str, session_id: &str, folder: &str, project: &str) -> Result<Reply, String> {
     let mut command = Command::new("/usr/bin/agent");
     command.arg("chat-turn");
     if session_id.is_empty() {
@@ -36,6 +36,7 @@ fn ask(message: &str, session_id: &str, folder: &str) -> Result<Reply, String> {
     }
     let output = command
         .arg(message)
+        .env("AGX_CHAT_PREVIEW_PROJECT", project)
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
@@ -60,11 +61,11 @@ fn append(chat: &AgentChat<'_>, message: ChatMessage) {
 
 pub(super) fn install(ui: &AppWindow) -> Timer {
     set_messages(&ui.global::<AgentChat>(), Vec::new());
-    let (requests, worker) = mpsc::channel::<(String, String, String)>();
+    let (requests, worker) = mpsc::channel::<(String, String, String, String)>();
     let (replies, answers) = mpsc::channel();
     std::thread::spawn(move || {
-        for (message, session_id, folder) in worker {
-            if replies.send(ask(&message, &session_id, &folder)).is_err() {
+        for (message, session_id, folder, project) in worker {
+            if replies.send(ask(&message, &session_id, &folder, &project)).is_err() {
                 break;
             }
         }
@@ -78,9 +79,11 @@ pub(super) fn install(ui: &AppWindow) -> Timer {
         }
         append(&chat, bubble(true, false, text));
         chat.set_busy(true);
-        let folder = ui.global::<AgentScope>().get_chat_folder().to_string();
+        let scope = ui.global::<AgentScope>();
+        let folder = scope.get_chat_folder().to_string();
+        let project = scope.get_project().to_string();
         let session_id = chat.get_session_id().to_string();
-        let _ = requests.send((text.to_string(), session_id, folder));
+        let _ = requests.send((text.to_string(), session_id, folder, project));
     });
     let weak = ui.as_weak();
     ui.global::<AgentChat>().on_new_chat(move || {

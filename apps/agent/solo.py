@@ -7,7 +7,7 @@ import time
 import graph_capture
 import graph_recall
 from models import SINGLE_ROLE, active_selections
-from scope import OS_SOURCE, scope_text, validate_project
+from scope import OS_SOURCE, PREVIEW_HINT, scope_text, validate_project
 import session
 
 AGENT = "angi-single"
@@ -19,7 +19,8 @@ def config(project, memory, *, legacy=False):
     agent, role = (LEGACY_AGENT, "os") if legacy else (AGENT, SINGLE_ROLE)
     instructions = "os.md" if legacy else "single.md"
     profile = {"description": "ANGI single agent", "mode": "primary", "permission": {"*": "allow", "task": "deny"},
-               "prompt": (session.ASSETS / "profiles" / instructions).read_text() + "\n" + scope_text(project) + ("\n\n" + memory if memory else "")}
+               "prompt": (session.ASSETS / "profiles" / instructions).read_text() + "\n" + scope_text(project)
+               + "\n\n" + PREVIEW_HINT + ("\n\n" + memory if memory else "")}
     model = active_selections().get(role)
     if model:
         profile["model"] = model

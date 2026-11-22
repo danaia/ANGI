@@ -2,8 +2,10 @@
 from contextlib import contextmanager
 import json
 import os
+from pathlib import Path
 import secrets
 import stat
+import subprocess
 import sys
 
 from scope import validate_project
@@ -114,6 +116,14 @@ def save_text(root_fd, path, text, overwrite=False):
     return f"Saved: {path}"
 
 
+def preview(root_fd, path=None):
+    from agent_preview import from_chat
+    root = Path(os.readlink(f"/proc/self/fd/{root_fd}"))
+    if path is not None:
+        path = "/".join(relative_parts(path, at_root=True)) or "."
+    return from_chat(root, path)
+
+
 PATH = {"type": "string", "description": "Path relative to the Chat workspace."}
 TOOLS = {
     "list": (list_folder, "List a directory. Use . for the Chat workspace.", {"path": PATH}, ["path"]),
@@ -123,10 +133,11 @@ TOOLS = {
         "path": PATH, "text": {"type": "string"},
         "overwrite": {"type": "boolean", "description": "Set true only if the user requested changing an existing file."},
     }, ["path", "text"]),
+    "preview": (preview, "Show HTML or a web project beside Chat in ANGI Web. Omit path to show the current or most recently previewed project.", {"path": PATH}, []),
 }
 
 
-def respond(root_fd, request):
+def respond(root_fd, request, *, show_saved=False):
     response = {"jsonrpc": "2.0", "id": request["id"]}
     method = request.get("method")
     params = request.get("params", {})
@@ -144,10 +155,20 @@ def respond(root_fd, request):
         ]}
     elif method == "tools/call":
         try:
-            action = TOOLS[params["name"]][0]
-            text = action(root_fd, **params.get("arguments", {}))
+            name = params["name"]
+            arguments = params.get("arguments", {})
+            action = TOOLS[name][0]
+            text = action(root_fd, **arguments)
+            if show_saved and name == "save":
+                from agent_preview import is_html, saved_in_chat
+                if is_html(arguments["path"]):
+                    try:
+                        root = Path(os.readlink(f"/proc/self/fd/{root_fd}"))
+                        text += "\n" + saved_in_chat(root, arguments["path"])
+                    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                        text += f"\nANGI Web could not show the preview: {exc}"
             error = False
-        except (OSError, TypeError, ValueError, KeyError) as exc:
+        except (OSError, TypeError, ValueError, KeyError, subprocess.SubprocessError) as exc:
             text = str(exc) if not isinstance(exc, OSError) else exc.strerror
             error = True
         result = {"content": [{"type": "text", "text": text}], "isError": error}
@@ -166,7 +187,7 @@ def serve(folder):
             for line in sys.stdin:
                 request = json.loads(line)
                 if "id" in request:
-                    print(json.dumps(respond(root_fd, request)), flush=True)
+                    print(json.dumps(respond(root_fd, request, show_saved=True)), flush=True)
     finally:
         os.close(filesystem)
 

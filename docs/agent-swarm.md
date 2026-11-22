@@ -137,6 +137,15 @@ A three-way switch above the prompt chooses the scope of a run. Hover over an op
   was chosen. For other providers, OpenCode supplies its default when no model was chosen.
   The AI button in the upper-right corner opens provider setup from any mode.
 
+When Chat saves HTML, ANGI Web opens beside Agent Angi on the right. Ask Angi to
+show a project in Chat to reopen its preview. You can give a folder or HTML path,
+refer to the selected Project folder, or ask to show the last preview.
+
+For OS and Project work, `agent preview PATH` shows an HTML file or the entry page
+of a static output folder. Pass a loopback URL to show a development server the
+agent has started. If the agent has yet to open a preview when it saves its work
+report, ANGI opens a changed HTML page from the report and prefers an index page.
+
 The button at the bottom of the OS and Project composer switches between **Swarm**
 and **Single agent**. Swarm is the default and starts the Herdr orchestrator, builder
 and tester. Single agent starts one OpenCode session in the selected scope. Choose

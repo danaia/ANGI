@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 
 mod scene;
+mod preview;
 mod startup;
 mod tiling;
 mod windowed;

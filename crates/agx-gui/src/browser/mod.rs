@@ -25,6 +25,14 @@ pub(crate) fn local_server_address(text: &str) -> Option<String> {
     protocol::local_server(text).then(|| format!("http://{text}"))
 }
 
+pub(crate) fn loopback_preview_address(text: &str) -> Option<String> {
+    let (scheme, local) = text.split_once("://").unwrap_or(("http", text));
+    if !matches!(scheme, "http" | "https") || !protocol::local_server(local) || local.contains('\\') {
+        return None;
+    }
+    protocol::address(&format!("{scheme}://{local}"))
+}
+
 /// A web address as the Web app would accept it when typed, for callers that must not guess one from a bare word.
 pub(crate) fn web_address(text: &str) -> Option<String> {
     (text.starts_with("https://") || text.starts_with("http://"))

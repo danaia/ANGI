@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 
 from messaging import inbox, send
 import chat
@@ -109,6 +110,10 @@ def main():
         save_report(args[1], args[2:])
         print("Saved ANGI work summary.")
         return
+    if len(args) == 2 and args[0] == "preview":
+        from agent_preview import from_terminal
+        print(from_terminal(args[1]))
+        return
     if args == ["status"]:
         status()
         return
@@ -119,7 +124,7 @@ def main():
         return
     request = angi_request(args)
     if request is False:
-        print("Usage: agent angi [--prompt BRIEF [[--project DIR] [--single] | --chat]] | agent attach | agent status | agent tell ROLE MESSAGE | agent inbox | agent report SUMMARY [PATH ...] | agent memory [COMMAND]")
+        print("Usage: agent angi [--prompt BRIEF [[--project DIR] [--single] | --chat]] | agent preview HTML_OR_LOCAL_ADDRESS | agent attach | agent status | agent tell ROLE MESSAGE | agent inbox | agent report SUMMARY [PATH ...] | agent memory [COMMAND]")
         return
     brief, project, talk, single = request
     if os.getuid() == 0:
@@ -144,7 +149,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (RuntimeError, OSError, ValueError) as error:
+    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"ANGI: {error}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:

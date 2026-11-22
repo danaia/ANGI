@@ -31,6 +31,8 @@ def save(summary, paths):
     from work_changes import finish
     try:
         finish(run)
+        from agent_preview import after_report
+        after_report(run)
     except OSError as error:
         print(f"ANGI could not capture the changed files: {error}", flush=True)
 

@@ -5,7 +5,7 @@
 //! each argument into an absolute path or web address, asks the desktop, and prints the desktop's answer.
 //! The desktop decides, never the client: it resolves the path itself and only the account that owns the
 //! desktop may ask. HTML files and `http(s)` addresses open in Web; anything else is refused with a reason.
-use crate::{App, AppWindow, keymap::Cmd, wm::Kind};
+use crate::{App, AppWindow, keymap::Cmd, web_preview, wm::Kind};
 use slint::{ComponentHandle, Timer, TimerMode};
 use std::{
     cell::RefCell,
@@ -157,7 +157,12 @@ fn bind(path: &Path) -> io::Result<UnixListener> {
     Ok(listener)
 }
 
-fn handle(stream: &mut UnixStream, found: &mpsc::Sender<String>) -> io::Result<()> {
+enum Request {
+    Open(String),
+    Preview(web_preview::Target),
+}
+
+fn handle(stream: &mut UnixStream, found: &mpsc::Sender<Request>) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     stream.set_write_timeout(Some(Duration::from_secs(2)))?;
     if peer_uid(stream) != Some(effective_uid()) {
@@ -168,11 +173,14 @@ fn handle(stream: &mut UnixStream, found: &mpsc::Sender<String>) -> io::Result<(
     }
     let mut line = String::new();
     BufReader::new((&*stream).take(MAX_REQUEST)).read_line(&mut line)?;
-    let reply = match line
-        .trim_end_matches(['\r', '\n'])
-        .strip_prefix("open ")
-        .map(resolve)
-    {
+    let line = line.trim_end_matches(['\r', '\n']);
+    let request = if let Some(target) = line.strip_prefix("preview ") {
+        Some(web_preview::resolve(target).map(Request::Preview))
+    } else {
+        line.strip_prefix("open ")
+            .map(|target| resolve(target).map(Request::Open))
+    };
+    let reply = match request {
         Some(Ok(uri)) => match found.send(uri) {
             Ok(()) => "ok".to_string(),
             Err(_) => "error The desktop is shutting down.".to_string(),
@@ -184,7 +192,7 @@ fn handle(stream: &mut UnixStream, found: &mpsc::Sender<String>) -> io::Result<(
 }
 
 /// Start listening; every accepted request arrives on the returned channel as the address to load.
-fn listen(path: &Path) -> io::Result<mpsc::Receiver<String>> {
+fn listen(path: &Path) -> io::Result<mpsc::Receiver<Request>> {
     let listener = bind(path)?;
     let (send, receive) = mpsc::channel();
     std::thread::spawn(move || {
@@ -205,18 +213,31 @@ pub(super) fn install(ui: &AppWindow, app: &Rc<RefCell<App>>) -> Timer {
         .map_err(|error| eprintln!("agx-gui: `open` is unavailable: {error}"))
         .ok();
     let (weak, state) = (ui.as_weak(), app.clone());
-    let mut pending: VecDeque<String> = VecDeque::new();
+    let previews = web_preview::Previews::new();
+    let mut pending: VecDeque<Request> = VecDeque::new();
     let timer = Timer::default();
     timer.start(TimerMode::Repeated, Duration::from_millis(150), move || {
         let Some(receiver) = &receiver else { return };
         pending.extend(receiver.try_iter().take(8));
-        while let Some(uri) = pending.front() {
+        while !pending.is_empty() {
             let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) else {
                 return;
             };
-            app.run(&ui, Cmd::Open(Kind::Web));
-            app.browser_open(&ui, uri);
-            pending.pop_front();
+            match pending.pop_front().unwrap() {
+                Request::Open(uri) => {
+                    app.run(&ui, Cmd::Open(Kind::Web));
+                    app.browser_open(&ui, &uri);
+                }
+                Request::Preview(target) => previews.start(target),
+            }
+        }
+        if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
+            for reply in previews.replies.try_iter().take(8) {
+                match reply {
+                    Ok(uri) => web_preview::show(&mut app, &ui, &uri),
+                    Err(reason) => app.toast(&ui, &reason),
+                }
+            }
         }
     });
     timer
@@ -236,7 +257,7 @@ fn client_arguments_from(mut arguments: impl Iterator<Item = OsString>) -> Optio
     (rest.first().map(OsString::as_os_str) == Some(OsStr::new("open"))).then(|| rest[1..].to_vec())
 }
 
-fn ask(socket: &Path, directory: &Path, target: &OsStr) -> Result<(), String> {
+fn ask(socket: &Path, directory: &Path, target: &OsStr, preview: bool) -> Result<(), String> {
     let text = target.to_str().ok_or("File names must be valid UTF-8.")?;
     let web = text.starts_with("http://") || text.starts_with("https://");
     // `open localhost:8000` is a server on this device, unless a file really has that name.
@@ -256,7 +277,8 @@ fn ask(socket: &Path, directory: &Path, target: &OsStr) -> Result<(), String> {
         .map_err(|_| "The ANGI desktop is not running for this account.".to_string())?;
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
-    writeln!(stream, "open {absolute}").map_err(|error| error.to_string())?;
+    let action = if preview { "preview" } else { "open" };
+    writeln!(stream, "{action} {absolute}").map_err(|error| error.to_string())?;
     let mut reply = String::new();
     BufReader::new(stream)
         .read_line(&mut reply)
@@ -272,7 +294,7 @@ fn ask(socket: &Path, directory: &Path, target: &OsStr) -> Result<(), String> {
 pub fn client(targets: Vec<OsString>) -> ExitCode {
     if targets.is_empty() || targets[0] == "--help" || targets[0] == "-h" {
         eprintln!(
-            "Usage: open FILE_OR_ADDRESS...\nOpens HTML files and http(s) addresses in ANGI Web on this account's desktop."
+            "Usage: open [--preview] FILE_OR_ADDRESS...\nOpens HTML files and http(s) addresses in ANGI Web on this account's desktop."
         );
         return ExitCode::from(2);
     }
@@ -281,9 +303,15 @@ pub fn client(targets: Vec<OsString>) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let directory = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+    let preview = targets[0] == "--preview";
+    let targets = &targets[usize::from(preview)..];
+    if targets.is_empty() {
+        eprintln!("open: give an HTML file or loopback address to preview.");
+        return ExitCode::from(2);
+    }
     let mut failed = false;
-    for target in &targets {
-        if let Err(message) = ask(&socket, &directory, target) {
+    for target in targets {
+        if let Err(message) = ask(&socket, &directory, target, preview) {
             eprintln!("open: {message}");
             failed = true;
         }
@@ -403,10 +431,10 @@ mod tests {
             0o700
         );
         // A relative name is made absolute by the client, from its own working directory.
-        ask(&socket, &directory, OsStr::new("game.html")).unwrap();
+        ask(&socket, &directory, OsStr::new("game.html"), false).unwrap();
         let uri = receiver.recv_timeout(Duration::from_secs(2)).unwrap();
-        assert_eq!(uri, file_uri(&directory.join("game.html")));
-        let refused = ask(&socket, &directory, OsStr::new("missing.html")).unwrap_err();
+        assert!(matches!(uri, Request::Open(uri) if uri == file_uri(&directory.join("game.html"))));
+        let refused = ask(&socket, &directory, OsStr::new("missing.html"), false).unwrap_err();
         assert!(refused.contains("no such file"), "{refused}");
         assert!(
             receiver.try_recv().is_err(),
@@ -416,7 +444,8 @@ mod tests {
             ask(
                 &directory.join("nobody.sock"),
                 &directory,
-                OsStr::new("game.html")
+                OsStr::new("game.html"),
+                false,
             )
             .unwrap_err()
             .contains("not running")
@@ -436,20 +465,33 @@ mod tests {
                 "http://localhost:8000/a.html",
             ),
         ] {
-            ask(&socket, &directory, OsStr::new(typed)).unwrap();
-            assert_eq!(
-                receiver.recv_timeout(Duration::from_secs(2)).unwrap(),
-                loaded
+            ask(&socket, &directory, OsStr::new(typed), false).unwrap();
+            assert!(
+                matches!(receiver.recv_timeout(Duration::from_secs(2)).unwrap(), Request::Open(uri) if uri == loaded)
             );
         }
         // Other hosts are not guessed to be websites, and a file that really has that name wins.
-        assert!(ask(&socket, &directory, OsStr::new("example.org")).is_err());
+        assert!(ask(&socket, &directory, OsStr::new("example.org"), false).is_err());
         fs::write(directory.join("localhost:9000"), "x").unwrap();
-        let refused = ask(&socket, &directory, OsStr::new("localhost:9000")).unwrap_err();
+        let refused = ask(&socket, &directory, OsStr::new("localhost:9000"), false).unwrap_err();
         assert!(
             refused.contains("no app") || refused.contains("what kind"),
             "{refused}"
         );
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn preview_requests_are_distinct_and_loopback_only() {
+        let directory = scratch("preview");
+        let socket = directory.join("angi-open.sock");
+        let receiver = listen(&socket).unwrap();
+        ask(&socket, &directory, OsStr::new("localhost:8000/app"), true).unwrap();
+        let request = receiver.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(
+            matches!(request, Request::Preview(web_preview::Target::Address(uri)) if uri == "http://localhost:8000/app")
+        );
+        assert!(ask(&socket, &directory, OsStr::new("https://example.org"), true).is_err());
         assert!(receiver.try_recv().is_err());
     }
 

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import time
 
 from models import active_selections
@@ -99,6 +100,7 @@ def turn(state, message, new=False, timeout=300, folder=None, session_id=None):
     """
     import history
     import sqlite3
+    from agent_preview import show_chat_saves
 
     continuation = ["--session", session_id] if session_id else [] if new else ["--continue"]
     command = ["opencode", "run", "--agent", AGENT, "--format", "json", *continuation, "--", message]
@@ -109,7 +111,10 @@ def turn(state, message, new=False, timeout=300, folder=None, session_id=None):
     except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
         return {"error": str(error)}
     try:
-        result = subprocess.run(command, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=timeout)
+        with tempfile.NamedTemporaryFile(mode="r", encoding="utf-8", prefix="angi-html-") as receipt:
+            result = subprocess.run(command, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+                                    timeout=timeout, env={**os.environ, "AGX_CHAT_PREVIEW_QUEUE": receipt.name})
+            show_chat_saves(receipt)
     except subprocess.TimeoutExpired:
         return {"error": "Angi took too long to answer. Try again."}
     except OSError:

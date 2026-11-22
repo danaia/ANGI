@@ -13,7 +13,7 @@ mod model;
 mod ops;
 mod pane;
 mod places;
-mod server;
+pub(crate) mod server;
 #[cfg(test)]
 mod tests;
 pub(super) mod trash;

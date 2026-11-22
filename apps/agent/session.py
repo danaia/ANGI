@@ -10,7 +10,7 @@ from messaging import ROLES, database
 import graph_capture
 import graph_recall
 from models import active, active_selections
-from scope import OS_SOURCE, scope_text, validate_project
+from scope import OS_SOURCE, PREVIEW_HINT, scope_text, validate_project
 
 SOURCE = OS_SOURCE
 ASSETS = Path("/usr/share/agx/agent")
@@ -75,7 +75,8 @@ def role_config(project=None, memory=""):
     for role in ROLES:
         profiles[f"angi-{role}"] = {
             "description": f"ANGI {role}", "mode": "primary",
-            "prompt": (ASSETS / f"profiles/{role}.md").read_text() + "\n" + scope_text(project) + ("\n\n" + memory if memory else ""),
+            "prompt": (ASSETS / f"profiles/{role}.md").read_text() + "\n" + scope_text(project)
+            + ("\n\n" + PREVIEW_HINT if role == "orchestrator" else "") + ("\n\n" + memory if memory else ""),
             "permission": {"*": "allow", "task": "deny"},
         }
         if role in choices:

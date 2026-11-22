@@ -20,9 +20,9 @@ with http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler) as server:
     server.serve_forever()
 "#;
 
-struct Server {
+pub(crate) struct Server {
     child: Child,
-    url: String,
+    pub(crate) url: String,
 }
 
 impl Drop for Server {
@@ -37,9 +37,13 @@ impl Server {
         if !dir.is_dir() {
             return Err(io::Error::other("The selected folder no longer exists."));
         }
-        let child = Command::new("python3")
-            .args(["-I", "-u", "-c", SCRIPT])
-            .arg(dir)
+        let mut command = Command::new("python3");
+        command.args(["-I", "-u", "-c", SCRIPT]).arg(dir);
+        Self::launch(command)
+    }
+
+    pub(crate) fn launch(mut command: Command) -> io::Result<Self> {
+        let child = command
             .current_dir("/")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -76,6 +80,10 @@ impl Server {
             }
             thread::sleep(Duration::from_millis(20));
         }
+    }
+
+    pub(crate) fn running(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
     }
 }
 

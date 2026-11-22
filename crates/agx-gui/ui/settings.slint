@@ -153,7 +153,11 @@ export component SettingsPanel inherits Rectangle {
                         text: item.label; icon: item.icon;
                         current: root.page == index;
                         compact: root.narrow;
-                        clicked => { MouseSettings.activate(); root.show-page(index); }
+                        clicked => {
+                            // Raising Settings can rebuild this panel. Save the page first.
+                            root.show-page(index);
+                            MouseSettings.activate();
+                        }
                         pointer-moved(x, y) => { root.moved(x, y); }
                     }
                     Rectangle { vertical-stretch: 1; }

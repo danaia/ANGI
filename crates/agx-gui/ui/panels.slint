@@ -88,7 +88,6 @@ export component OverviewPanel inherits Rectangle {
         }
         VerticalLayout {
             alignment: start;
-            spacing: Theme.space-2;
             Image {
                 source: @image-url("../../../brand/brand-mark-text.svg");
                 width: root.width > 600px ? 170px : 100px;
@@ -96,14 +95,6 @@ export component OverviewPanel inherits Rectangle {
                 image-fit: contain;
                 colorize: Theme.ink;
                 accessible-label: "ANGI";
-            }
-            HorizontalLayout {
-                alignment: end;
-                Badge {
-                    text: Sys.primary-ip == "no network" ? "Offline" : "Online";
-                    tone: Sys.primary-ip == "no network" ? Tone.neutral : Tone.success;
-                    dot: true;
-                }
             }
         }
     }

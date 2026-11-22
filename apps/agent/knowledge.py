@@ -74,6 +74,7 @@ def run(state, args):
         about = number(rest[1]) if len(rest) == 2 else None
         return {"done": True, "id": graph_capture.note(rest[0], about, "you", state)}
     with open_graph(state) as graph:
+        graph_capture.backfill(graph)
         if command == "list" and len(rest) <= 2:
             return overview(graph, *rest)
         if command == "size" and not rest:

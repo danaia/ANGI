@@ -43,7 +43,7 @@ component KnowledgeList inherits Rectangle {
                 KindChip { kind: "work"; chosen: root.chosen-kind; activated => { root.choose-kind("work"); } }
                 KindChip { kind: "topic"; chosen: root.chosen-kind; activated => { root.choose-kind("topic"); } }
                 KindChip { kind: "note"; chosen: root.chosen-kind; activated => { root.choose-kind("note"); } }
-                Rectangle { }
+                KindChip { kind: "person"; chosen: root.chosen-kind; activated => { root.choose-kind("person"); } }
             }
         }
         if AgentKnowledge.nodes.length == 0: AgentText {

@@ -52,7 +52,6 @@ export { Theme, Sys, NetRow, HwRow, MenuRow, Win, Icons }
 
 // Window tile in Pebble Line: an outlined `surface` card (radius-lg) with a 44px header.
 // Metrics mirror wm.rs: HEADER (Theme.header), BORDER (Theme.frame-inset), BTN_W and BTN_INSET.
-// The focused window takes a 1.5px `ink` stroke and a dot before its title; nothing else changes.
 component HeaderGlyph inherits Rectangle {
     in property <image> icon;
     in property <bool> focused;
@@ -66,20 +65,17 @@ component HeaderGlyph inherits Rectangle {
 }
 component WindowFrame inherits Rectangle {
     in property <Win> win;
-    in property <bool> dragging;
+    in property <bool> hovered;
     in property <int> cursor;
     in property <bool> hide-cursor;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback scroll(float, float, bool, bool, bool, bool);
     callback pointer-moved(length, length);
     clip: true;
-    animate x, y, width, height { duration: root.dragging ? 0ms : 110ms; easing: ease-out; }
     border-radius: min(Theme.radius-lg, self.height / 2);
-    // The stroke is this shape's fill showing around the inset ground below: a gradient for the
-    // focused or drop-target window (Theme.focus-stroke), a flat hairline otherwise. A collapsed
-    // window is only a header tall, so its focus stroke is a solid `ink-muted` all the way round.
-    private property <length> stroke: win.focused || win.target ? Theme.stroke-rule : Theme.stroke-hair;
-    background: !(win.focused || win.target) ? Theme.line
+    // Reserve the same inset even while the stroke is transparent.
+    private property <length> stroke: Theme.stroke-rule;
+    background: !(root.hovered || win.focused || win.target) ? transparent
         : win.collapsed ? Theme.ink-muted
         : Theme.focus-stroke;
     Rectangle {
@@ -102,10 +98,6 @@ component WindowFrame inherits Rectangle {
                     padding-left: Theme.space-5;
                     padding-right: Theme.header-inset - Theme.frame-inset;
                     spacing: Theme.space-2;
-                    if win.focused: VerticalLayout {
-                        alignment: center;
-                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.ink; }
-                    }
                     Text {
                         text: win.kind == 7 ? Web.title : win.kind == 8 || win.kind >= 12 ? Terminal.windows[win.kind == 8 ? 0 : win.kind - 11].title : win.title;
                         color: win.focused ? Theme.ink : Theme.ink-muted;
@@ -353,18 +345,23 @@ export component AppWindow inherits Window {
                 scroll(dx, dy, c, a, s, m) => { root.scroll(dx, dy, c, a, s, m); }
                 pointer-moved(x, y) => { root.track-cursor(x, y); }
             }
-            for w in root.wins: WindowFrame {
+            // Observe hover along the same hit-test path as the frame's existing controls.
+            for w in root.wins: hover := TouchArea {
                 x: w.x;
                 y: w.y;
                 width: w.w;
                 height: w.h;
-                win: w;
-                dragging: root.dragging;
-                cursor: root.cursor;
-                hide-cursor: root.draw-cursor || root.custom-resize-cursor;
-                pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
-                scroll(dx, dy, c, a, s, m) => { root.scroll(dx, dy, c, a, s, m); }
-                pointer-moved(x, y) => { root.track-cursor(x, y); }
+                animate x, y, width, height { duration: root.dragging ? 0ms : 110ms; easing: ease-out; }
+                WindowFrame {
+                    width: parent.width; height: parent.height;
+                    win: w;
+                    hovered: hover.has-hover;
+                    cursor: root.cursor;
+                    hide-cursor: root.draw-cursor || root.custom-resize-cursor;
+                    pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
+                    scroll(dx, dy, c, a, s, m) => { root.scroll(dx, dy, c, a, s, m); }
+                    pointer-moved(x, y) => { root.track-cursor(x, y); }
+                }
             }
             if root.ghost-visible: Rectangle {
                 x: root.ghost-x;

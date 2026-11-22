@@ -87,6 +87,7 @@ fn summary_text(counts: &Value) -> String {
         return String::new();
     }
     let parts: Vec<String> = [
+        ("person", "fact about you", "facts about you"),
         ("project", "project", "projects"),
         ("conversation", "chat", "chats"),
         ("system", "system change", "system changes"),

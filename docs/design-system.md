@@ -94,9 +94,9 @@ Poppins is the interface font (the window's default). Use the Slint type compone
 - Spacing is the 4-point scale only: `space-1` 4, `space-2` 8, `space-3` 12, `space-4` 16,
   `space-5` 20, `space-6` 24, `space-8` 32, `space-10` 40, `space-12` 48. Window content pads
   `space-6` (16 in narrow windows); dialogs pad `space-8`; the login card pads `space-10`.
-- Strokes: `stroke-hair` (1px) for every outline and divider; `stroke-rule` (1.5px) for the focused
-  window (the `focus-stroke` fade when open, solid `ink-muted` when collapsed), the current tab underline, and checkbox and radio rings; `stroke-focus` (2px) for the
-  focus ring.
+- Use `stroke-hair` (1px) for ordinary outlines and dividers. Use `stroke-rule` (1.5px) for
+  window hover and focus, the current tab underline, and checkbox and radio rings.
+  Use `stroke-focus` (2px) for the keyboard focus ring.
 
 ### 5. Components (Slint)
 
@@ -135,10 +135,13 @@ Import from `pebble/pebble.slint`. Do not use `std-widgets` `Button`, `LineEdit`
 
 ### 6. Window and layout
 
-- Apps live in a desktop tile. The tile chrome (header, title dot, Float, Full and Close) belongs to
+- Apps live in a desktop tile. The tile chrome (header, Float, Full and Close) belongs to
   the desktop; do not draw your own title bar. Content starts below `Theme.header` and has the
   tile's `surface` behind it. The geometry is shared with Rust in `src/wm.rs` and `src/main.rs`;
   change it only in both places.
+- Hovered, focused, and drop-target tiles use the same `focus-stroke` gradient when open,
+  and a solid `ink-muted` stroke when collapsed. Idle tiles reserve the same stroke width
+  with a transparent stroke.
 - Lay out as a bento: an outlined tile per topic, `space-4` to `space-6` gaps, at most one `accent`
   tile per screen. Inside a window, separate rows with a 1px `Divider` rather than boxing each one.
 - A preference row is a `Label` with a `Hint` under it on the left and its control on the right

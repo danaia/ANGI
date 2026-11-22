@@ -24,6 +24,8 @@ mod work_editor;
 mod agent_chat;
 mod agent_history;
 mod agent_knowledge;
+#[cfg(test)]
+mod scroll_probe; // TEMPORARY
 mod agent_project;
 mod agent_providers;
 mod agent_swarm;

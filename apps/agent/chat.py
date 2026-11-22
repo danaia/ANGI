@@ -21,9 +21,11 @@ def config(folder, memory=""):
     skill = (session.ASSETS / "skills" / SKILL / "SKILL.md").read_text().split("---", 2)[2].strip()
     prompt = (session.ASSETS / "profiles/chat.md").read_text().strip()
     from chat_files import TOOLS
-    permission = {"*": "deny", **{f"angi_files_{name}": "allow" for name in TOOLS}}
+    from chat_memory import TOOLS as MEMORY_TOOLS
+    permission = {"*": "deny", **{f"angi_files_{name}": "allow" for name in TOOLS},
+                  **{f"angi_memory_{name}": "allow" for name in MEMORY_TOOLS}}
     profile = {"description": "Angi, in conversation", "mode": "primary", "permission": permission,
-               "prompt": "\n\n".join(part for part in (prompt, chat_scope_text(folder), skill, memory) if part)}
+               "prompt": "\n\n".join(part for part in (prompt, chat_scope_text(folder), skill, graph_recall.CHAT_HINT, memory) if part)}
     # Chat is a single agent like an OS update, so it shares that role's model; none chosen means OpenCode's default.
     model = active_selections().get("os")
     if model:
@@ -32,6 +34,9 @@ def config(folder, memory=""):
     result["mcp"] = {"angi_files": {
         "type": "local",
         "command": ["/usr/bin/python3", str(Path(__file__).with_name("chat_files.py").resolve()), str(folder)],
+    }, "angi_memory": {
+        "type": "local",
+        "command": ["/usr/bin/python3", str(Path(__file__).with_name("chat_memory.py").resolve())],
     }}
     return json.dumps(result)
 

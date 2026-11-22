@@ -16,19 +16,19 @@ export struct KnowledgeDetail {
 export global KnowledgeKind {
     public pure function label(kind: string) -> string {
         kind == "project" ? "Project" : kind == "system" ? "System" : kind == "conversation" ? "Chat"
-            : kind == "work" ? "Work" : kind == "topic" ? "Topic" : "Note"
+            : kind == "work" ? "Work" : kind == "topic" ? "Topic" : kind == "person" ? "You" : "Note"
     }
     public pure function tone(kind: string) -> color {
         kind == "project" ? Theme.ink : kind == "system" ? Theme.accent : kind == "conversation" ? Theme.success
-            : kind == "work" ? Theme.warning : kind == "topic" ? Theme.ink-subtle : Theme.ink-muted
+            : kind == "work" ? Theme.warning : kind == "topic" ? Theme.ink-subtle : kind == "person" ? Theme.danger : Theme.ink-muted
     }
     public pure function plural(kind: string) -> string {
         kind == "project" ? "Projects" : kind == "system" ? "System" : kind == "conversation" ? "Chats"
-            : kind == "work" ? "Work" : kind == "topic" ? "Topics" : kind == "note" ? "Notes" : "All"
+            : kind == "work" ? "Work" : kind == "topic" ? "Topics" : kind == "note" ? "Notes" : kind == "person" ? "You" : "All"
     }
     public pure function relation(name: string, outgoing: bool) -> string {
         name == "about" ? (outgoing ? "is about" : "has") : name == "mentions" ? (outgoing ? "mentions" : "mentioned in")
-            : name == "changed" ? (outgoing ? "changed" : "changed by") : "related to"
+            : name == "changed" ? (outgoing ? "changed" : "changed by") : name == "told" ? (outgoing ? "told ANGI" : "told in") : "related to"
     }
 }
 

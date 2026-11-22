@@ -238,7 +238,10 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(agent["angi-chat"]["permission"], {
             "*": "deny", "angi_files_list": "allow", "angi_files_read": "allow",
             "angi_files_mkdir": "allow", "angi_files_save": "allow",
+            # ANGI's own memory, kept in its knowledge graph: nothing else beyond files is allowed.
+            "angi_memory_remember": "allow", "angi_memory_forget": "allow", "angi_memory_search": "allow",
         })
+        self.assertEqual(set(config["mcp"]), {"angi_files", "angi_memory"})
         self.assertTrue(agent["angi-chat"]["prompt"].startswith("ROLE chat"))
         self.assertIn(temporary, agent["angi-chat"]["prompt"])
         self.assertIn("Talk like Angi.", agent["angi-chat"]["prompt"])

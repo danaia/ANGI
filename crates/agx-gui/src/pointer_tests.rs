@@ -143,6 +143,30 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
         ui.on_confirm(move |yes| state.borrow_mut().confirm(&weak.upgrade().unwrap(), yes));
     }
     let tile = settings_app.borrow().desk.rect_of(Kind::Settings).unwrap();
+    let mouse = ui.global::<MouseSettings>();
+    let (weak, state) = (ui.as_weak(), settings_app.clone());
+    mouse.on_activate(move || {
+        let mut app = state.borrow_mut();
+        if app.desk.focused() != Some(Kind::Settings) {
+            app.desk.focus(Kind::Settings);
+            app.refresh(&weak.upgrade().unwrap());
+        }
+    });
+    // The compact sidebar omits the Preferences caption and the gap below it.
+    let first_row = if tile.w - 2. * wm::BORDER < 620. { 86. } else { 114. };
+    for index in [1, 2, 0] {
+        settings_app.borrow_mut().desk.focus(Kind::Memory);
+        settings_app.borrow().refresh(&ui);
+        render();
+        click(tile.x + 30., tile.y + first_row + 46. * index as f32);
+        render();
+        assert_eq!(
+            mouse.get_page(),
+            index,
+            "one click switches an unfocused Settings panel"
+        );
+        assert_eq!(settings_app.borrow().desk.focused(), Some(Kind::Settings));
+    }
     click(
         if tile.w - 12. < 500. {
             tile.x + 98.

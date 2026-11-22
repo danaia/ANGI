@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/agent"))
 import chat
+import chat_memory
 import graph
 import graph_capture
 import graph_recall
@@ -213,6 +214,109 @@ class KnowledgeTests(unittest.TestCase):
             graph_capture.chat_turn(self.state, f"ses_{number}", "terminal question " + "x" * 300, "answer " * 40)
         grown = knowledge.request(self.state, ["list"])["bytes"]
         self.assertGreater(grown, first)
+
+    # -- what the person says about themselves ----------------------------------------------------
+    def person(self):
+        return {row["summary"] for row in self.nodes(kind="person") if not row["key"].startswith("hub:")}
+
+    def test_who_am_i_in_a_new_chat_is_answered_from_memory(self):
+        graph_capture.chat_turn(self.state, "ses_1", "my name is dana martinelli and i live in pittsburgh", "Nice to meet you, Dana!")
+        text = graph_recall.for_prompt(self.state, "chat", "who am I?", exclude=("conversation", "ses_2"))
+        self.assertIn("About the user", text)
+        self.assertIn("The user's name is Dana Martinelli.", text)
+        self.assertIn("The user lives in Pittsburgh.", text)
+
+    def test_core_memory_does_not_depend_on_the_question_or_a_small_budget(self):
+        graph_capture.chat_turn(self.state, "ses_1", "My name is Dana.", "hi")
+        for query in ("", "completely unrelated tailscale question"):
+            self.assertIn("name is Dana", graph_recall.for_prompt(self.state, "chat", query, budget=graph_recall.SMALL_BUDGET))
+
+    def test_facts_are_extracted_from_natural_sentences_and_questions_are_ignored(self):
+        cases = {
+            "Hey Angi, call me Dana. I work at Acme as an engineer.": {"The user's name is Dana.", "The user works at Acme as an engineer."},
+            "My dog is named Rex. I prefer tabs over spaces!": {"The user's dog is named Rex.", "The user prefers tabs over spaces."},
+            "I'm from Ohio": {"The user is from Ohio."},
+            "who am I?": set(), "what is my name?": set(), "my code is broken": set(),
+        }
+        for message, expected in cases.items():
+            self.assertEqual({fact[3] for fact in graph_capture.user_facts(message)}, expected, message)
+
+    def test_a_new_value_replaces_the_old_one_and_a_forgotten_value_stays_forgotten(self):
+        graph_capture.chat_turn(self.state, "ses_1", "my name is Dan", "ok")
+        graph_capture.chat_turn(self.state, "ses_2", "actually my name is Dana", "ok")
+        self.assertEqual(self.person(), {"The user's name is Dana."})
+        node = next(row["id"] for row in self.nodes(kind="person") if row["name"] == "Name")
+        knowledge.request(self.state, ["forget", str(node)])
+        graph_capture.chat_turn(self.state, "ses_3", "my name is Dana", "ok")
+        self.assertEqual(self.person(), set())
+        graph_capture.chat_turn(self.state, "ses_4", "my name is Danielle", "ok")
+        self.assertEqual(self.person(), {"The user's name is Danielle."})
+
+    def test_facts_hang_off_a_you_node_and_link_back_to_the_chat(self):
+        graph_capture.chat_turn(self.state, "ses_1", "my name is Dana and I live in Pittsburgh", "hi")
+        with graph.open_graph(self.state) as store:
+            you = store.find("person", "hub:you")
+            facts = {link["name"] for link in store.links(you)}
+            self.assertEqual(facts, {"Name", "Location"})
+            chat_node = store.find("conversation", "ses_1")
+            self.assertEqual({link["relation"] for link in store.links(chat_node) if link["kind"] == "person"}, {"told"})
+
+    def test_remember_that_is_a_note_unless_it_is_about_the_user(self):
+        graph_capture.chat_turn(self.state, "ses_1", "Remember that the relay runs on port 1234. Remember that my cat is Tux.", "ok")
+        self.assertEqual({row["summary"] for row in self.nodes(kind="note")}, {"The relay runs on port 1234."})
+        self.assertEqual(self.person(), {"The user's cat is Tux."})
+
+    def test_facts_told_before_this_version_are_found_once(self):
+        with graph.open_graph(self.state) as store:
+            node = store.upsert("conversation", "ses_old", "my name is dana martinelli and i live in pittsburgh", "", "chat")
+            store.event(node, "You: my name is dana martinelli and i live in pittsburgh")
+        text = graph_recall.for_prompt(self.state, "chat", "who am i")
+        self.assertIn("Dana Martinelli", text)
+        self.assertEqual(len([row for row in self.nodes(kind="person") if row["name"] == "Name"]), 1)
+        graph_recall.for_prompt(self.state, "chat", "who am i")
+        self.assertEqual(len([row for row in self.nodes(kind="person") if row["name"] == "Name"]), 1)
+
+    def test_history_shows_the_line_that_matches_the_question(self):
+        graph_capture.chat_turn(self.state, "ses_1", "Set up the relay", "Done: it listens on port 1234 behind shields up.")
+        graph_capture.chat_turn(self.state, "ses_1", "thanks, bye", "bye")
+        text = graph_recall.for_prompt(self.state, "chat", "which port does the relay listen on?", exclude=("conversation", "ses_2"))
+        self.assertIn("port 1234", text)
+
+    def test_word_forms_match(self):
+        graph_capture.chat_turn(self.state, "ses_1", "I was configuring the printers", "ok")
+        self.assertIn("printers", graph_recall.for_prompt(self.state, "chat", "how do I configure a printer?"))
+
+    # -- the memory tools -------------------------------------------------------------------------
+    def tool(self, name, **arguments):
+        reply = chat_memory.respond({"id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}})["result"]
+        return reply["content"][0]["text"], reply["isError"]
+
+    def test_the_chat_agent_can_remember_search_and_forget(self):
+        self.assertEqual(self.tool("remember", text="The user's dog is named Rex.")[1], False)
+        self.assertIn("Rex", graph_recall.for_prompt(self.state, "chat", "hello"))
+        self.assertIn("Rex", self.tool("search", query="dog")[0])
+        self.assertIn("Forgot", self.tool("forget", text="rex")[0])
+        self.assertEqual(self.person(), set())
+        self.assertIn("forget", self.tool("remember", text="The user's dog is named Rex.")[0].lower())
+
+    def test_tools_refuse_broad_forgetting_and_respect_the_off_switch(self):
+        for number in range(5):
+            self.tool("remember", text=f"The user likes number {number}.")
+        text, error = self.tool("forget", text="number")
+        self.assertTrue(error)
+        self.assertEqual(len(self.person()), 5)
+        knowledge.request(self.state, ["enabled", "off"])
+        self.assertTrue(self.tool("remember", text="x y z")[1])
+
+    def test_chat_receives_the_memory_tools_and_permission(self):
+        with patch.object(chat.session, "opencode_config", side_effect=lambda profiles: json.dumps({"agent": profiles})), \
+                patch.object(chat.session, "ASSETS", Path(__file__).resolve().parents[1] / "apps/agent"), \
+                patch.object(chat, "active_selections", return_value={}):
+            config = json.loads(chat.config(self.root, "Remembered context:\n- x"))
+        self.assertIn("angi_memory", config["mcp"])
+        permission = config["agent"][chat.AGENT]["permission"]
+        self.assertEqual({name for name in permission if name.startswith("angi_memory_")}, {"angi_memory_remember", "angi_memory_forget", "angi_memory_search"})
+        self.assertIn("memory tools", config["agent"][chat.AGENT]["prompt"])
 
     def test_export_contains_everything_that_is_stored(self):
         graph_capture.chat_turn(self.state, "ses_1", "Wi-Fi question", "ok")

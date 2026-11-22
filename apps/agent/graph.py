@@ -17,8 +17,8 @@ import re
 import sqlite3
 import time
 
-KINDS = ("project", "system", "conversation", "work", "topic", "note")
-RELATIONS = ("about", "mentions", "changed", "related")
+KINDS = ("project", "system", "conversation", "work", "topic", "note", "person")
+RELATIONS = ("about", "mentions", "changed", "related", "told")
 NAME_LIMIT, SUMMARY_LIMIT, EVENT_LIMIT = 120, 600, 400
 EVENTS_PER_NODE = 40
 RECALL_LOG = 200
@@ -88,7 +88,7 @@ class Graph:
         self.db.execute("INSERT OR REPLACE INTO meta VALUES('enabled', ?)", ("on" if on else "off",))
 
     # -- writing ----------------------------------------------------------------------------------
-    def upsert(self, kind, key, name, summary=None, source="", pinned=False):
+    def upsert(self, kind, key, name, summary=None, source="", pinned=False, replace=False):
         """The node's id, creating it if needed. Returns None for something the person chose to forget.
 
         A node the person edited keeps their wording: later captures add events and links, not new text.
@@ -107,6 +107,8 @@ class Graph:
             return cursor.lastrowid
         if summary is not None and not row[1]:
             self.db.execute("UPDATE nodes SET summary=? WHERE id=?", (clean(summary, SUMMARY_LIMIT), row[0]))
+            if replace:
+                self.db.execute("UPDATE nodes SET name=? WHERE id=?", (clean(name, NAME_LIMIT) or "Untitled", row[0]))
         self.db.execute("UPDATE nodes SET updated=? WHERE id=?", (now, row[0]))
         return row[0]
 
@@ -147,6 +149,17 @@ class Graph:
         """Forget everything, including what was forgotten one by one. The on/off choice stays."""
         for table in ("edges", "events", "nodes", "forgotten", "recalls"):
             self.db.execute(f"DELETE FROM {table}")
+
+    def drop_siblings(self, kind, prefix, keep):
+        """Remove superseded values of a one-value fact (an old name when a new one is given)."""
+        self.db.execute("DELETE FROM nodes WHERE kind=? AND key LIKE ? AND id<>?", (kind, prefix + "%", keep))
+
+    def get_meta(self, key):
+        row = self.db.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return row[0] if row else None
+
+    def set_meta(self, key, value):
+        self.db.execute("INSERT OR REPLACE INTO meta VALUES(?,?)", (key, value))
 
     def prune(self):
         """Keep the graph bounded: the oldest unpinned conversations, work and topics go first."""

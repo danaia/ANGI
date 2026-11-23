@@ -4,24 +4,29 @@ use crate::{
     wm::{Kind, Scene},
 };
 use slint::{Model, VecModel};
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Default)]
 pub struct SceneModel {
     pub windows: Rc<VecModel<Win>>,
     pub scene: RefCell<Scene>,
+    pub native_titles: RefCell<HashMap<u32, String>>,
 }
 
 impl SceneModel {
     /// Reset the repeater only when its membership or stacking order changes.
     /// Ordinary moves/resizes notify exactly the rows whose values changed.
     pub fn sync(&self, scene: Scene, target: Option<Kind>) -> usize {
+        let titles = self.native_titles.borrow();
         let rows: Vec<_> = scene
             .windows
             .iter()
             .map(|p| Win {
                 kind: p.kind.index() as i32,
-                title: p.kind.title().into(),
+                title: match p.kind {
+                    Kind::Native(id) => titles.get(&id).map(String::as_str).unwrap_or(p.kind.title()),
+                    kind => kind.title(),
+                }.into(),
                 x: p.rect.x,
                 y: p.rect.y,
                 w: p.rect.w,

@@ -64,35 +64,54 @@ Local keyboards and mice are discovered through libinput/libudev-zero. The super
 Preview just the login screen without root or real authentication:
 `scripts/cargo.sh run --manifest-path crates/agx-gui/Cargo.toml -- --login-preview`.
 
-### Optional native Wayland session
+### Native Wayland session
 
-For a graphical Buildroot image with `BR2_PACKAGE_AGX_GUI=y`, enable
-`BR2_PACKAGE_WAYLAND=y` and `BR2_PACKAGE_AGX_WAYLAND=y` to build the
-optional session. It uses Weston and ANGI's existing libudev provider.
+Pi 5 images enable the Wayland desktop by default. Other graphical Buildroot
+images can enable it with `BR2_PACKAGE_WAYLAND=y` and
+`BR2_PACKAGE_AGX_WAYLAND=y`. Weston uses ANGI's existing libudev provider.
 Weston owns the HDMI display, input, and external app windows. Settings,
 Calendar, and the other Slint panels still live in the ANGI shell window.
 The shell fills the available display with its own header and controls.
 On HDMI it draws the Pebble Line interface directly into a GPU-backed Wayland
 surface using FemtoVG and Mesa Wayland EGL. Headless test sessions use software
-rendering. When enabling Wayland in an existing Buildroot output tree,
+rendering by default. When enabling Wayland in an existing Buildroot output tree,
 reconfigure Mesa so it builds its Wayland EGL platform.
 Native Wayland apps started from ANGI Terminal inherit the session socket
-and can open their own windows. Weston manages those windows and their
-placement and size. New native windows belong to the active ANGI workspace.
-Switching away hides them, and returning restores the same open windows in
-place. This state lasts for the Wayland session. ANGI's tiling and framebuffer
-VNC apply to the regular ANGI desktop.
+and join the same split layout as ANGI panels. Apps started from Applications
+join it too. The Pebble Line header owns the tile controls, and each app
+submits its own buffers to Weston. The app fills the tile body edge to edge
+and follows divider and frame resizing. Menus and transient windows follow
+their parent application's workspace.
+
+Use the header to move, float, fullscreen, or close a window. The desktop
+keyboard shortcuts work when focus is in the app. Switching workspaces
+retains the running apps and split geometry. Reopening an app with a Wayland
+app ID restores its last workspace, layout mode, and saved size when the
+current layout has room. The app manages its own documents and session state.
 
 Move the pointer to the top edge of a fullscreen window to reveal Exit
 fullscreen, Minimize, and Close. Move down to hide the controls.
 
-On an image with the optional session installed, run `angi-wayland --next-login`
-in ANGI Terminal, then choose **Refresh desktop** or sign out and back in on HDMI. Rust init runs the seat
-service. The Wayland session uses the local display. Run
-`angi-wayland --regular-next-login` before signing out to return to the
-regular desktop at your next sign-in.
+On HDMI, local sign-in starts Wayland when the compositor and seat service
+are available. Sign-in with an active VNC viewer keeps the standalone desktop
+so the viewer can follow the session. Run `angi-wayland --next-login` to
+explicitly choose Wayland or `angi-wayland --regular-next-login` to choose the
+standalone desktop. Sign out and back in to apply the choice. From the
+standalone HDMI desktop, **Refresh desktop** also applies an explicit
+Wayland choice. If Weston or the shell exits with an error, the session
+launcher starts the standalone desktop with the same account.
 For a side-by-side protocol check, `angi-wayland --headless` creates its
 own socket in a private temporary runtime directory, with no HDMI output.
+
+For frame pacing measurements, start a test session on an available VT with
+`AGX_WAYLAND_DEBUG=1 angi-wayland`. In its Terminal, run
+`weston-debug timeline > timeline.jsonl` while reproducing the workload.
+Weston exposes extra debugging and capture interfaces in this mode. Use it
+with trusted clients. To compare another HDMI mode, copy the installed
+`/usr/share/agx/wayland/weston.ini` to `~/.config/agx/weston.ini` and add an
+`[output]` section with the connector name and `mode=1920x1080@60`. The
+current connector, mode, and GL renderer are recorded in `/run/agx/gui.log`
+for the sign-in session.
 
 The Install catalogue enables apps when a matching native package is staged
 under `/usr/share/agx/native-apps`. Installed desktop apps open as independent
@@ -102,6 +121,18 @@ build the `vlc` and `qt5wayland` targets, and run
 `python3 scripts/package-native-vlc.py output DESTINATION` to create the archive
 and target manifest. If reusing a build tree, reconfigure PCRE2 for Qt's 16-bit
 library before building those targets.
+
+For Chromium on Pi 5, extract the matching Raspberry Pi OS Bookworm ARM64
+`chromium` and `chromium-common` packages into one directory. Extract the
+supplemental Debian Bookworm ARM64 packages into a second directory. The
+supplemental packages are `libdav1d6`, `libdouble-conversion3`, `libflac12`,
+`libjpeg62-turbo`, `liblcms2-2`, `libminizip1`, `libogg0`, `libopenh264-7`,
+`libopenjp2-7`, `libopus0`, `libxnvctrl0` and `libzstd1`. Verify each package
+against its repository checksum. With the Pi 5 VS Code runtime dependencies
+built, run
+`python3 scripts/package-native-chromium.py output CHROMIUM_TREE DEBIAN_TREE VERSION DESTINATION`
+and stage the resulting archive and manifest. Chromium opens as its own
+Wayland window using the kernel's user-namespace sandbox.
 
 For VS Code on Pi 5, merge `buildroot/board/agx/rpi5/native-vscode.config` and
 build `libnss cups libgtk3 xlib_libXcomposite xlib_libXdamage xlib_libXrandr`.
@@ -138,7 +169,12 @@ Blender launcher uses that bundled Vulkan driver for its window and viewport.
 
 Open the top-right power menu and choose **Settings**, or search for Settings in Apps. Settings opens as a normal desktop tile alongside your other windows. It supports tiling, floating, resizing, fullscreen and workspace moves; opening it again focuses the existing tile. The Mouse & pointer panel offers pointer speed, adaptive acceleration, left/right primary button, natural scrolling and scroll speed. Changes apply immediately to connected native pointing devices and are reapplied when a mouse reconnects. The test area lets you try movement and clicks; **Restore defaults** resets this collection of preferences. Close it with the title-bar close button or the normal desktop shortcut; Escape leaves the tile open. The category column collapses to a narrow icon rail in small tiles, and controls stack below their descriptions. **Refresh desktop…** now lives in the Overview footer, to the left of **Clear cache…**. It asks for confirmation, saves pending preferences, closes the desktop’s terminal and browser sessions, and starts the latest installed GUI as the same signed-in account. It does not reboot the Pi; VNC viewers may need to reconnect.
 
-Preferences belong to the signed-in account and are saved atomically in `$XDG_CONFIG_HOME/agx/mouse.conf` (normally `~/.config/agx/mouse.conf`). The greeter keeps its own defaults. Native controls apply through libinput; VNC movement remains controlled by the viewer. Desktop previews show the controls without changing the workstation's mouse settings. Device capabilities determine which native options the hardware supports.
+Preferences belong to the signed-in account and are saved atomically in `$XDG_CONFIG_HOME/agx/mouse.conf` (normally `~/.config/agx/mouse.conf`). The greeter keeps its own defaults. Weston applies the saved pointer speed, acceleration profile, button handedness and natural scrolling to supported devices after the preference saves and when a device connects. VNC movement remains controlled by the viewer. Desktop previews show the controls without changing the workstation's mouse settings.
+
+On Pi 5 HDMI, Weston moves the cursor on the DRM hardware plane when the
+cursor buffer fits the plane. Pointer-only motion over an unchanged desktop
+can reuse the primary framebuffer. Hover effects, scrolling and dragging
+still update the affected content.
 
 ## Rendering and performance
 
@@ -286,7 +322,7 @@ means adding its app to `resolve()` there.
 
 Choose a row in **Install** to start a background job. The launcher shows its progress and makes the app available in **Apps** when installation succeeds. A featured app that cannot run on the current device shows the reason. Newly installed commands are available in existing Terminal sessions. Select **Remove** or press Delete on an installed row to remove its runtime. App preferences and files are kept.
 
-The installer checks the running target before offering a package. On the Pi 5, the native GStreamer package exposes `gst-launch-1.0` and `gst-inspect-1.0` in ANGI Terminal. Blender, VS Code, and VLC require a matching native package and open in the [ANGI Wayland session](#optional-native-wayland-session). Users with a previously installed Debian-runtime package can remove it through `angi-update app remove ID` and keep its settings and data.
+The installer checks the running target before offering a package. On the Pi 5, the native GStreamer package exposes `gst-launch-1.0` and `gst-inspect-1.0` in ANGI Terminal. Blender, VS Code, and VLC require a matching native package and open in the [ANGI Wayland session](#native-wayland-session). Users with a previously installed Debian-runtime package can remove it through `angi-update app remove ID` and keep its settings and data.
 
 **Browsers.** ANGI Web uses WPE WebKit with GPU-accelerated rendering on the Pi. The appliance desktop runs directly on DRM/KMS. External graphical browsers require a display-server integration.
 

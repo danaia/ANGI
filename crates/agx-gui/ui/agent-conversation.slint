@@ -8,6 +8,7 @@ import { AgentScope, ModeSwitch, ScopeTip } from "agent-scope.slint";
 import { HoverDwell, HoverTip } from "hover-tip.slint";
 import { AgentKnowledge } from "agent-knowledge.slint";
 import { Icons } from "pebble/pebble.slint";
+import { AngiBug } from "agent-bug.slint";
 
 struct AgentSuggestion { label: string, detail: string, prompt: string }
 component AgentWelcome inherits Flickable {
@@ -33,14 +34,21 @@ component AgentWelcome inherits Flickable {
         height: self.preferred-height;
         y: max(12px, (root.content-height - self.height) / 2 - 18px);
         spacing: root.wide ? 21px : 12px;
+        // One head size for every mode; each mode plays its own motion (see agent-bug.slint).
         Rectangle {
-            height: root.wide ? 128px : 72px;
-            Image {
-                width: self.height; height: parent.height;
-                x: (parent.width - self.width) / 2;
-                source: @image-url("../../../brand/brand-bug.svg");
-                image-fit: contain;
-                colorize: Theme.ink;
+            property <length> head: root.wide ? 128px : 72px;
+            height: self.head * 1.11;
+            bug := AngiBug {
+                size: parent.head;
+                series: AgentScope.mode == "os" ? "extend" : AgentScope.mode == "project" ? "work" : "speech";
+                y: parent.head * 0.11;
+                // Centred, but pulled left far enough that a speech bubble stays on screen.
+                x: max(4px, min((parent.width - self.width) / 2, parent.width - self.right-extent - 4px));
+            }
+            TouchArea {
+                x: bug.x; y: bug.y; width: bug.width; height: bug.height;
+                mouse-cursor: pointer;
+                clicked => { bug.play(true); }
             }
         }
         Text {

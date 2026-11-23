@@ -1,0 +1,17 @@
+Subject: [PATCH] frontend: Propagate the watched shell exit status
+
+Carry startup failures back to the session launcher so it can recover
+to the authenticated standalone desktop.
+
+--- a/frontend/main.c
++++ b/frontend/main.c
+@@ -387,7 +387,8 @@
+ 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+ 		if (wet->autolaunch_pid != -1 && wet->autolaunch_pid == pid) {
+ 			if (wet->autolaunch_watch)
+-				wl_display_terminate(wet->compositor->wl_display);
++				weston_compositor_exit_with_code(wet->compositor,
++					WIFEXITED(status) ? WEXITSTATUS(status) : EXIT_FAILURE);
+ 			wet->autolaunch_pid = -1;
+ 			continue;
+ 		}

@@ -1,0 +1,89 @@
+Subject: [PATCH] libinput: Apply the signed-in account mouse preferences
+
+Read ANGI preferences at startup and when replaced. Apply them in
+the compositor to present and newly connected devices. Suppress duplicate
+scroll events which are already handled by the legacy axis path.
+
+--- a/libweston/libinput-device.c
++++ b/libweston/libinput-device.c
+@@ -801,6 +801,11 @@
+ 				 libinput_device,
+ 				 libinput_event_get_pointer_event(event));
+ 		break;
++	/* The legacy axis handler above already receives the same scroll. */
++	case LIBINPUT_EVENT_POINTER_SCROLL_WHEEL:
++	case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
++	case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS:
++		break;
+ 	case LIBINPUT_EVENT_TOUCH_DOWN:
+ 		handle_touch_down(libinput_device,
+ 				  libinput_event_get_touch_event(event));
+--- a/libweston/libinput-seat.c
++++ b/libweston/libinput-seat.c
+@@ -117,6 +117,7 @@
+ 
+ 	if (input->configure_device != NULL)
+ 		input->configure_device(c, device->device);
++	angi_mouse_apply(input, device->device);
+ 	evdev_device_set_calibration(device);
+ 	udev_seat = (struct udev_seat *) seat;
+ 	wl_list_insert(udev_seat->devices_list.prev, &device->link);
+@@ -338,6 +339,7 @@
+ 		struct udev *udev, const char *seat_id,
+ 		udev_configure_device_t configure_device)
+ {
++	int result;
+ 	enum libinput_log_priority priority = LIBINPUT_LOG_PRIORITY_INFO;
+ 	const char *log_priority = NULL;
+ 
+@@ -377,9 +379,12 @@
+ 		return -1;
+ 	}
+ 
++	angi_mouse_init(input);
+ 	process_events(input);
+-
+-	return udev_input_enable(input);
++	result = udev_input_enable(input);
++	if (result < 0)
++		angi_mouse_fini(input);
++	return result;
+ }
+ 
+ void
+@@ -387,6 +392,7 @@
+ {
+ 	struct udev_seat *seat, *next;
+ 
++	angi_mouse_fini(input);
+ 	if (input->libinput_source)
+ 		wl_event_source_remove(input->libinput_source);
+ 	wl_list_for_each_safe(seat, next, &input->compositor->seat_list, base.link)
+--- a/libweston/libinput-seat.h
++++ b/libweston/libinput-seat.h
+@@ -51,7 +51,15 @@
+ 	struct weston_compositor *compositor;
+ 	int suspended;
+ 	udev_configure_device_t configure_device;
++	struct angi_mouse *angi_mouse;
+ };
++
++void
++angi_mouse_init(struct udev_input *input);
++void
++angi_mouse_fini(struct udev_input *input);
++void
++angi_mouse_apply(struct udev_input *input, struct libinput_device *device);
+ 
+ int
+ udev_input_enable(struct udev_input *input);
+--- a/libweston/meson.build
++++ b/libweston/meson.build
+@@ -214,6 +214,7 @@
+ 	[
+ 		'libinput-device.c',
+ 		'libinput-seat.c',
++		'angi-mouse.c',
+ 		tablet_unstable_v2_server_protocol_h
+ 	],
+ 	dependencies: [

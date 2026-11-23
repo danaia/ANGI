@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 
 mod scene;
+mod native;
 mod preview;
 mod startup;
 mod tiling;
@@ -28,7 +29,7 @@ pub const MIN_H: f32 = 120.0;
 pub const INITIAL_WORKSPACES: usize = 5;
 pub const MAX_WORKSPACES: usize = 10;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,
@@ -104,6 +105,7 @@ pub enum Kind {
     AgentAngi,
     Files,
     TerminalWindow(u32),
+    Native(u32),
 }
 impl Kind {
     pub const ALL: [Kind; 12] = [
@@ -126,6 +128,8 @@ impl Kind {
     pub fn index(self) -> usize {
         match self {
             Self::TerminalWindow(id) => Self::ALL.len() + id as usize,
+            // Native Wayland window IDs occupy the negative Slint model keys.
+            Self::Native(id) => (-(id as i32)) as usize,
             other => Self::ALL.iter().position(|kind| *kind == other).unwrap(),
         }
     }
@@ -143,6 +147,7 @@ impl Kind {
             Kind::Settings => "Settings",
             Kind::AgentAngi => "Agent Angi",
             Kind::Files => "Files",
+            Kind::Native(_) => "Application",
         }
     }
 }

@@ -84,6 +84,10 @@ RUNTIME = {
     'blender': '''export VK_DRIVER_FILES="$root/lib/broadcom_icd.json"
 set -- --gpu-backend vulkan "$@"
 ''',
+    'chromium': '''export GDK_BACKEND=wayland
+export GSETTINGS_SCHEMA_DIR="$root/share/glib-2.0/schemas"
+set -- --ozone-platform=wayland --disable-setuid-sandbox "$@"
+''',
     'vscode': '''export GDK_BACKEND=wayland
 export LD_LIBRARY_PATH="$root/runtime/lib"
 export XDG_DATA_DIRS="$root/runtime/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"

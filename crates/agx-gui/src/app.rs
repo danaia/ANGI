@@ -22,6 +22,8 @@ pub(super) struct App {
     pub(super) browser: browser::Browser,
     pub(super) desk: Desktop,
     pub(super) view: SceneModel,
+    #[cfg(feature = "wayland")]
+    pub(super) native_tiles: crate::graphics::native_tiles::NativeTiles,
     pub(super) occupied: Rc<VecModel<bool>>,
     pub(super) modk: ModKey,
     pub(super) bindings: crate::key_bindings::Mappings,
@@ -67,6 +69,8 @@ impl App {
             browser: browser::Browser::default(),
             desk,
             view,
+            #[cfg(feature = "wayland")]
+            native_tiles: Default::default(),
             occupied: Rc::new(VecModel::from(vec![false; wm::INITIAL_WORKSPACES])),
             modk,
             bindings: crate::key_bindings::Mappings::new(modk),
@@ -104,7 +108,12 @@ impl App {
     }
 
     pub(super) fn refresh(&self, ui: &AppWindow) {
-        self.view.sync(self.desk.scene(), self.target);
+        let current = self.desk.current();
+        #[cfg(feature = "wayland")]
+        if current as i32 != ui.get_workspace() {
+            crate::graphics::wayland_workspaces::select(current);
+        }
+        self.sync_scene(ui);
         let browser_visible = self
             .view
             .scene
@@ -142,11 +151,6 @@ impl App {
                 _ => {}
             }
         }
-        let current = self.desk.current();
-        #[cfg(feature = "wayland")]
-        if current as i32 != ui.get_workspace() {
-            crate::graphics::wayland_workspaces::select(current);
-        }
         ui.set_workspace(current as i32);
         ui.set_windowed_mode(self.desk.mode() == Mode::Floating);
         ui.set_layout_name(
@@ -158,9 +162,22 @@ impl App {
             }
             .into(),
         );
-        ui.set_focus_title(self.desk.focused().map_or("", Kind::title).into());
+        let titles = self.view.native_titles.borrow();
+        let title = match self.desk.focused() {
+            Some(Kind::Native(id)) => titles.get(&id).map_or("Application", String::as_str),
+            other => other.map_or("", Kind::title),
+        };
+        ui.set_focus_title(title.into());
         ui.set_screen_full(self.view.scene.borrow().screen_full);
         self.refresh_drag(ui);
+    }
+
+    pub(super) fn sync_scene(&self, ui: &AppWindow) {
+        self.view.sync(self.desk.scene(), self.target);
+        #[cfg(feature = "wayland")]
+        self.native_tiles.layout(ui, &self.desk, &self.view.scene.borrow());
+        #[cfg(not(feature = "wayland"))]
+        let _ = ui;
     }
 
     pub(super) fn fullscreen_action(&mut self, ui: &AppWindow, action: i32) {
@@ -216,6 +233,11 @@ impl App {
             Cmd::Swap(d) => self.desk.swap_dir(d),
             Cmd::Close => {
                 if let Some(k) = self.desk.focused() {
+                    #[cfg(feature = "wayland")]
+                    if let Kind::Native(id) = k {
+                        self.native_tiles.close(id);
+                        return;
+                    }
                     if k == Kind::Web && self.browser_request_close() {
                         return;
                     }

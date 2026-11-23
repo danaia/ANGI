@@ -130,8 +130,11 @@ class Catalogue(unittest.TestCase):
         for app in apps.values():
             self.assertTrue(app.programs and (app.repo or app.native) and app.summary
                             and app.kind in {'Desktop', 'Terminal', 'Server'}, app.id)
-        self.assertEqual(list(apps)[:4], ['blender', 'vscode', 'vlc', 'gstreamer'])
-        self.assertTrue(all(apps[app_id].native for app_id in list(apps)[:4]))
+        self.assertEqual(list(apps)[:5], ['blender', 'vscode', 'vlc', 'gstreamer', 'chromium'])
+        self.assertTrue(all(apps[app_id].native for app_id in list(apps)[:5]))
+        chromium = apps['chromium']
+        self.assertEqual((chromium.kind, chromium.launch, chromium.native),
+                         ('Desktop', 'chromium', True))
         names = {name for app in apps.values() for name in (p.name for p in app.programs)}
         self.assertTrue({'rg', 'nvim', 'gh', 'btm', 'syncthing'} <= names)
 
@@ -422,6 +425,7 @@ class Cli(Case):
             unavailable = json.loads(self._apps())['unavailable']
             self.assertNotIn('vlc', unavailable)
             self.assertIn('Blender Wayland package', unavailable['blender'])
+            self.assertIn('Chromium Wayland package', unavailable['chromium'])
             self.assertIn('VS Code desktop runtime', unavailable['vscode'])
             events = io.StringIO()
             self.assertEqual(app_install.main(['app', 'install', 'vlc', '--progress'], self.store, events), 0)
@@ -433,6 +437,21 @@ class Cli(Case):
                              env={'PATH': os.environ['PATH'], 'XDG_RUNTIME_DIR': str(root)})
         self.assertEqual(run.returncode, 1)
         self.assertIn('angi-wayland --next-login', run.stderr)
+
+    def test_chromium_installs_with_sibling_runtime_files(self):
+        from unittest.mock import patch
+        root = Path(self.directory.name)
+        archive = tarball({'chromium': ELF, 'chrome_crashpad_handler': ELF, 'resources.pak': b'data'})
+        (root / 'chromium.tar.gz').write_bytes(archive)
+        (root / 'chromium.json').write_text(json.dumps(dict(
+            board='rpi5', arch='aarch64', buildroot='2026.08.1', version='156.0.8078.79',
+            sha256=hashlib.sha256(archive).hexdigest(),
+        )))
+        with patch('app_native.PACKAGES', root), patch('app_native.target', return_value=('rpi5', 'aarch64', '2026.08.1')):
+            self.assertEqual(app_install.main(['app', 'install', 'chromium'], self.store, io.StringIO()), 0)
+        wrapper = (self.store.bin / 'chromium').read_text()
+        self.assertIn('--ozone-platform=wayland --disable-setuid-sandbox', wrapper)
+        self.assertIn('exec "$root"/chromium "$@"', wrapper)
 
     def test_vscode_installs_the_verified_microsoft_archive_and_separate_runtime(self):
         from unittest.mock import Mock, patch

@@ -89,10 +89,10 @@ fn install_starts_with_featured_apps_and_apps_only_shows_ready_to_open_entries()
     let desktop = desktop();
     let listed = results(&desktop, "Super", "", INSTALL, &available);
     assert_eq!(listed.len(), apps::index().len());
-    assert_eq!(listed[..4].iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(),
-               ["Blender", "VS Code", "VLC", "GStreamer"]);
+    assert_eq!(listed[..5].iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(),
+               ["Blender", "VS Code", "VLC", "GStreamer", "Chromium"]);
     assert_eq!(listed[0].heading, "FEATURED");
-    assert_eq!(listed[4].heading, "MORE SOFTWARE");
+    assert_eq!(listed[5].heading, "MORE SOFTWARE");
     assert!(listed.iter().all(|entry| entry.section == INSTALL && entry.status.action == "Install"));
     let apps = results(&desktop, "Super", "", APPS, &available);
     assert_eq!(apps.iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(), ["Web", "Files", "Terminal"]);
@@ -164,7 +164,7 @@ fn unsupported_desktop_entries_have_a_reason_and_incompatible_artifacts_are_filt
         }
     };
     let entries = results(&desktop(), "Super", "", INSTALL, &state);
-    assert_eq!(entries.len(), 4);
+    assert_eq!(entries.len(), 5);
     assert_eq!(entries[0].label, "Blender");
     assert_eq!(entries[0].status.state, 7);
     assert!(entries[0].status.action.is_empty());
@@ -232,7 +232,9 @@ fn installing_apps_stay_put_and_headings_only_appear_without_a_search() {
         }
     };
     let listed = results(&desktop, "Super", "", INSTALL, &state);
-    assert_eq!(listed[4].label, "GitHub CLI", "an app mid-install does not jump to the top");
+    let idle = results(&desktop, "Super", "", INSTALL, &available);
+    assert!(listed.iter().map(|entry| &entry.label).eq(idle.iter().map(|entry| &entry.label)),
+            "an app mid-install does not change the catalogue order");
     let searched = results(&desktop, "Super", "find", APPS, &with_installed(&["fd"]));
     assert!(searched.iter().all(|entry| entry.heading.is_empty()), "search results are one flat list");
     assert_eq!(searched[0].label, "fd", "a match you already have is listed first");

@@ -62,6 +62,8 @@ covering_window(struct desktop_shell *shell, struct weston_pointer *pointer,
 		target = shell->angi_fullscreen_target;
 	else
 		target = get_shell_surface(weston_surface_get_main_surface(pointer->focus->surface));
+	if (angi_tile_fullscreen(target))
+		return target;
 	if (!target || !target->desktop_surface ||
 	    target->view->layer_link.layer != &shell->workspace.layer ||
 	    weston_desktop_surface_get_maximized(target->desktop_surface))

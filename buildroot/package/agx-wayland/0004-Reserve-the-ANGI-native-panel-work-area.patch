@@ -1,0 +1,81 @@
+Subject: [PATCH] desktop-shell: Reserve the ANGI panel work area
+
+Keep ordinary native windows and tiling inside the desktop chrome. The
+desktop surface and fullscreen clients can still fill their output.
+
+--- a/desktop-shell/meson.build
++++ b/desktop-shell/meson.build
+@@ -5,6 +5,7 @@
+ 		'shell.c',
+ 		'angi-workspaces.c',
+ 		'angi-fullscreen.c',
++		'angi-panels.c',
+ 		'input-panel.c',
+ 		weston_desktop_shell_server_protocol_h,
+ 		weston_desktop_shell_protocol_c,
+--- a/desktop-shell/shell.h
++++ b/desktop-shell/shell.h
+@@ -304,6 +304,7 @@
+ 	struct wl_event_source *angi_workspace_source;
+ 	char *angi_workspace_path;
+ 	int angi_workspace_fd;
++	unsigned angi_panel_top, angi_panel_bottom, angi_panel_gap;
+ 
+ 	struct {
+ 		struct wl_resource *binding;
+@@ -355,6 +356,13 @@
+ angi_fullscreen_restore_covering_window(struct shell_surface *target);
+ 
+ bool
++angi_is_desktop(struct shell_surface *surface);
++void
++angi_panel_configure(struct desktop_shell *shell, const char *geometry);
++void
++angi_panel_work_area(struct shell_surface *surface, pixman_rectangle32_t *area);
++
++bool
+ angi_workspace_visible(struct shell_surface *surface);
+ 
+ void
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -894,6 +894,7 @@
+ 			shoutput = weston_output_get_shell_private(surface->output);
+ 
+ 		get_output_work_area(shsurf->shell, shoutput, &area);
++		angi_panel_work_area(shsurf, &area);
+ 		geometry =
+ 			weston_desktop_surface_get_geometry(shsurf->desktop_surface);
+ 
+@@ -2082,6 +2083,7 @@
+ 	struct weston_coord_surface offset;
+ 
+ 	get_output_work_area(shell, shsurf->output, &area);
++	angi_panel_work_area(shsurf, &area);
+ 	geometry = weston_desktop_surface_get_geometry(shsurf->desktop_surface);
+ 
+ 	pos.c = weston_coord(area.x, area.y);
+@@ -2305,6 +2307,7 @@
+ 
+ 	shell = shell_surface_get_shell(shsurf);
+ 	get_output_work_area(shell, shsurf->output, &area);
++	angi_panel_work_area(shsurf, &area);
+ 
+ 	*width = area.width;
+ 	*height = area.height;
+@@ -3142,6 +3145,7 @@
+ 	shsurf->orientation = orientation;
+ 	get_maximized_size(shsurf, &width, &height);
+ 	get_output_work_area(shsurf->shell, shsurf->output, &area);
++	angi_panel_work_area(shsurf, &area);
+ 	geom = weston_desktop_surface_get_geometry(shsurf->desktop_surface);
+ 
+ 	if (orientation & WESTON_TOP_LEVEL_TILED_ORIENTATION_LEFT ||
+@@ -4028,6 +4032,7 @@
+ 	assert(target_output);
+ 	shoutput = weston_output_get_shell_private(target_output);
+ 	get_output_work_area(shell, shoutput, &area);
++	angi_panel_work_area(get_shell_surface(view->surface), &area);
+ 
+ 	x = area.x;
+ 	y = area.y;

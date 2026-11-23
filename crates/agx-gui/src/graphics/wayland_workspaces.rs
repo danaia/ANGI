@@ -11,6 +11,26 @@ pub(crate) fn identify_shell() -> Result<(), slint::PlatformError> {
     slint::set_xdg_app_id(SHELL_APP_ID)
 }
 
+pub(crate) fn reserve_desktop_chrome() {
+    send(&format!("P{} {} {}", crate::TOP, crate::BOTTOM, crate::wm::GAP_OUT));
+}
+
+pub(crate) fn mark_desktop_opaque(ui: &crate::AppWindow) {
+    use i_slint_backend_winit::WinitWindowAccessor;
+
+    let weak = ui.as_weak();
+    let _ = slint::spawn_local(async move {
+        if let Some(ui) = weak.upgrade()
+            && let Ok(window) = ui.window().winit_window().await
+        {
+            // The desktop paints a solid Theme.background. Weston can cull
+            // the wallpaper below it without blending a full-screen buffer.
+            window.set_transparent(false);
+            window.request_redraw();
+        }
+    });
+}
+
 pub(crate) fn select(index: usize) {
     send(&format!("S{index}"));
 }
@@ -34,7 +54,7 @@ pub(crate) fn fullscreen_controls() -> Option<crate::FullscreenActionWindow> {
         .ok()
 }
 
-fn socket_path(suffix: &str) -> Option<PathBuf> {
+pub(super) fn socket_path(suffix: &str) -> Option<PathBuf> {
     let display = std::env::var_os("WAYLAND_DISPLAY").filter(|name| !name.is_empty())?;
     let mut path = PathBuf::from(display);
     if !path.is_absolute() {

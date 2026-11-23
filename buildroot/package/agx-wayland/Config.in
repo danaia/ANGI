@@ -1,5 +1,5 @@
 config BR2_PACKAGE_AGX_WAYLAND
-	bool "Optional ANGI Wayland session"
+	bool "ANGI Wayland desktop"
 	depends on BR2_PACKAGE_AGX
 	depends on BR2_PACKAGE_HAS_LIBUDEV && BR2_PACKAGE_LIBINPUT
 	depends on BR2_PACKAGE_LIBXKBCOMMON
@@ -18,6 +18,6 @@ config BR2_PACKAGE_AGX_WAYLAND
 	select BR2_PACKAGE_SEATD_DAEMON
 	select BR2_PACKAGE_XKEYBOARD_CONFIG
 	help
-	  Build an opt-in native Wayland desktop with Weston using ANGI's
+	  Build the native Wayland desktop with Weston using ANGI's
 	  libudev provider. Enable the graphical ANGI desktop as well to
-	  run its shell. The regular desktop remains the boot default.
+	  run its shell with hardware acceleration on HDMI.

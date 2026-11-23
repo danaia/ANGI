@@ -13,7 +13,7 @@
 
 #include "shell.h"
 
-static bool
+bool
 angi_is_desktop(struct shell_surface *surface)
 {
 	const char *id = weston_desktop_surface_get_app_id(surface->desktop_surface);
@@ -24,8 +24,9 @@ angi_is_desktop(struct shell_surface *surface)
 bool
 angi_workspace_visible(struct shell_surface *surface)
 {
-	return surface->angi_workspace == surface->shell->angi_workspace ||
-	       angi_is_desktop(surface);
+	return angi_is_desktop(surface) ||
+	       (surface->angi_workspace == surface->shell->angi_workspace &&
+	        angi_tile_visible(surface));
 }
 
 static void
@@ -94,8 +95,15 @@ static int
 workspace_message(int fd, uint32_t mask, void *data)
 {
 	struct desktop_shell *shell = data;
-	char message[4] = { 0 };
-	ssize_t len = recv(fd, message, sizeof(message), MSG_DONTWAIT | MSG_TRUNC);
+	char message[4096];
+	struct sockaddr_un peer = { 0 };
+	socklen_t peer_len = sizeof peer;
+	ssize_t len = recvfrom(fd, message, sizeof(message) - 1, MSG_DONTWAIT | MSG_TRUNC,
+	                      (struct sockaddr *)&peer, &peer_len);
+
+	if (len <= 0 || len >= (ssize_t)sizeof(message))
+		return 0;
+	message[len] = '\0';
 
 	/* S<n> selects a workspace. R<n> <n> removes one and selects the
 	 * new current workspace in the same operation. IDs are zero-based. */
@@ -106,6 +114,10 @@ workspace_message(int fd, uint32_t mask, void *data)
 		apply_workspace(shell, message[3] - '0', message[1] - '0');
 	if (len == 2 && message[0] == 'F' && message[1] >= '0' && message[1] <= '2')
 		angi_fullscreen_action(shell, message[1] - '0');
+	if (len > 0 && len < (ssize_t)sizeof(message) && message[0] == 'P')
+		angi_panel_configure(shell, message + 1);
+	else if (message[0] == 'Q' || message[0] == 'G' || message[0] == 'I' || message[0] == 'C')
+		angi_tiles_message(shell, message, &peer, peer_len);
 
 	return 0;
 }
@@ -144,6 +156,7 @@ angi_workspaces_init(struct desktop_shell *shell)
 		wl_event_loop_add_fd(loop, fd, WL_EVENT_READABLE, workspace_message, shell);
 	if (shell->angi_workspace_source) {
 		shell->angi_workspace_fd = fd;
+		angi_tiles_init(shell);
 		return;
 	}
 
@@ -161,6 +174,7 @@ angi_workspaces_fini(struct desktop_shell *shell)
 	if (!shell->angi_workspace_source)
 		return;
 
+	angi_tiles_fini(shell);
 	wl_event_source_remove(shell->angi_workspace_source);
 	close(shell->angi_workspace_fd);
 	unlink(shell->angi_workspace_path);

@@ -216,6 +216,7 @@ component WindowFrame inherits Rectangle {
 export component AppWindow inherits Window {
     title: "ANGI";
     in property <bool> wayland-shell: false;
+    in property <bool> native-tiles-active: false;
     no-frame: wayland-shell;
     background: Theme.background;
     default-font-family: "Poppins";
@@ -288,6 +289,8 @@ export component AppWindow inherits Window {
         || Services.progress-open || Services.review-open || StorageView.empty-confirming
         || StorageView.selected-open || MemoryProcesses.open || Files.chooser-open
         || root.session-open || root.confirm-text != "";
+    out property <bool> native-overlay-open: root.key-overlay || root.menu-open || root.header-menu-open
+        || (Web.popup-visible && Web.popup-kind != 0);
     callback browser-key(string, bool, bool, bool, bool, bool) -> bool;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback scroll(float, float, bool, bool, bool, bool);
@@ -396,7 +399,7 @@ export component AppWindow inherits Window {
                 y: w.y;
                 width: w.w;
                 height: w.h;
-                animate x, y, width, height { duration: root.dragging ? 0ms : 110ms; easing: ease-out; }
+                animate x, y, width, height { duration: root.dragging || root.native-tiles-active ? 0ms : 110ms; easing: ease-out; }
                 WindowFrame {
                     width: parent.width; height: parent.height;
                     win: w;

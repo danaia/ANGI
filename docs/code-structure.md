@@ -36,7 +36,28 @@ Desktop gestures live in `src/input.rs`, including keyboard routing, drag lifecy
 
 `src/key_bindings/pointer.rs` routes LinuxKMS, VNC and Wayland pointer input to the desktop's saved mouse bindings. Its Wayland window event filter forwards unhandled events to Slint for normal widget input and shortcut recording.
 
+`buildroot/package/agx-wayland/angi-mouse.c` applies saved device preferences in
+Weston's libinput backend when the account settings change and when devices
+connect. Slint owns the preferences UI and saves the shared settings file.
+
 `src/graphics/wayland_workspaces.rs` sends workspace changes over a private session socket. The Weston desktop shell's `buildroot/package/agx-wayland/angi-workspaces.c` owns native window membership and visibility. Weston retains the live window views, including their position and size, across switches.
+
+`src/graphics.rs` selects the signed-in session backend from display availability,
+the account preference, and the greeter's VNC handoff. The Wayland shell sends the
+desktop bar heights and outer gap over the session socket at startup.
+`wayland_workspaces.rs` marks the main Slint window opaque once winit maps it,
+allowing Weston to cull the background underneath it.
+`buildroot/package/agx-wayland/angi-panels.c` applies those insets to native
+toplevel placement and tiling. The desktop surface and fullscreen clients use
+the full output.
+
+`src/graphics/native_tiles.rs` connects the Slint desktop to Weston's native
+toplevels, maps window IDs to the shared scene, and saves app placement in
+`native-tiles.json`. `src/wm/native.rs` inserts those windows into the existing
+split tree and restores their floating bounds or tile size. The compositor's
+`angi-tiles.c` tracks native window lifetime, focus, and shortcuts.
+`angi-tile-geometry.c` applies slot geometry and clip regions to the live views,
+including an interim scale while a client draws its resized buffer.
 
 `ui/fullscreen-actions.slint` renders the top-edge controls for both ANGI panels and native Wayland windows. Weston's `buildroot/package/agx-wayland/angi-fullscreen.c` decides when to show the native control surface and positions it on the fullscreen window's output. The session socket carries control actions back to Weston.
 

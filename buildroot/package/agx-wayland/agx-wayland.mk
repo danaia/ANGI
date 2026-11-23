@@ -21,7 +21,7 @@ AGX_WAYLAND_CONF_OPTS = \
 	-Ddeprecated-shell-fullscreen=false -Ddeprecated-screenshare=false \
 	-Dcolor-management-lcms=false -Dimage-jpeg=false -Dimage-webp=false \
 	-Ddoc=false -Dremoting=false -Dsystemd=false -Dtest-junit-xml=false \
-	-Dsimple-clients=shm -Ddemo-clients=false -Dtools=debug,terminal
+	-Dsimple-clients=shm,egl -Ddemo-clients=false -Dtools=debug,terminal
 
 define AGX_WAYLAND_EXTRACT_CURSORS
 	tar -xJf $(AGX_WAYLAND_DL_DIR)/$(AGX_WAYLAND_CURSOR_SOURCE).tar.xz -C $(@D) \
@@ -29,10 +29,11 @@ define AGX_WAYLAND_EXTRACT_CURSORS
 endef
 AGX_WAYLAND_POST_EXTRACT_HOOKS += AGX_WAYLAND_EXTRACT_CURSORS
 
-define AGX_WAYLAND_COPY_WORKSPACE_BRIDGE
-	cp $(AGX_WAYLAND_PKGDIR)/angi-workspaces.c $(AGX_WAYLAND_PKGDIR)/angi-fullscreen.c $(@D)/desktop-shell/
+define AGX_WAYLAND_COPY_SHELL_SOURCES
+	cp $(addprefix $(AGX_WAYLAND_PKGDIR)/,angi-workspaces.c angi-fullscreen.c angi-panels.c angi-tiles.c angi-tile-geometry.c angi-tiles.h) $(@D)/desktop-shell/
+	cp $(AGX_WAYLAND_PKGDIR)/angi-mouse.c $(@D)/libweston/
 endef
-AGX_WAYLAND_POST_PATCH_HOOKS += AGX_WAYLAND_COPY_WORKSPACE_BRIDGE
+AGX_WAYLAND_POST_PATCH_HOOKS += AGX_WAYLAND_COPY_SHELL_SOURCES
 
 define AGX_WAYLAND_INSTALL_SESSION
 	$(INSTALL) -D -m 0755 $(AGX_WAYLAND_PKGDIR)/angi-wayland $(TARGET_DIR)/usr/bin/angi-wayland

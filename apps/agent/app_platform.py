@@ -19,6 +19,7 @@ def unavailable(app):
     except app_native.MissingPackage as error:
         return {
             'blender': 'No Blender Wayland package for this ANGI build.',
+            'chromium': 'No Chromium Wayland package for this ANGI build.',
             'vscode': 'No ANGI Buildroot package for the VS Code desktop runtime.',
             'vlc': 'No VLC Wayland package for this ANGI build.',
         }.get(app.id, str(error))

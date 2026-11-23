@@ -80,7 +80,7 @@ pub(super) fn is_installed(entry: &Entry) -> bool {
     matches!(entry.status.state, INSTALLED | UPDATE)
 }
 
-/// The four requested defaults stay above other compatible software, in catalog order.
+/// Native packages stay above other compatible software, in catalog order.
 pub(super) fn arrange_install(entries: &mut [Entry]) {
     if let Some(first) = entries.iter_mut().find(|entry| {
         matches!(entry.command, Cmd::Package(index) if package(index).is_some_and(|app| app.native))

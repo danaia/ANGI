@@ -11,6 +11,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "wayland")]
     if wayland_shell {
         graphics::wayland_workspaces::identify_shell()?;
+        graphics::wayland_workspaces::reserve_desktop_chrome();
         graphics::wayland_workspaces::select(0);
     }
     let ui = AppWindow::new()?;
@@ -18,6 +19,10 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
         ui.set_wayland_shell(true);
         // Maximized keeps the shell on the normal desktop layer, alongside native app windows.
         ui.window().set_maximized(true);
+        #[cfg(feature = "wayland")]
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            graphics::wayland_workspaces::mark_desktop_opaque(&ui);
+        }
     }
     graphics::attach_input(&ui);
     let _settings_save = crate::settings::install(&ui);
@@ -50,6 +55,8 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let app = Rc::new(RefCell::new(App::new()));
+    #[cfg(feature = "wayland")]
+    let _native_tiles = graphics::native_tiles::install(&ui, &app);
     crate::key_bindings::install(&ui, &app);
     crate::key_bindings::attach_pointer(&ui);
     {

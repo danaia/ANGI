@@ -1,0 +1,83 @@
+Subject: [PATCH] renderer-gl: Keep GPU timeline queries nonblocking
+
+Discard pending samples before reusing an output query. Skip results that
+are unavailable when the fence signals, as observed on the Pi 5 V3D
+driver. CPU and output timeline events remain available.
+
+--- a/libweston/renderer-gl/gl-renderer.c
++++ b/libweston/renderer-gl/gl-renderer.c
+@@ -574,14 +574,6 @@
+ };
+ 
+ static void
+-timeline_begin_render_query(struct gl_renderer *gr, GLuint query)
+-{
+-	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
+-	    weston_timeline_profiling(gr->compositor->timeline))
+-		gr->begin_query(GL_TIME_ELAPSED_EXT, query);
+-}
+-
+-static void
+ timeline_end_render_query(struct gl_renderer *gr)
+ {
+ 	if (gl_features_has(gr, FEATURE_GPU_TIMELINE) &&
+@@ -596,6 +588,23 @@
+ 	wl_event_source_remove(trp->event_source);
+ 	close(trp->fd);
+ 	free(trp);
++}
++
++static void
++timeline_begin_render_query(struct gl_renderer *gr, struct gl_output_state *go)
++{
++	struct timeline_render_point *trp, *tmp;
++
++	if (!gl_features_has(gr, FEATURE_GPU_TIMELINE) ||
++	    !weston_timeline_profiling(gr->compositor->timeline))
++		return;
++
++	/* Each output reuses one query. An old fence must not consume
++	 * the timing result of the repaint that is about to replace it. */
++	wl_list_for_each_safe(trp, tmp, &go->timeline_render_point_list, link)
++		timeline_render_point_destroy(trp);
++
++	gr->begin_query(GL_TIME_ELAPSED_EXT, go->render_query);
+ }
+ 
+ static int
+@@ -609,17 +618,18 @@
+ 		struct gl_renderer *gr = get_renderer(trp->output->compositor);
+ 		struct timespec begin;
+ 		GLuint64 elapsed;
+-#if !defined(NDEBUG)
+-		GLint result_available;
+-
+-		/* The elapsed time result must now be available since the
+-		 * begin/end queries are meant to be queued prior to fence sync
+-		 * creation. */
++
++		GLint result_available = GL_FALSE;
++
++		/* A native fence can signal before the driver makes a timer
++		 * result available. Profiling must never stall the render loop. */
+ 		gr->get_query_object_iv(trp->query,
+ 					GL_QUERY_RESULT_AVAILABLE_EXT,
+ 					&result_available);
+-		assert(result_available == GL_TRUE);
+-#endif
++		if (result_available != GL_TRUE) {
++			timeline_render_point_destroy(trp);
++			return 0;
++		}
+ 
+ 		gr->get_query_object_ui64v(trp->query, GL_QUERY_RESULT_EXT,
+ 					   &elapsed);
+@@ -2785,7 +2795,7 @@
+ 		}
+ 	}
+ 
+-	timeline_begin_render_query(gr, go->render_query);
++	timeline_begin_render_query(gr, go);
+ 
+ 	/* Calculate the global GL matrix */
+ 	go->output_matrix = output->matrix;

@@ -237,6 +237,23 @@ impl Mappings {
         }
     }
 
+    #[cfg(feature = "wayland")]
+    pub(crate) fn native_keyboard_bindings(&self, modifier: ModKey) -> Vec<(String, u8)> {
+        let mut keys = std::collections::BTreeSet::new();
+        for entry in &self.entries {
+            for binding in self.bindings(entry, Device::Keyboard) {
+                if binding.bits & (Mods::CTRL | Mods::ALT | Mods::META) != 0
+                    && let Trigger::Key(name) = &binding.trigger
+                    && name.len() <= 23 && name.bytes().all(|byte| byte.is_ascii_graphic())
+                    && self.owner(&binding, modifier).is_some_and(|owner| owner.id == entry.id)
+                {
+                    keys.insert((name.clone(), binding.bits));
+                }
+            }
+        }
+        keys.into_iter().collect()
+    }
+
     pub(super) fn default_key(&self, key: &str, mods: Mods, modk: ModKey) -> Option<Cmd> {
         match self
             .default_owner(&Binding::key(key, mods.bits()), modk)?

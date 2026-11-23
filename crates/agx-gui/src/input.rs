@@ -196,12 +196,19 @@ impl App {
                 self.refresh(ui);
             }
             1 | 3 => {
+                #[cfg(feature = "wayland")]
+                let restore_native_focus = kind == 1 && button == 0
+                    && matches!(self.view.scene.borrow().hit(x, y), Hit::Header(Kind::Native(_)));
                 // A release can carry a newer position than the last move event.
                 if kind == 1 {
                     self.moved(x, y);
                 }
                 self.up(x, y, kind == 1);
                 self.refresh(ui);
+                #[cfg(feature = "wayland")]
+                if restore_native_focus && let Some(Kind::Native(id)) = self.desk.focused() {
+                    self.native_tiles.focus(id);
+                }
             }
             _ => self.update_pointer(ui, x, y),
         }
@@ -215,7 +222,7 @@ impl App {
                 self.refresh_drag(ui);
             }
             Motion::Geometry => {
-                self.view.sync(self.desk.scene(), self.target);
+                self.sync_scene(ui);
                 self.refresh_drag(ui);
             }
         }

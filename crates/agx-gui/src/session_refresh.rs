@@ -44,7 +44,10 @@ pub(super) fn restart_if_requested() -> io::Result<()> {
     // Resolve the installed entry point again, so a staged update takes effect.
     // exec retains the authenticated account and the supervisor's existing child PID.
     #[cfg(feature = "kms")]
-    if std::env::var_os("HOME").is_some_and(|home| crate::graphics::prefer_wayland(home.as_ref())) {
+    if std::env::var_os("HOME").is_some_and(|home| {
+        // Only an explicit opt-in switches an already running KMS session.
+        crate::graphics::prefer_wayland(home.as_ref(), true)
+    }) {
         return replace_with(std::path::Path::new("/usr/bin/angi-wayland"), &["--login"]);
     }
     #[cfg(feature = "kms")]

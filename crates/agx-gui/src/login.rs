@@ -102,7 +102,8 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
     {
         eprintln!("agx-gui: Web storage is unavailable: {error}");
     }
-    let wayland = graphics::prefer_wayland(Path::new(&home));
+    let remote_viewer = handoff.as_ref().is_some_and(|exec| exec.fds.len() > 1);
+    let wayland = graphics::prefer_wayland(Path::new(&home), remote_viewer);
     let mut session = if wayland {
         let mut command = Command::new("/usr/bin/angi-wayland");
         command.arg("--login");

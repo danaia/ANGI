@@ -1,0 +1,336 @@
+import { Theme } from "data.slint";
+
+struct BugLobe { cx: float, cy: float, r: float }
+
+// The ANGI mark with a small motion per Agent Angi mode, ported from the brand motion series:
+//   extend  (OS)      the hair puffs push outward and hold
+//   work    (Project) safety goggles and a hard hat drop on, and the crown squashes
+//   speech  (Chat)    the head nods and a speech bubble pops out with a greeting
+// Geometry uses the brand SVG's own units; `size` is the height of the 340-unit head, so every
+// series draws the same head. Ink and surface are theme tokens, so it works in both themes.
+export component AngiBug inherits Rectangle {
+    in property <length> size: 128px;
+    in property <string> series: "extend";
+    // How far the artwork reaches right of the head, so a caller can keep a bubble on screen.
+    out property <length> right-extent: root.series == "speech"
+        ? 276 * root.u + 12px + label.preferred-width + 31px : root.width;
+    width: 360 * root.u; height: root.size;
+    accessible-role: image;
+    accessible-label: "ANGI";
+
+    property <length> u: root.size / 340;
+    property <duration> t0;
+    property <int> seed;
+    property <int> greeting;
+    property <bool> running;
+    // Milliseconds into the motion; once it ends this reads as "finished" and stops redrawing.
+    property <float> t: root.running ? (animation-tick() - root.t0) / 1ms : 100000.0;
+    property <[string]> greetings: ["Hey there.", "Let’s build.", "What’s next?", "Ready when you are.", "Oh, hello!"];
+    property <[BugLobe]> lobes: [
+        { cx: 122.5, cy: 303.5, r: 35.5 }, { cx: 72.5, cy: 272.5, r: 42.5 }, { cx: 44.0, cy: 218.5, r: 40.5 },
+        { cx: 42.5, cy: 158.0, r: 41.5 }, { cx: 68.5, cy: 100.5, r: 43.5 }, { cx: 118.0, cy: 56.5, r: 42.5 },
+        { cx: 180.0, cy: 41.5, r: 41.5 }, { cx: 242.0, cy: 56.5, r: 42.5 }, { cx: 291.5, cy: 100.5, r: 43.5 },
+        { cx: 317.5, cy: 158.0, r: 41.5 }, { cx: 316.0, cy: 218.5, r: 40.5 }, { cx: 287.5, cy: 272.5, r: 42.5 },
+        { cx: 237.5, cy: 303.5, r: 35.5 },
+    ];
+    // Crown squash when the hard hat lands, per lobe (only lobes 4 to 8 move).
+    property <[float]> crown-tx: [0, 0, 0, 0, -1.3, -2.4, 0, 2.4, 1.3, 0, 0, 0, 0];
+    property <[float]> crown-ty: [0, 0, 0, 0, 0.9, 2.8, 4.8, 2.8, 0.9, 0, 0, 0, 0];
+    property <[float]> crown-sx: [0, 0, 0, 0, 0.01, 0.025, 0.045, 0.025, 0.01, 0, 0, 0, 0];
+    property <[float]> crown-sy: [0, 0, 0, 0, 0, 0.035, 0.065, 0.035, 0, 0, 0, 0, 0];
+
+    public function play(reroll: bool) {
+        if (reroll) {
+            root.seed = mod(Math.floor(animation-tick() / 1ms), 997);
+            if (root.series == "speech") {
+                root.greeting = mod(root.greeting + 1 + mod(root.seed, 4), 5);
+            }
+        }
+        root.t0 = animation-tick();
+        root.running = true;
+        motion-timer.restart();
+    }
+    init => { root.greeting = 0; root.seed = 3; root.play(false); }
+    changed series => { root.play(root.series != "speech"); }
+
+    motion-timer := Timer {
+        interval: 1500ms; running: false;
+        triggered => { root.running = false; self.running = false; }
+    }
+
+    pure function lerp(a: float, b: float, x: float) -> float { return a + (b - a) * x; }
+    pure function seg(x: float, start: float, len: float) -> float { return clamp((x - start) / len, 0.0, 1.0); }
+    pure function smooth(x: float) -> float { return x * x * (3 - 2 * x); }
+    pure function ease-in(x: float) -> float { return x * x; }
+    pure function ease-out(x: float) -> float { return 1 - (1 - x) * (1 - x) * (1 - x); }
+    pure function spring(x: float) -> float {
+        return 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
+    }
+
+    // Series 01: outward puffs with a shuffled order and per-puff distance.
+    pure function ext-p(i: int) -> float {
+        return root.spring(root.seg(root.t, 60 + mod(i * (1 + mod(root.seed, 12)) + root.seed, 13) * 34 + mod(i * 11 + root.seed, 28), 620));
+    }
+    pure function ext-dist(i: int) -> float { return 9.5 * (0.62 + 0.6 * mod(i * 37 + root.seed * 13, 100) / 100); }
+    pure function ext-len(i: int) -> float {
+        return Math.sqrt((root.lobes[i].cx - 180) * (root.lobes[i].cx - 180) + (root.lobes[i].cy - 175) * (root.lobes[i].cy - 175));
+    }
+
+    // Series 02: the crown pressed by the hat, easing to a resting squash.
+    pure function crown-w() -> float {
+        return root.seg(root.t, 930, 420) < 0.28 ? root.ease-out(root.seg(root.t, 930, 420) / 0.28)
+            : root.lerp(1, 0.55, root.smooth((root.seg(root.t, 930, 420) - 0.28) / 0.72));
+    }
+    // Series 03: right-side puffs bounce with the greeting.
+    pure function puff(i: int) -> float {
+        return root.seg(root.t, 50 + (i - 9) * 28, 540) < 0.42 ? root.ease-out(root.seg(root.t, 50 + (i - 9) * 28, 540) / 0.42)
+            : 1 - root.smooth((root.seg(root.t, 50 + (i - 9) * 28, 540) - 0.42) / 0.58);
+    }
+    pure function is-puff(i: int) -> bool { return root.series == "speech" && i >= 9 && i <= 11; }
+
+    pure function lobe-tx(i: int) -> float {
+        if (root.series == "extend") { return (root.lobes[i].cx - 180) / root.ext-len(i) * root.ext-dist(i) * root.ext-p(i); }
+        if (root.series == "work") { return root.crown-tx[i] * root.crown-w(); }
+        if (root.is-puff(i)) { return (i == 9 ? 4.5 : i == 10 ? 5.5 : 3.5) * root.puff(i); }
+        return 0;
+    }
+    pure function lobe-ty(i: int) -> float {
+        if (root.series == "extend") { return (root.lobes[i].cy - 175) / root.ext-len(i) * root.ext-dist(i) * root.ext-p(i); }
+        if (root.series == "work") { return root.crown-ty[i] * root.crown-w(); }
+        if (root.is-puff(i)) { return (i == 9 ? -1.5 : i == 10 ? 0.5 : 2.0) * root.puff(i); }
+        return 0;
+    }
+    pure function lobe-sx(i: int) -> float {
+        if (root.series == "extend") { return 1 + root.ext-dist(i) / 140 * root.ext-p(i); }
+        if (root.series == "work") { return 1 + root.crown-sx[i] * root.crown-w(); }
+        if (root.is-puff(i)) { return 1 + (i == 9 ? 0.05 : i == 10 ? 0.06 : 0.04) * root.puff(i); }
+        return 1;
+    }
+    pure function lobe-sy(i: int) -> float {
+        if (root.series == "work") { return 1 - root.crown-sy[i] * root.crown-w(); }
+        return root.lobe-sx(i);
+    }
+
+    pure function nod() -> float {
+        if (root.series != "speech") { return 0; }
+        return root.seg(root.t, 50, 580) < 0.32 ? root.lerp(0, -2.4, root.smooth(root.seg(root.t, 50, 580) / 0.32))
+            : root.seg(root.t, 50, 580) < 0.68 ? root.lerp(-2.4, 1.1, root.smooth((root.seg(root.t, 50, 580) - 0.32) / 0.36))
+            : root.lerp(1.1, 0, root.smooth((root.seg(root.t, 50, 580) - 0.68) / 0.32));
+    }
+
+    // Goggles: a gravity drop with a squash on landing.
+    pure function gog-x() -> float { return root.series == "work" ? root.seg(root.t, 120, 540) : 0; }
+    pure function gog-y() -> float {
+        return root.gog-x() < 0.62 ? root.lerp(-195, 3.5, root.ease-in(root.gog-x() / 0.62))
+            : root.gog-x() < 0.8 ? root.lerp(3.5, -2.5, root.smooth((root.gog-x() - 0.62) / 0.18))
+            : root.lerp(-2.5, 0, root.smooth((root.gog-x() - 0.8) / 0.2));
+    }
+    pure function gog-sy() -> float {
+        return root.gog-x() < 0.62 ? root.lerp(1.08, 0.91, root.gog-x() / 0.62)
+            : root.gog-x() < 0.8 ? root.lerp(0.91, 1.02, root.smooth((root.gog-x() - 0.62) / 0.18))
+            : root.lerp(1.02, 1, root.smooth((root.gog-x() - 0.8) / 0.2));
+    }
+    // Hard hat: a heavier drop with a bounce and a small tilt.
+    pure function hat-x() -> float { return root.series == "work" ? root.seg(root.t, 540, 760) : 0; }
+    pure function hat-y() -> float {
+        return root.hat-x() < 0.52 ? root.lerp(-230, 7.5, root.ease-in(root.hat-x() / 0.52))
+            : root.hat-x() < 0.72 ? root.lerp(7.5, -5.5, root.smooth((root.hat-x() - 0.52) / 0.2))
+            : root.hat-x() < 0.88 ? root.lerp(-5.5, 1.8, root.smooth((root.hat-x() - 0.72) / 0.16))
+            : root.lerp(1.8, 0, root.smooth((root.hat-x() - 0.88) / 0.12));
+    }
+    pure function hat-rot() -> float {
+        return root.hat-x() < 0.52 ? root.lerp(-3.5, 1.2, root.hat-x() / 0.52)
+            : root.hat-x() < 0.72 ? root.lerp(1.2, -0.8, root.smooth((root.hat-x() - 0.52) / 0.2))
+            : root.hat-x() < 0.88 ? root.lerp(-0.8, 0.3, root.smooth((root.hat-x() - 0.72) / 0.16))
+            : root.lerp(0.3, 0, root.smooth((root.hat-x() - 0.88) / 0.12));
+    }
+    pure function hat-sy() -> float {
+        return root.hat-x() < 0.52 ? root.lerp(1.06, 0.89, root.hat-x() / 0.52)
+            : root.hat-x() < 0.72 ? root.lerp(0.89, 1.03, root.smooth((root.hat-x() - 0.52) / 0.2))
+            : root.hat-x() < 0.88 ? root.lerp(1.03, 0.98, root.smooth((root.hat-x() - 0.72) / 0.16))
+            : root.lerp(0.98, 1, root.smooth((root.hat-x() - 0.88) / 0.12));
+    }
+
+    // Speech bubble: springs out of its tail tip.
+    pure function bub-x() -> float { return root.seg(root.t, 70, 560); }
+    pure function bub-scale() -> float {
+        return root.bub-x() < 0.62 ? root.lerp(0.05, 1.06, root.ease-out(root.bub-x() / 0.62))
+            : root.bub-x() < 0.82 ? root.lerp(1.06, 0.985, root.smooth((root.bub-x() - 0.62) / 0.2))
+            : root.lerp(0.985, 1, root.smooth((root.bub-x() - 0.82) / 0.18));
+    }
+    pure function bub-rot() -> float {
+        return root.bub-x() < 0.62 ? root.lerp(-6, 1.2, root.ease-out(root.bub-x() / 0.62))
+            : root.bub-x() < 0.82 ? root.lerp(1.2, -0.4, root.smooth((root.bub-x() - 0.62) / 0.2))
+            : root.lerp(-0.4, 0, root.smooth((root.bub-x() - 0.82) / 0.18));
+    }
+
+    // The hair, with the face and neck cut out in the surface colour.
+    rig := Rectangle {
+        x: -40 * root.u; y: -55 * root.u; width: 440 * root.u; height: 400 * root.u;
+        transform-rotation: root.nod() * 1deg;
+        transform-origin: { x: 220 * root.u, y: 370 * root.u };
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 122 302 C 62 282, 34 222, 42 155 C 50 86, 108 38, 180 38 C 252 38, 310 86, 318 155 C 326 222, 298 282, 238 302 Z";
+        }
+        for lobe[i] in root.lobes: Rectangle {
+            x: (lobe.cx + 40 - lobe.r + root.lobe-tx(i)) * root.u;
+            y: (lobe.cy + 55 - lobe.r + root.lobe-ty(i)) * root.u;
+            width: lobe.r * 2 * root.u; height: self.width;
+            border-radius: self.width / 2;
+            background: Theme.ink;
+            transform-scale-x: root.lobe-sx(i);
+            transform-scale-y: root.lobe-sy(i);
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.surface;
+            commands: "M 149.5 117.5 C 148.2 135.5, 162.5 148.5, 187.5 150.2 C 201.5 151.1, 214.0 148.8, 224.5 149.4 C 238.5 150.2, 249.5 158.8, 249.5 173.5 C 249.5 224.0, 236.5 268.0, 199.2 295.8 L 204.8 336.0 L 146.8 336.0 L 152.5 295.8 C 115.2 268.0, 102.5 224.0, 102.5 172.0 C 102.5 142.0, 123.5 123.0, 149.5 117.5 Z";
+        }
+    }
+
+    if root.series == "work": goggles := Rectangle {
+        x: -40 * root.u; y: (-55 + root.gog-y()) * root.u; width: 440 * root.u; height: 400 * root.u;
+        opacity: min(1.0, root.gog-x() * 10);
+        transform-scale-x: 2 - root.gog-sy();
+        transform-scale-y: root.gog-sy();
+        transform-origin: { x: 216 * root.u, y: 249 * root.u };
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            stroke: Theme.ink; stroke-width: 5.5 * root.u; stroke-line-cap: round;
+            commands: "M 103 181 L 114 181 M 238 181 L 249 181";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 113 171 C 113 164.5, 118.5 160, 126 160 L 226 160 C 233.5 160, 239 164.5, 239 171 L 239 191 C 239 198, 233.5 203, 226 203 L 196 203 C 190 203, 185.5 196.5, 176 196.5 C 166.5 196.5, 162 203, 156 203 L 126 203 C 118.5 203, 113 198, 113 191 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.surface;
+            commands: "M 121 173 C 121 169.5, 124 167, 128 167 L 224 167 C 228 167, 231 169.5, 231 173 L 231 189 C 231 193, 228 196, 224 196 L 194 196 C 188 196, 184 190.5, 176 190.5 C 168 190.5, 164 196, 158 196 L 128 196 C 124 196, 121 193, 121 189 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height; opacity: 0.88;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 135 170 L 143 170 L 133 193 L 125 193 Z M 193 170 L 201 170 L 191 193 L 183 193 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height; opacity: 0.45;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 147 170 L 151 170 L 141 193 L 137 193 Z";
+        }
+    }
+
+    if root.series == "work": hat := Rectangle {
+        x: -40 * root.u; y: (-55 + root.hat-y()) * root.u; width: 440 * root.u; height: 400 * root.u;
+        opacity: min(1.0, root.hat-x() * 10);
+        transform-rotation: root.hat-rot() * 1deg;
+        transform-scale-x: 2 - root.hat-sy();
+        transform-scale-y: root.hat-sy();
+        transform-origin: { x: 220 * root.u, y: 112 * root.u };
+        // Halo: separates the hat from the hair behind it.
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.surface;
+            commands: "M 111 40 C 107 -36, 253 -36, 249 40 L 264 43 C 272 44.5, 274 51.5, 267 54.5 C 218 65, 142 65, 93 54.5 C 86 51.5, 88 44.5, 96 43 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 116 41 C 113 -29, 247 -29, 244 41 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.surface;
+            commands: "M 164 40 L 167 -20 C 167.5 -24.5, 192.5 -24.5, 193 -20 L 196 40 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 169 40 L 171.5 -17.5 C 172 -20.5, 188 -20.5, 188.5 -17.5 L 191 40 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            stroke: Theme.surface; stroke-width: 2 * root.u; stroke-line-cap: round;
+            commands: "M 180 -15 L 180 35";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            stroke: Theme.surface; stroke-width: 3.2 * root.u; stroke-line-cap: round;
+            commands: "M 146 37 C 147 10, 152 -6, 159 -13 M 214 37 C 213 10, 208 -6, 201 -13";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            stroke: Theme.surface; stroke-width: 2.4 * root.u; stroke-line-cap: round;
+            commands: "M 131 37 C 132 18, 136 5, 142 -2 M 229 37 C 228 18, 224 5, 218 -2";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            stroke: Theme.surface; stroke-width: 3.2 * root.u;
+            commands: "M 112 40.5 C 154 35.5, 206 35.5, 248 40.5";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            fill: Theme.ink;
+            commands: "M 101 43.5 C 150 37, 210 37, 259 43.5 C 266 44.5, 267 49.5, 261 51.5 C 214 60.5, 146 60.5, 99 51.5 C 93 49.5, 94 44.5, 101 43.5 Z";
+        }
+        Path {
+            width: parent.width; height: parent.height;
+            viewbox-x: -40; viewbox-y: -55; viewbox-width: 440; viewbox-height: 400;
+            stroke: Theme.surface; stroke-width: 2.2 * root.u; stroke-line-cap: round;
+            commands: "M 116 50.5 C 158 55.5, 202 55.5, 244 50.5";
+        }
+    }
+
+    // The bubble is drawn at a readable text size rather than scaled with the head.
+    bubble := Rectangle {
+        visible: root.series == "speech";
+        x: 276 * root.u; y: 198 * root.u - 40px; width: 12px + label.preferred-width + 31px; height: 40px;
+        opacity: min(1.0, root.bub-x() * 5);
+        transform-scale: root.bub-scale();
+        transform-rotation: root.bub-rot() * 1deg;
+        transform-origin: { x: 0px, y: 40px };
+        Rectangle {
+            x: 9px; y: -3px; width: 12px + label.preferred-width + 28px + 6px - 12px + 12px; height: 36px;
+            border-radius: 18px; background: Theme.surface;
+        }
+        Path {
+            width: 30px; height: 40px; viewbox-width: 30; viewbox-height: 40;
+            fill: Theme.surface; stroke: Theme.surface; stroke-width: 6px; stroke-line-join: round;
+            commands: "M 0 40 L 12 14 L 30 30 Z";
+        }
+        Rectangle {
+            x: 12px; y: 0px; width: label.preferred-width + 28px; height: 30px;
+            border-radius: 15px; background: Theme.ink;
+        }
+        Path {
+            width: 30px; height: 40px; viewbox-width: 30; viewbox-height: 40;
+            fill: Theme.ink;
+            commands: "M 0 40 L 12 14 L 30 30 Z";
+        }
+        label := Text {
+            x: 26px; y: 0px + (1 - min(1.0, root.seg(root.t, 250, 300))) * 6px; height: 30px;
+            opacity: min(1.0, root.seg(root.t, 250, 300));
+            text: root.greetings[root.greeting];
+            font-size: 13px; font-weight: 600; color: Theme.surface; vertical-alignment: center;
+        }
+    }
+}

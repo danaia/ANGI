@@ -68,7 +68,7 @@ BR2_PACKAGE_UTIL_LINUX=y
 BR2_PACKAGE_UTIL_LINUX_BINARIES=y
 BR2_PACKAGE_UTIL_LINUX_WIPEFS=y
 
-# Desktop (agx-gui on DRM/KMS, no display server). libudev-zero provides
+# Native Wayland desktop with a standalone DRM/KMS recovery path. libudev-zero provides
 # libudev without a udev daemon, which libinput uses to find input devices.
 BR2_PACKAGE_LIBUDEV_ZERO=y
 BR2_PACKAGE_LIBINPUT=y
@@ -76,8 +76,10 @@ BR2_PACKAGE_LIBXKBCOMMON=y
 BR2_PACKAGE_XKEYBOARD_CONFIG=y
 # Slint's text stack links fontconfig; the GUI itself uses its bundled font.
 BR2_PACKAGE_FONTCONFIG=y
+BR2_PACKAGE_WAYLAND=y
+BR2_PACKAGE_AGX_WAYLAND=y
 
-# Pi 5 GPU rendering directly through DRM/KMS, EGL and GBM (no display server).
+# Pi 5 GPU rendering through Mesa V3D, EGL and GBM.
 BR2_PACKAGE_MESA3D=y
 BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_V3D=y
 BR2_PACKAGE_MESA3D_OPENGL_EGL=y

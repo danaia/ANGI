@@ -1,0 +1,189 @@
+Subject: [PATCH] desktop-shell: Place live Wayland surfaces in ANGI tiles
+
+Keep xdg-toplevel buffers in Weston while the ANGI desktop owns tile
+slots, layout, and Pebble Line frame chrome.
+
+--- a/desktop-shell/meson.build
++++ b/desktop-shell/meson.build
+@@ -6,6 +6,8 @@
+ 		'angi-workspaces.c',
+ 		'angi-fullscreen.c',
+ 		'angi-panels.c',
++		'angi-tiles.c',
++		'angi-tile-geometry.c',
+ 		'input-panel.c',
+ 		weston_desktop_shell_server_protocol_h,
+ 		weston_desktop_shell_protocol_c,
+--- a/desktop-shell/shell.h
++++ b/desktop-shell/shell.h
+@@ -129,6 +129,7 @@
+ 	} xwayland;
+ 
+ 	unsigned angi_workspace;
++	struct angi_tile *angi_tile;
+ 	int focus_count;
+ 
+ 	bool destroying;
+@@ -305,6 +306,7 @@
+ 	char *angi_workspace_path;
+ 	int angi_workspace_fd;
+ 	unsigned angi_panel_top, angi_panel_bottom, angi_panel_gap;
++	struct angi_tiles *angi_tiles;
+ 
+ 	struct {
+ 		struct wl_resource *binding;
+@@ -355,6 +357,22 @@
+ void
+ angi_fullscreen_restore_covering_window(struct shell_surface *target);
+ 
++struct sockaddr_un;
++void angi_tiles_init(struct desktop_shell *shell);
++void angi_tiles_fini(struct desktop_shell *shell);
++void angi_tiles_message(struct desktop_shell *shell, const char *message,
++                        const struct sockaddr_un *peer, socklen_t peer_len);
++bool angi_tile_map(struct shell_surface *surface);
++void angi_tile_remove(struct shell_surface *surface);
++bool angi_tile_committed(struct shell_surface *surface);
++void angi_tile_parent_changed(struct shell_surface *surface);
++void angi_tile_activated(struct shell_surface *surface);
++bool angi_tile_visible(struct shell_surface *surface);
++struct weston_layer_entry *angi_tile_layer(struct shell_surface *surface);
++bool angi_tile_fullscreen(struct shell_surface *surface);
++bool angi_tile_request(struct shell_surface *surface, const char *request);
++void angi_tile_fullscreen_action(struct shell_surface *surface, unsigned action);
++
+ bool
+ angi_is_desktop(struct shell_surface *surface);
+ void
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -77,7 +77,7 @@
+ shsurf_is_max_or_fullscreen(struct shell_surface *shsurf)
+ {
+ 	struct weston_desktop_surface *dsurface = shsurf->desktop_surface;
+-	return weston_desktop_surface_get_maximized(dsurface) ||
++	return shsurf->angi_tile || weston_desktop_surface_get_maximized(dsurface) ||
+ 		weston_desktop_surface_get_fullscreen(dsurface);
+ }
+ 
+@@ -1480,9 +1480,13 @@
+ shell_surface_calculate_layer_link (struct shell_surface *shsurf)
+ {
+ 	struct workspace *ws;
++	struct weston_layer_entry *tile_layer;
+ 
+ 	if (!angi_workspace_visible(shsurf))
+ 		return &shsurf->shell->angi_hidden.view_list;
++	tile_layer = angi_tile_layer(shsurf);
++	if (tile_layer)
++		return tile_layer;
+ 
+ 	if (weston_desktop_surface_get_fullscreen(shsurf->desktop_surface) &&
+ 	    !shsurf->state.lowered) {
+@@ -2007,6 +2011,7 @@
+ 	if (!shsurf)
+ 		return;
+ 
++	angi_tile_remove(shsurf);
+ 	if (shsurf->shell->angi_controls == shsurf) {
+ 		shsurf->shell->angi_controls = NULL;
+ 		angi_fullscreen_hide(shsurf->shell);
+@@ -2127,6 +2132,9 @@
+ 		weston_view_move_to_layer(shsurf->view, &shell->angi_hidden.view_list);
+ 		return;
+ 	}
++
++	if (angi_tile_map(shsurf))
++		return;
+ 
+ 	/* initial positioning, see also configure() */
+ 	if (shsurf->state.fullscreen) {
+@@ -2224,6 +2232,9 @@
+ 
+ 		return;
+ 	}
++
++	if (angi_tile_committed(shsurf))
++		return;
+ 
+ 	if (buf_offset.c.x == 0 && buf_offset.c.y == 0 &&
+ 	    shsurf->last_width == surface->width &&
+@@ -2443,6 +2454,8 @@
+ 
+ 	/* unlink any potential child */
+ 	wl_list_remove(&shsurf->children_link);
++	if (parent)
++		angi_tile_parent_changed(shsurf);
+ 
+ 	if (parent) {
+ 		shsurf_parent = weston_desktop_surface_get_user_data(parent);
+@@ -2465,6 +2478,10 @@
+ 		return;
+ 
+ 	angi_fullscreen_hide(shell);
++	if (target->angi_tile) {
++		angi_tile_fullscreen_action(target, action);
++		return;
++	}
+ 	if (action == 2) {
+ 		weston_desktop_surface_close(target->desktop_surface);
+ 		return;
+@@ -2489,7 +2506,8 @@
+ 	struct shell_surface *shsurf =
+ 		weston_desktop_surface_get_user_data(desktop_surface);
+ 
+-	set_fullscreen(shsurf, fullscreen, output);
++	if (!angi_tile_request(shsurf, fullscreen ? "full" : "normal"))
++		set_fullscreen(shsurf, fullscreen, output);
+ }
+ 
+ static void
+@@ -2526,7 +2544,8 @@
+ 	struct shell_surface *shsurf =
+ 		weston_desktop_surface_get_user_data(desktop_surface);
+ 
+-	set_maximized(shsurf, maximized);
++	if (!angi_tile_request(shsurf, maximized ? "max" : "unmax"))
++		set_maximized(shsurf, maximized);
+ }
+ 
+ static void
+@@ -2536,8 +2555,8 @@
+ 	struct weston_surface *surface =
+ 		weston_desktop_surface_get_surface(desktop_surface);
+ 
+-	 /* apply compositor's own minimization logic (hide) */
+-	set_minimized(surface);
++	if (!angi_tile_request(get_shell_surface(surface), "min"))
++		set_minimized(surface);
+ }
+ 
+ static void
+@@ -3139,7 +3158,7 @@
+ 		return;
+ 
+ 	shsurf = get_shell_surface(surface);
+-	if (shsurf == NULL)
++	if (shsurf == NULL || shsurf->angi_tile)
+ 		return;
+ 
+ 	shsurf->orientation = orientation;
+@@ -3573,6 +3592,7 @@
+ 		lower_fullscreen_layer(shell, shsurf->output);
+ 
+ 	weston_view_activate_input(view, seat, flags);
++	angi_tile_activated(shsurf);
+ 
+ 	if (shseat && shseat->focused_surface &&
+ 	    shseat->focused_surface != main_surface) {
+@@ -4328,6 +4348,10 @@
+ {
+ 	struct desktop_shell *shell = data;
+ 	struct switcher *switcher;
++	struct weston_surface *focus = keyboard->focus;
++
++	if (focus && angi_tile_layer(get_shell_surface(weston_surface_get_main_surface(focus))))
++		return;
+ 
+ 	switcher = malloc(sizeof *switcher);
+ 	if (!switcher)

@@ -10,6 +10,8 @@ mod kms_input;
 mod virtual_display;
 #[cfg(feature = "wayland")]
 pub(crate) mod wayland_workspaces;
+#[cfg(feature = "wayland")]
+pub(crate) mod native_tiles;
 
 pub const ENVIRONMENT: [&str; 5] = [
     "SLINT_BACKEND",
@@ -116,13 +118,27 @@ pub fn using_winit() -> bool {
     std::env::var("SLINT_BACKEND").is_ok_and(|backend| backend.starts_with("winit-"))
 }
 
-pub fn prefer_wayland(home: &std::path::Path) -> bool {
+pub fn prefer_wayland(home: &std::path::Path, remote_viewer: bool) -> bool {
     use std::os::unix::fs::FileTypeExt;
+    let Ok(backend) = std::env::var("SLINT_BACKEND") else {
+        return false;
+    };
     cfg!(feature = "wayland")
-        && std::env::var("SLINT_BACKEND").is_ok_and(|name| name.starts_with("linuxkms-"))
-        && home.join(".config/agx/wayland-session").is_file()
+        && backend.starts_with("linuxkms-")
         && std::path::Path::new("/usr/bin/angi-wayland").is_file()
         && std::fs::metadata("/run/seatd.sock").is_ok_and(|file| file.file_type().is_socket())
+        && wayland_preference(
+            std::fs::read_to_string(home.join(".config/agx/wayland-session")),
+            !remote_viewer && backend == "linuxkms-femtovg",
+        )
+}
+
+fn wayland_preference(preference: std::io::Result<String>, local_gpu_default: bool) -> bool {
+    match preference {
+        // Empty files were the opt-in marker on existing installs.
+        Ok(mode) => matches!(mode.trim(), "" | "wayland"),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound && local_gpu_default,
+    }
 }
 
 #[cfg(any(feature = "kms", feature = "headless", test))]
@@ -163,6 +179,20 @@ mod tests {
         assert!(parse_config("LD_PRELOAD=/tmp/untrusted.so").is_err());
         assert!(parse_config("export SLINT_BACKEND=linuxkms-software").is_err());
         assert!(parse_config("SLINT_BACKEND=").is_err());
+    }
+
+    #[test]
+    fn local_login_defaults_to_wayland_and_remote_login_keeps_its_viewer() {
+        let absent = || Err(std::io::ErrorKind::NotFound.into());
+        assert!(wayland_preference(absent(), true));
+        assert!(!wayland_preference(absent(), false));
+        assert!(wayland_preference(Ok(String::new()), false));
+        assert!(wayland_preference(Ok("wayland\n".into()), false));
+        assert!(!wayland_preference(Ok("kms\n".into()), true));
+        assert!(!wayland_preference(
+            Err(std::io::ErrorKind::PermissionDenied.into()),
+            true,
+        ));
     }
 }
 

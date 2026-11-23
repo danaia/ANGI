@@ -1,0 +1,83 @@
+Subject: [PATCH] backend-drm: Include Pi 5 cursor planes in plane selection
+
+The VC4 device exposes 52 planes. Keep per-plane framebuffer and
+candidate masks wide enough for its cursor and overlay indices.
+
+--- a/libweston/backend-drm/drm-internal.h
++++ b/libweston/backend-drm/drm-internal.h
+@@ -309,7 +309,7 @@
+ 	int width, height;
+ 	int fd;
+ 
+-	uint32_t plane_mask;
++	uint64_t plane_mask;
+ 
+ 	/* Used by gbm fbs */
+ 	struct gbm_bo *bo;
+@@ -465,6 +465,13 @@
+ 
+ 	struct weston_drm_format_array formats;
+ };
++
++/* Plane indices are local to Weston, unlike the kernel's CRTC mask. */
++static inline uint64_t
++drm_plane_mask_bit(const struct drm_plane *plane)
++{
++	return plane->plane_idx < 64 ? UINT64_C(1) << plane->plane_idx : 0;
++}
+ 
+ struct drm_connector {
+ 	struct drm_device *device;
+--- a/libweston/backend-drm/state-propose.c
++++ b/libweston/backend-drm/state-propose.c
+@@ -553,7 +553,7 @@
+ 	                               current_lowest_zpos_overlay;
+ 
+ 	bool use_scanout_plane = false;
+-	uint32_t possible_plane_mask = 0;
++	uint64_t possible_plane_mask = 0;
+ 	uint32_t fb_failure_reasons = 0;
+ 	bool any_candidate_picked = false;
+ 
+@@ -587,7 +587,7 @@
+ 		try_pnode_on_cursor_plane(output, pnode);
+ 
+ 		if (pnode->try_view_on_plane_failure_reasons == FAILURE_REASONS_NONE)
+-			possible_plane_mask = (1 << output->cursor_plane->plane_idx);
++			possible_plane_mask = drm_plane_mask_bit(output->cursor_plane);
+ 	} else {
+ 		if (mode == DRM_OUTPUT_PROPOSE_STATE_RENDERER_AND_CURSOR) {
+ 			drm_debug(b, "\t\t\t\t[view] not assigning view %p "
+@@ -600,7 +600,7 @@
+ 				continue;
+ 
+ 			if (drm_paint_node_transform_supported(pnode, plane))
+-				possible_plane_mask |= 1 << plane->plane_idx;
++				possible_plane_mask |= drm_plane_mask_bit(plane);
+ 		}
+ 
+ 		if (!possible_plane_mask)
+@@ -646,10 +646,10 @@
+ 		if (possible_plane_mask == 0)
+ 			break;
+ 
+-		if (!(possible_plane_mask & (1 << plane->plane_idx)))
++		if (!(possible_plane_mask & drm_plane_mask_bit(plane)))
+ 			continue;
+ 
+-		possible_plane_mask &= ~(1 << plane->plane_idx);
++		possible_plane_mask &= ~drm_plane_mask_bit(plane);
+ 		mm_underlay_only =
+ 			drm_mixed_mode_check_underlay(mode, scanout_state, plane->zpos_max);
+ 
+--- a/libweston/backend-drm/fb.c
++++ b/libweston/backend-drm/fb.c
+@@ -824,7 +824,7 @@
+ 			continue;
+ 
+ 		if (drm_fb_compatible_with_plane(fb, plane, pnode->view))
+-			fb->plane_mask |= 1 << (plane->plane_idx);
++			fb->plane_mask |= drm_plane_mask_bit(plane);
+ 	}
+ 	if (fb->plane_mask == 0) {
+ 		drm_fb_unref(fb);

@@ -10,22 +10,29 @@ fi
 umask 077
 login=false
 preference="$HOME/.config/agx/wayland-session"
+set_preference() {
+	mkdir -p -- "${preference%/*}"
+	temporary=$(mktemp "$preference.XXXXXXXX")
+	if ! { printf '%s\n' "$1" >"$temporary" && mv -fT -- "$temporary" "$preference"; }; then
+		rm -f -- "$temporary"
+		exit 1
+	fi
+}
 case "${1:-}" in
-	"") set -- --backend=drm ;;
-	--login) login=true; set -- --backend=drm ;;
+	"") set -- --backend=drm --renderer=gl ;;
+	--login) login=true; set -- --backend=drm --renderer=gl ;;
 	--headless)
 		export AGX_WAYLAND_RENDERER=software
 		set -- --backend=headless --renderer=pixman
 		;;
 	--next-login)
-		mkdir -p -- "${preference%/*}"
-		touch -- "$preference"
+		set_preference wayland
 		printf 'Sign out and back in on HDMI to start ANGI Wayland. This session uses the local display.\n'
 		exit 0
 		;;
 	--regular-next-login)
-		rm -f -- "$preference"
-		printf 'The regular ANGI desktop will start at your next sign-in.\n'
+		set_preference kms
+		printf 'The standalone ANGI desktop will start at your next sign-in.\n'
 		exit 0
 		;;
 	*) printf 'Usage: angi-wayland [--next-login | --regular-next-login | --headless]\n' >&2; exit 2 ;;
@@ -34,7 +41,14 @@ esac
 XDG_RUNTIME_DIR=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/angi-wayland.XXXXXXXX")
 export XDG_RUNTIME_DIR
 export XDG_SESSION_TYPE=wayland
+case "${XDG_CONFIG_HOME:-}" in
+	/*) AGX_WAYLAND_MOUSE_CONFIG="$XDG_CONFIG_HOME/agx/mouse.conf" ;;
+	*) AGX_WAYLAND_MOUSE_CONFIG="$HOME/.config/agx/mouse.conf" ;;
+esac
+export AGX_WAYLAND_MOUSE_CONFIG
 unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET
+# Use the UTF-8 locale shipped on ANGI images.
+export LANG="${LANG:-C.UTF-8}"
 
 weston_pid=
 cleanup() {
@@ -48,7 +62,14 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
-weston "$@" --config=/usr/share/agx/wayland/weston.ini &
+config=/usr/share/agx/wayland/weston.ini
+if [ -r "$HOME/.config/agx/weston.ini" ]; then
+	config="$HOME/.config/agx/weston.ini"
+fi
+if [ "${AGX_WAYLAND_DEBUG:-0}" = 1 ]; then
+	set -- "$@" --debug
+fi
+weston "$@" --config="$config" &
 weston_pid=$!
 status=0
 wait "$weston_pid" || status=$?

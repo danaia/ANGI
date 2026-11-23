@@ -13,9 +13,9 @@ cd /var/lib/agx-data/angi-dev
 export CARGO_INCREMENTAL=1
 case "${1:-}" in
     cli) cargo build --locked --release -p agx-cli ;;
-    gui) cargo build --locked --release --manifest-path crates/agx-gui/Cargo.toml --no-default-features --features kms ;;
+    gui) cargo build --locked --release --manifest-path crates/agx-gui/Cargo.toml --no-default-features --features kms,wayland ;;
     test) cargo test --locked --workspace -- --test-threads=1 ;;
-    gui-test) cargo test --locked --manifest-path crates/agx-gui/Cargo.toml --no-default-features --features kms ;;
+    gui-test) cargo test --locked --manifest-path crates/agx-gui/Cargo.toml --no-default-features --features kms,wayland ;;
     env) echo /usr/share/agx/agent/sdk-env.sh ;;
     *) echo 'Usage: angi-build {cli|gui|test|gui-test|env}' >&2; exit 2 ;;
 esac

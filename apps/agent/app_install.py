@@ -89,14 +89,21 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
         entry = ledger.get(app.id)
         report.phase('resolving', f'Finding the {app.name} release for this device…')
         native = app_native.resolve(app.id) if app.native else None
-        release = native[0] if native else app_fetch.resolve(app, **kwargs)
+        release = native.release if native else app_fetch.resolve(app, **kwargs)
+        upstream = native.upstream if native else None
+        upstream_digest = upstream.sha256 if upstream else None
         report.tag = release.tag
-        if entry and entry['tag'] == release.tag and entry.get('sha256') == release.sha256 and healthy(store, app, entry):
+        if (entry and entry['tag'] == release.tag and entry.get('sha256') == release.sha256
+                and entry.get('upstream_sha256') == upstream_digest
+                and healthy(store, app, entry)
+                and (not native or all(app_native.wrapper_is_current(app.id, store.pkg / app.id / 'current', program)
+                                       for program in app.programs))):
             report.done(f'{app.name} {report.shown} is already installed and up to date.')
             return
-        if store.free_bytes() < release.size * SPACE_FACTOR + SPACE_RESERVE:
+        size = release.size + (upstream.size if upstream else 0)
+        if store.free_bytes() < size * SPACE_FACTOR + SPACE_RESERVE:
             raise AppError(f'Not enough free space on the data drive to install {app.name} '
-                           f'(needs about {megabytes(release.size * SPACE_FACTOR)}).')
+                           f'(needs about {megabytes(size * SPACE_FACTOR)}).')
         for program in app.programs:       # a different program of the same name is refused before anything changes
             destination = store.bin / program.name
             if (destination.is_symlink() or destination.exists()) and not store.owns(program.name, app.id):
@@ -104,22 +111,32 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
         work = Path(tempfile.mkdtemp(prefix=app.id + '-', dir=store.root / 'tmp'))
         try:
             asset = work / 'asset'
-            if native:
+            if upstream:
+                report.phase('downloading', f'Downloading {app.name} {report.shown} from Microsoft…')
+                digest = app_fetch.download(upstream, asset, report.download, opener, pause,
+                                            hosts=app_native.MICROSOFT_HOSTS, publisher='Microsoft')
+            elif native:
                 report.phase('downloading', f'Copying the Buildroot package for {app.name}…')
-                digest = app_native.copy_package(native[1], asset, release.size)
+                digest = app_native.copy_package(native.archive, asset, release.size)
             else:
                 report.phase('downloading', f'Downloading {app.name} {report.shown}…')
                 digest = app_fetch.download(release, asset, report.download, opener, pause)
             report.phase('verifying', 'Checking the package checksum…')
-            app_fetch.verify(release, digest)
+            asset_release = upstream or release
+            app_fetch.verify(asset_release, digest)
+            if upstream:
+                runtime = work / 'runtime'
+                app_fetch.verify(release, app_native.copy_package(native.archive, runtime, release.size))
             report.phase('extracting', f'Unpacking {app.name}…')
             tree = work / 'tree'
-            app_fetch.unpack(asset, release.asset, tree)
+            app_fetch.unpack(asset, asset_release.asset, tree)
+            if upstream:
+                app_fetch.unpack(runtime, release.asset, tree / 'runtime')
             located = {program.name: app_fetch.find_program(tree, program) for program in app.programs}
             for name, relative in located.items():
                 app_fetch.check_program(tree / relative, name)
             if native:
-                located = app_native.command_wrappers(tree, located)
+                located = app_native.command_wrappers(app.id, tree, located)
             report.phase('installing', f'Installing {app.name}…')
             release_id = f'{release.tag}-{release.sha256[:12]}-{time.time_ns()}' if native else release.tag
             target = store.pkg / app.id / release_id
@@ -134,6 +151,8 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
                                   installed_at=time.time(), previous=entry['tag'] if entry else '')
             if app.repo:
                 ledger[app.id]['repo'] = app.repo
+            if upstream:
+                ledger[app.id]['upstream_sha256'] = upstream_digest
             store.write(ledger)
             if not native:
                 store.prune(app.id, keep=release_id)
@@ -143,9 +162,14 @@ def install(app, store, report, get=None, opener=None, pause=time.sleep):
         old = version_label(entry['tag'], app.id, app.name) if entry else ''
         import graph_capture
         graph_capture.app_change(app.id, app.name, 'Installed' if not entry else 'Repaired' if entry['tag'] == release.tag else 'Updated', report.shown)
-        report.done(f'{app.name} {report.shown} is installed. Run {names} in Terminal.' if not entry
-                    else f'{app.name} {report.shown} was repaired.' if entry['tag'] == release.tag
-                    else f'{app.name} updated from {old} to {report.shown}.')
+        if not entry:
+            launch = ('Open it from Apps in an ANGI Wayland session.' if app.kind == 'Desktop'
+                      else f'Run {names} in Terminal.')
+            report.done(f'{app.name} {report.shown} is installed. {launch}')
+        elif entry['tag'] == release.tag:
+            report.done(f'{app.name} {report.shown} was repaired.')
+        else:
+            report.done(f'{app.name} updated from {old} to {report.shown}.')
     finally:
         lock.close()
 

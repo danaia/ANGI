@@ -10,12 +10,12 @@ pub(super) struct Package {
     pub id: String,
     pub name: String,
     pub summary: String,
-    /// "Terminal" for a command-line tool or "Server" for a long-running service.
+    /// Desktop, Terminal, or Server.
     pub kind: String,
     pub aliases: String,
     /// The commands it adds, such as `rg` for ripgrep.
     pub commands: Vec<String>,
-    /// The program to start straight away in a terminal tab once installed; empty to just open a shell.
+    /// The program to launch once installed. An empty value opens a shell.
     pub launch: String,
     /// Shown with a Recommended badge: broadly useful, small, and checked on this device's architecture.
     pub recommended: bool,

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Weston passes its Wayland socket to the shell and its application children.
+# The Slint framebuffer mirror cannot capture other Wayland windows.
+case "${AGX_WAYLAND_RENDERER:-femtovg}" in
+	software) SLINT_BACKEND=winit-software ;;
+	femtovg) SLINT_BACKEND=winit-femtovg ;;
+	*) printf 'Unknown ANGI Wayland renderer. Choose femtovg or software.\n' >&2; exit 2 ;;
+esac
+export SLINT_BACKEND AGX_GUI_VNC=off
+exec /usr/bin/agx-gui

@@ -1,0 +1,164 @@
+Use a supported packed Vulkan depth/stencil format
+
+Use D24S8 where the driver cannot render with D32S8. Convert depth-only
+buffer transfers to and from the matching 24-bit packed representation.
+
+--- a/source/blender/gpu/vulkan/vk_common.cc
++++ b/source/blender/gpu/vulkan/vk_common.cc
+@@ -156,6 +156,22 @@
+ 
+ VkFormat to_vk_format(const TextureFormat format)
+ {
++  if (format == TextureFormat::SFLOAT_32_DEPTH_UINT_8) {
++    const VkPhysicalDevice device = VKBackend::get().device.physical_device_get();
++    if (device != VK_NULL_HANDLE) {
++      /* Vulkan devices need to support at least one of these packed depth/stencil formats. */
++      constexpr VkFormatFeatureFlags required = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT |
++                                                VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
++      VkFormatProperties properties;
++      vkGetPhysicalDeviceFormatProperties(device, VK_FORMAT_D32_SFLOAT_S8_UINT, &properties);
++      if ((properties.optimalTilingFeatures & required) != required) {
++        vkGetPhysicalDeviceFormatProperties(device, VK_FORMAT_D24_UNORM_S8_UINT, &properties);
++        if ((properties.optimalTilingFeatures & required) == required) {
++          return VK_FORMAT_D24_UNORM_S8_UINT;
++        }
++      }
++    }
++  }
+ #define CASE(a, b, c, blender_enum, vk_enum, e, f, g, h) \
+   case TextureFormat::blender_enum: \
+     return VK_FORMAT_##vk_enum;
+--- a/source/blender/gpu/vulkan/vk_data_conversion.cc
++++ b/source/blender/gpu/vulkan/vk_data_conversion.cc
+@@ -7,6 +7,8 @@
+  */
+ 
+ #include "vk_data_conversion.hh"
++
++#include "vk_common.hh"
+ 
+ #include "BLI_color_types.hh"
+ #include "BLI_math_half.hh"
+@@ -761,6 +763,30 @@
+ /* Use a float as we only have the depth aspect in the staging buffers. */
+ struct Depth32fStencil8 : ComponentValue<float> {};
+ 
++/* Buffer copies of the D24 depth aspect use the low 24 bits of each uint32_t. */
++struct Depth24Stencil8 : ComponentValue<uint32_t> {};
++constexpr uint32_t depth_24_max = 0xFFFFFF;
++
++static void convert(Depth24Stencil8 &dst, const F32 &src)
++{
++  dst.value = uint32_t(clamp_f(src.value, 0.0f, 1.0f) * float(depth_24_max));
++}
++
++static void convert(F32 &dst, const Depth24Stencil8 &src)
++{
++  dst.value = float(src.value & depth_24_max) / float(depth_24_max);
++}
++
++static void convert(Depth24Stencil8 &dst, const UI32 &src)
++{
++  dst.value = src.value >> 8;
++}
++
++static void convert(UI32 &dst, const Depth24Stencil8 &src)
++{
++  dst.value = (src.value & depth_24_max) << 8;
++}
++
+ template<typename InnerType> struct SignedNormalized {
+   static_assert(std::is_same<InnerType, uint8_t>() || std::is_same<InnerType, uint16_t>());
+   InnerType value;
+@@ -1192,6 +1218,18 @@
+                             TextureFormat host_texture_format,
+                             TextureFormat device_format)
+ {
++  if (device_format == TextureFormat::SFLOAT_32_DEPTH_UINT_8 &&
++      to_vk_format(device_format) == VK_FORMAT_D24_UNORM_S8_UINT)
++  {
++    if (host_format == GPU_DATA_FLOAT) {
++      convert_per_pixel<Depth24Stencil8, F32>(dst_buffer, src_buffer, buffer_size);
++      return;
++    }
++    if (host_format == GPU_DATA_UINT_24_8_DEPRECATED) {
++      convert_per_pixel<Depth24Stencil8, UI32>(dst_buffer, src_buffer, buffer_size);
++      return;
++    }
++  }
+   ConversionType conversion_type = host_to_device(host_format, host_texture_format, device_format);
+   BLI_assert(conversion_type != ConversionType::UNSUPPORTED);
+   convert_buffer(dst_buffer, src_buffer, buffer_size, device_format, conversion_type);
+@@ -1204,6 +1242,18 @@
+                             TextureFormat host_texture_format,
+                             TextureFormat device_format)
+ {
++  if (device_format == TextureFormat::SFLOAT_32_DEPTH_UINT_8 &&
++      to_vk_format(device_format) == VK_FORMAT_D24_UNORM_S8_UINT)
++  {
++    if (host_format == GPU_DATA_FLOAT) {
++      convert_per_pixel<F32, Depth24Stencil8>(dst_buffer, src_buffer, buffer_size);
++      return;
++    }
++    if (host_format == GPU_DATA_UINT_24_8_DEPRECATED) {
++      convert_per_pixel<UI32, Depth24Stencil8>(dst_buffer, src_buffer, buffer_size);
++      return;
++    }
++  }
+   ConversionType conversion_type = reversed(
+       host_to_device(host_format, host_texture_format, device_format));
+   BLI_assert_msg(conversion_type != ConversionType::UNSUPPORTED,
+--- a/source/blender/gpu/vulkan/vk_texture.cc
++++ b/source/blender/gpu/vulkan/vk_texture.cc
+@@ -203,13 +203,23 @@
+   memcpy(swizzle_, swizzle_mask, 4);
+ }
+ 
++static size_t transfer_texel_size(TextureFormat format)
++{
++  if (format == TextureFormat::SFLOAT_32_DEPTH_UINT_8 &&
++      to_vk_format(format) == VK_FORMAT_D24_UNORM_S8_UINT)
++  {
++    return sizeof(uint32_t);
++  }
++  return to_bytesize(format);
++}
++
+ void VKTexture::read_sub(
+     int mip, eGPUDataFormat format, const int region[6], const IndexRange layers, void *r_data)
+ {
+   const int3 offset = int3(region[0], region[1], region[2]);
+   const int3 extent = int3(region[3] - region[0], region[4] - region[1], region[5] - region[2]);
+   TransferRegion full_transfer_region({offset, extent, layers});
+-  const VkDeviceSize sample_bytesize = to_bytesize(device_format_);
++  const VkDeviceSize sample_bytesize = transfer_texel_size(device_format_);
+   const VkDeviceSize host_sample_bytesize = to_bytesize(format_, format);
+   /* For a texture view the raw bytes are reinterpretable with the base format but must be read
+    * back as the view (#format_) for them to be numerically correct. */
+@@ -277,7 +287,7 @@
+     const TransferRegion &transfer_region = transfer_regions[index];
+     VKBuffer &staging_buffer = staging_buffers[index];
+     size_t sample_len = transfer_region.sample_count();
+-    size_t device_memory_size = sample_len * to_bytesize(device_format_);
++    size_t device_memory_size = sample_len * transfer_texel_size(device_format_);
+     staging_buffer.create(device_memory_size,
+                           VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                           VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+@@ -399,7 +409,7 @@
+   /* Vulkan images cannot be directly mapped to host memory and requires a staging buffer. */
+   VKContext &context = *VKContext::get();
+   size_t sample_len = size_t(extent.x) * extent.y * extent.z * layers;
+-  size_t device_memory_size = sample_len * to_bytesize(device_format_);
++  size_t device_memory_size = sample_len * transfer_texel_size(device_format_);
+ 
+   if (is_compressed) {
+     BLI_assert_msg(extent.z == 1, "Compressed 3D textures are not supported");
+@@ -494,7 +504,7 @@
+                      "Compressed data with unpack_row_length != 0 is not supported.");
+       BLI_assert_msg(extent[2] <= 1,
+                      "3D texture data with unpack_row_length != 0 is not supported.");
+-      size_t dst_row_stride = extent.x * to_bytesize(device_format_);
++      size_t dst_row_stride = extent.x * transfer_texel_size(device_format_);
+       size_t src_row_stride = unpack_row_length * to_bytesize(format_, format);
+       uint8_t *dst_ptr = static_cast<uint8_t *>(staging_buffer.mapped_memory_get());
+       const uint8_t *src_ptr = static_cast<const uint8_t *>(data);

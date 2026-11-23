@@ -1,0 +1,8 @@
+# Checksums from Buildroot's Weston package.
+sha256  551d039bfb0c837ba5a4d027cdb8ee16bded0eedb789821f8025d8a64b791f6d  weston-15.0.1.tar.xz
+sha256  fdb65868f65d0fbdb05c2d3b779e10ce9969fa0c4b9262ba4f260e87086ab860  COPYING
+# https://download.gnome.org/sources/adwaita-icon-theme/48/adwaita-icon-theme-48.1.sha256sum
+sha256  cbfe9b86ebcd14b03ba838c49829f7e86a7b132873803b90ac10be7d318a6e12  adwaita-icon-theme-48.1.tar.xz
+sha256  51f83b2b4e9ed2beebc9b8eed2ecad29314a58ed8c5184b22ad8f9df703d3ce5  adwaita-icon-theme-48.1/COPYING
+sha256  da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768  adwaita-icon-theme-48.1/COPYING_LGPL
+sha256  207fe75c396c0ae197c57d42c727163428b6667d98cef3644e41c6f1afe1895f  adwaita-icon-theme-48.1/COPYING_CCBYSA3

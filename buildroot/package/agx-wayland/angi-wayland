@@ -1,0 +1,63 @@
+#!/bin/sh
+# Run on an available local VT, or use --headless for an isolated test.
+set -eu
+
+if [ "$(id -u)" = 0 ]; then
+	printf 'Start the ANGI Wayland session from a signed-in user account.\n' >&2
+	exit 1
+fi
+
+umask 077
+login=false
+preference="$HOME/.config/agx/wayland-session"
+case "${1:-}" in
+	"") set -- --backend=drm ;;
+	--login) login=true; set -- --backend=drm ;;
+	--headless)
+		export AGX_WAYLAND_RENDERER=software
+		set -- --backend=headless --renderer=pixman
+		;;
+	--next-login)
+		mkdir -p -- "${preference%/*}"
+		touch -- "$preference"
+		printf 'Sign out and back in on HDMI to start ANGI Wayland. This session uses the local display.\n'
+		exit 0
+		;;
+	--regular-next-login)
+		rm -f -- "$preference"
+		printf 'The regular ANGI desktop will start at your next sign-in.\n'
+		exit 0
+		;;
+	*) printf 'Usage: angi-wayland [--next-login | --regular-next-login | --headless]\n' >&2; exit 2 ;;
+esac
+
+XDG_RUNTIME_DIR=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/angi-wayland.XXXXXXXX")
+export XDG_RUNTIME_DIR
+export XDG_SESSION_TYPE=wayland
+unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET
+
+weston_pid=
+cleanup() {
+	if [ -n "$weston_pid" ]; then
+		kill "$weston_pid" 2>/dev/null || :
+		wait "$weston_pid" 2>/dev/null || :
+	fi
+	rm -rf -- "$XDG_RUNTIME_DIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+
+weston "$@" --config=/usr/share/agx/wayland/weston.ini &
+weston_pid=$!
+status=0
+wait "$weston_pid" || status=$?
+weston_pid=
+if [ "$login" = true ] && [ "$status" -ne 0 ]; then
+	printf 'ANGI Wayland failed to start. Opening the regular desktop.\n' >&2
+	cleanup
+	trap - EXIT
+	unset XDG_RUNTIME_DIR XDG_SESSION_TYPE
+	exec /usr/bin/agx desktop
+fi
+exit "$status"

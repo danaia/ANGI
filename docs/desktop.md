@@ -64,9 +64,79 @@ Local keyboards and mice are discovered through libinput/libudev-zero. The super
 Preview just the login screen without root or real authentication:
 `scripts/cargo.sh run --manifest-path crates/agx-gui/Cargo.toml -- --login-preview`.
 
+### Optional native Wayland session
+
+For a graphical Buildroot image with `BR2_PACKAGE_AGX_GUI=y`, enable
+`BR2_PACKAGE_WAYLAND=y` and `BR2_PACKAGE_AGX_WAYLAND=y` to build the
+optional session. It uses Weston and ANGI's existing libudev provider.
+Weston owns the HDMI display, input, and external app windows. Settings,
+Calendar, and the other Slint panels still live in the ANGI shell window.
+The shell fills the available display with its own header and controls.
+On HDMI it draws the Pebble Line interface directly into a GPU-backed Wayland
+surface using FemtoVG and Mesa Wayland EGL. Headless test sessions use software
+rendering. When enabling Wayland in an existing Buildroot output tree,
+reconfigure Mesa so it builds its Wayland EGL platform.
+Native Wayland apps started from ANGI Terminal inherit the session socket
+and can open their own windows. Weston manages those windows and their
+placement and size. New native windows belong to the active ANGI workspace.
+Switching away hides them, and returning restores the same open windows in
+place. This state lasts for the Wayland session. ANGI's tiling and framebuffer
+VNC apply to the regular ANGI desktop.
+
+Move the pointer to the top edge of a fullscreen window to reveal Exit
+fullscreen, Minimize, and Close. Move down to hide the controls.
+
+On an image with the optional session installed, run `angi-wayland --next-login`
+in ANGI Terminal, then choose **Refresh desktop** or sign out and back in on HDMI. Rust init runs the seat
+service. The Wayland session uses the local display. Run
+`angi-wayland --regular-next-login` before signing out to return to the
+regular desktop at your next sign-in.
+For a side-by-side protocol check, `angi-wayland --headless` creates its
+own socket in a private temporary runtime directory, with no HDMI output.
+
+The Install catalogue enables apps when a matching native package is staged
+under `/usr/share/agx/native-apps`. Installed desktop apps open as independent
+windows from the Wayland session. For VLC on Pi 5, merge
+`buildroot/board/agx/rpi5/native-vlc.config` into a Pi 5 Buildroot configuration,
+build the `vlc` and `qt5wayland` targets, and run
+`python3 scripts/package-native-vlc.py output DESTINATION` to create the archive
+and target manifest. If reusing a build tree, reconfigure PCRE2 for Qt's 16-bit
+library before building those targets.
+
+For VS Code on Pi 5, merge `buildroot/board/agx/rpi5/native-vscode.config` and
+build `libnss cups libgtk3 xlib_libXcomposite xlib_libXdamage xlib_libXrandr`.
+Reconfigure Cairo first when reusing a build tree so its PDF and X11 client
+support matches this configuration.
+Run `python3 scripts/package-native-vscode.py output TARBALL METADATA DESTINATION`
+with Microsoft's original Linux ARM64 tarball and its matching update metadata.
+Stage the resulting runtime archive and manifest together. Install downloads the
+editor directly from Microsoft and checks its published SHA-256. The packaged X11
+client libraries satisfy Electron's linker dependencies. Wayland handles the
+editor window.
+
+For Blender on Pi 5, use Blender 5.3 or later with the matching Blender ARM64
+dependencies. Apply `buildroot/board/agx/rpi5/blender-vulkan-depth-format.patch`
+to the Blender source tree so Vulkan can use the Pi's packed depth and stencil
+format. Configure a portable Linux ARM64 build against the ANGI Pi 5 SDK
+with `WITH_GHOST_WAYLAND` and `WITH_VULKAN_BACKEND` enabled and
+`WITH_GHOST_X11` and `WITH_OPENGL_BACKEND` disabled. Point CMake's
+`_ffmpeg_INCLUDE_DIR` and FFmpeg component library entries at the matching
+Blender dependency bundle each time you configure so the headers and libraries
+provide the same API. The `buildroot/board/agx/rpi5/native-blender.config`
+fragment selects Mesa's
+Broadcom Vulkan driver and the Vulkan loader. Reconfigure Mesa if reusing an
+existing build tree. For a build using the upstream USD library, build the
+client libraries with `make -C output xlib_libSM libglvnd 'LIBGLVND_CONF_OPTS=-Dx11=enabled -Dglx=enabled -Degl=false -Dgles1=false -Dgles2=false'`.
+Add the MaterialX library directory and Buildroot staging `usr/lib` to
+the linker's `-rpath-link` search path. Run
+`python3 scripts/package-native-blender.py output PORTABLE_INSTALL DRIVER LOADER VERSION DESTINATION`
+with the portable install, `libvulkan_broadcom.so`, and `libvulkan.so.1`. Stage
+the Blender archive and manifest in the same native package directory. The
+Blender launcher uses that bundled Vulkan driver for its window and viewport.
+
 ## Mouse settings
 
-Open the top-right power menu and choose **Settings**, or search for Settings in Apps. Settings opens as a normal desktop tile alongside your other windows. It supports tiling, floating, resizing, fullscreen and workspace moves; opening it again focuses the existing tile. The Mouse & pointer panel offers pointer speed, adaptive acceleration, left/right primary button, natural scrolling and scroll speed. Changes apply immediately to connected native pointing devices and are reapplied when a mouse reconnects. The test area lets you try movement and clicks; **Restore defaults** resets this collection of preferences. Close it with the title-bar close button or the normal desktop shortcut; Escape leaves the tile open. The category column collapses to a narrow icon rail in small tiles, and controls stack below their descriptions. **Refresh desktop…** now lives in the Overview footer, to the left of **Clear cache…** (with a **Mouse & pointer** shortcut that opens this page beside it on wide tiles). It asks for confirmation, saves pending preferences, closes the desktop’s terminal and browser sessions, and starts the latest installed GUI as the same signed-in account. It does not reboot the Pi; VNC viewers may need to reconnect.
+Open the top-right power menu and choose **Settings**, or search for Settings in Apps. Settings opens as a normal desktop tile alongside your other windows. It supports tiling, floating, resizing, fullscreen and workspace moves; opening it again focuses the existing tile. The Mouse & pointer panel offers pointer speed, adaptive acceleration, left/right primary button, natural scrolling and scroll speed. Changes apply immediately to connected native pointing devices and are reapplied when a mouse reconnects. The test area lets you try movement and clicks; **Restore defaults** resets this collection of preferences. Close it with the title-bar close button or the normal desktop shortcut; Escape leaves the tile open. The category column collapses to a narrow icon rail in small tiles, and controls stack below their descriptions. **Refresh desktop…** now lives in the Overview footer, to the left of **Clear cache…**. It asks for confirmation, saves pending preferences, closes the desktop’s terminal and browser sessions, and starts the latest installed GUI as the same signed-in account. It does not reboot the Pi; VNC viewers may need to reconnect.
 
 Preferences belong to the signed-in account and are saved atomically in `$XDG_CONFIG_HOME/agx/mouse.conf` (normally `~/.config/agx/mouse.conf`). The greeter keeps its own defaults. Native controls apply through libinput; VNC movement remains controlled by the viewer. Desktop previews show the controls without changing the workstation's mouse settings. Device capabilities determine which native options the hardware supports.
 
@@ -216,11 +286,13 @@ means adding its app to `resolve()` there.
 
 Choose a row in **Install** to start a background job. The launcher shows its progress and makes the app available in **Apps** when installation succeeds. A featured app that cannot run on the current device shows the reason. Newly installed commands are available in existing Terminal sessions. Select **Remove** or press Delete on an installed row to remove its runtime. App preferences and files are kept.
 
-The installer checks the running target before offering a package. Existing ARM64 command-line tools use their checked release artifacts. On the Pi 5, the native GStreamer package uses the matching Buildroot toolchain and exposes `gst-launch-1.0` and `gst-inspect-1.0` in ANGI Terminal. Blender, VS Code, and VLC are listed as unavailable until their native windows can run under the ANGI window manager. Previously installed Debian-runtime apps are excluded from Apps. Users can still remove those packages through `angi-update app remove ID` and retain their app settings and data.
+The installer checks the running target before offering a package. On the Pi 5, the native GStreamer package exposes `gst-launch-1.0` and `gst-inspect-1.0` in ANGI Terminal. Blender, VS Code, and VLC require a matching native package and open in the [ANGI Wayland session](#optional-native-wayland-session). Users with a previously installed Debian-runtime package can remove it through `angi-update app remove ID` and keep its settings and data.
 
 **Browsers.** ANGI Web uses WPE WebKit with GPU-accelerated rendering on the Pi. The appliance desktop runs directly on DRM/KMS. External graphical browsers require a display-server integration.
 
-**How an install works** (`angi-update app install ID [--progress]`, run on a worker thread by the desktop): it asks GitHub for the project's latest stable release, picks the one matching asset, and refuses to continue unless GitHub published a SHA-256 for it. It downloads only from `github.com` and GitHub's release CDN hosts over verified HTTPS (every redirect is rechecked), compares the checksum, and unpacks with hardened extraction (no absolute or `..` paths, no links that leave the folder, no device files, setuid bits dropped, size and file-count limits). Each program must be a 64-bit ARM Linux ELF file; it is read, never run. Only then is it installed under the account's private NVMe store (`/var/lib/agx-data/agx-opencode-users/UID/apps/`, never the small SD root): the release goes in `pkg/ID/TAG/`, `pkg/ID/current` is switched atomically, and `bin/NAME` links point through it. A failed or interrupted install changes nothing, so a working version is never lost; an update replaces the old version only after the new one verified. One install runs at a time; a program name that something else already owns is never overwritten. `angi-update app remove ID` removes the links, the release and the ledger entry.
+The desktop runs `angi-update app install ID [--progress]` in the background. For GitHub apps, the installer selects the matching asset from the latest stable release and verifies its published SHA-256. For native apps, it verifies the archive against the staged manifest. VS Code also downloads Microsoft's ARM64 archive and verifies its published SHA-256. Downloads use verified HTTPS and check each redirect against the publisher's allowed hosts.
+
+Extraction checks archive paths, links, file types and size limits, and drops setuid bits. The installer checks that programs are 64-bit ARM Linux ELF files before switching `pkg/ID/current` and exposing their commands through `bin/NAME` in the account's private NVMe store at `/var/lib/agx-data/agx-opencode-users/UID/apps/`. One install runs at a time, and an existing command owned by another app is preserved. `angi-update app remove ID` removes the links, the release and the ledger entry.
 
 **Tracking and updates:** every installed app appears in **Services** as its own row (key `app:ID`) with its installed and latest versions, using the same per-account update-check cache, retry, clock and rate-limit handling as the system components. The row's Update button reviews and installs the newer release with the same progress overlay. Opening the launcher refreshes stale checks (at most every ten minutes), and the desktop checks at start. Updating never restarts anything: running copies keep the old version until they exit.
 
@@ -395,7 +467,10 @@ audio adapter, including adapters with analog jacks.
 ANGI plays a short confirmation tone after changes to the audio route. Use
 **Play test tone** to check the current output again. **Play Radio Paradise**
 opens CLIamp in ANGI Terminal. Use the output volume slider or the keyboard's
-volume and mute keys to adjust the current output. The input meter shows the
+volume and mute keys to adjust the current output; the keys also slide a
+volume indicator down from the top of the desktop for about a second and a half,
+wherever you are, with a soft, short note whose pitch follows the level (none when you
+mute). The input meter shows the
 selected microphone's level while Sound is open. Running `cliamp` in an existing Terminal also starts
 Radio Paradise and queues the channels published by
 [CLIamp Radio](https://radio.cliamp.stream/stations), including Omarchy.

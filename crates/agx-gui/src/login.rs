@@ -4,7 +4,13 @@ mod setup;
 use crate::{ComponentHandle, GreeterSetup, LoginWindow, graphics, remote};
 use slint::Timer;
 use std::{
-    cell::RefCell, ffi::CString, io, os::unix::process::CommandExt, process::Command, rc::Rc,
+    cell::RefCell,
+    ffi::CString,
+    io,
+    os::unix::process::CommandExt,
+    path::Path,
+    process::Command,
+    rc::Rc,
     time::Duration,
 };
 use zeroize::Zeroizing;
@@ -96,9 +102,17 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
     {
         eprintln!("agx-gui: Web storage is unavailable: {error}");
     }
-    let mut session = Command::new("/usr/bin/agx");
+    let wayland = graphics::prefer_wayland(Path::new(&home));
+    let mut session = if wayland {
+        let mut command = Command::new("/usr/bin/angi-wayland");
+        command.arg("--login");
+        command
+    } else {
+        let mut command = Command::new("/usr/bin/agx");
+        command.arg("desktop");
+        command
+    };
     session
-        .arg("desktop")
         .env_clear()
         .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
         .env("HOME", &home)
@@ -112,7 +126,7 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
             session.env(key, value);
         }
     }
-    let keep_open = handoff.map_or_else(Vec::new, |exec| {
+    let keep_open = handoff.filter(|_| !wayland).map_or_else(Vec::new, |exec| {
         for (name, value) in &exec.env {
             session.env(name, value);
         }

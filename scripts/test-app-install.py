@@ -409,6 +409,57 @@ class Cli(Case):
         self.assertTrue(self.store.owns('gst-launch-1.0', 'gstreamer'))
         self.assertIn('GST_PLUGIN_SCANNER', (self.store.bin / 'gst-launch-1.0').read_text())
 
+    def test_desktop_package_is_available_and_installable_when_staged_for_the_device(self):
+        import subprocess
+        from unittest.mock import patch
+        root = Path(self.directory.name)
+        archive = tarball({'vlc': ELF})
+        (root / 'vlc.tar.gz').write_bytes(archive)
+        metadata = dict(board='rpi5', arch='aarch64', buildroot='2026.08.1', version='3.0.24',
+                        sha256=hashlib.sha256(archive).hexdigest())
+        (root / 'vlc.json').write_text(json.dumps(metadata))
+        with patch('app_native.PACKAGES', root), patch('app_native.target', return_value=('rpi5', 'aarch64', '2026.08.1')):
+            unavailable = json.loads(self._apps())['unavailable']
+            self.assertNotIn('vlc', unavailable)
+            self.assertIn('Blender Wayland package', unavailable['blender'])
+            self.assertIn('VS Code desktop runtime', unavailable['vscode'])
+            events = io.StringIO()
+            self.assertEqual(app_install.main(['app', 'install', 'vlc', '--progress'], self.store, events), 0)
+            self.assertIn('Open it from Apps in an ANGI Wayland session.', events.getvalue())
+        command = (self.store.bin / 'vlc').read_text()
+        self.assertIn('QT_QPA_PLATFORM=wayland', command)
+        self.assertNotIn('GST_PLUGIN_SCANNER', command)
+        run = subprocess.run([self.store.bin / 'vlc'], capture_output=True, text=True,
+                             env={'PATH': os.environ['PATH'], 'XDG_RUNTIME_DIR': str(root)})
+        self.assertEqual(run.returncode, 1)
+        self.assertIn('angi-wayland --next-login', run.stderr)
+
+    def test_vscode_installs_the_verified_microsoft_archive_and_separate_runtime(self):
+        from unittest.mock import Mock, patch
+        root = Path(self.directory.name)
+        app = app_catalog.load()['vscode']
+        publisher_url = 'https://vscode.download.prss.microsoft.com/arm64.tar.gz'
+        upstream = tarball({'VSCode-linux-arm64/code': ELF,
+                            'VSCode-linux-arm64/bin/code': b'#!/bin/sh\n'})
+        runtime = tarball({'lib/libgtk-3.so.0': ELF})
+        manifest = dict(board='rpi5', arch='aarch64', buildroot='2026.08.1', version='1.147.0',
+                        sha256=hashlib.sha256(runtime).hexdigest(),
+                        microsoft=dict(url=publisher_url, size=len(upstream),
+                                       sha256=hashlib.sha256(upstream).hexdigest()))
+        (root / 'vscode.json').write_text(json.dumps(manifest))
+        (root / 'vscode.tar.gz').write_bytes(runtime)
+        response = io.BytesIO(upstream)
+        response.url = publisher_url
+        opener = Mock()
+        opener.open.return_value = response
+        with patch('app_native.PACKAGES', root), patch('app_native.target', return_value=('rpi5', 'aarch64', '2026.08.1')):
+            app_install.install(app, self.store, app_install.Report(app, io.StringIO()), opener=opener)
+        self.assertEqual(opener.open.call_args.args[0].full_url, publisher_url)
+        self.assertIn('--ozone-platform=wayland', (self.store.bin / 'code').read_text())
+        installed = self.store.pkg / 'vscode' / 'current'
+        self.assertEqual((installed / 'runtime/lib/libgtk-3.so.0').read_bytes(), ELF)
+        self.assertTrue((installed / 'VSCode-linux-arm64/bin/code').is_file())
+
     def _apps(self):
         from contextlib import redirect_stdout
         buffer = io.StringIO()

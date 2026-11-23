@@ -21,6 +21,14 @@ for binary in agx agx-init; do
     [[ -f "$RELEASE/$binary" ]] || { echo 'Run make init-build before deployment.' >&2; exit 1; }
 done
 [[ -d "$TARGET/usr/share/X11/xkb" ]] || { echo 'Build the desktop packages first (see defconfig).' >&2; exit 1; }
+wayland_installed=false
+if "${SSH[@]}" 'test -x /usr/bin/angi-wayland'; then
+    wayland_installed=true
+    grep -aFq 'EGL_KHR_platform_wayland' "$TARGET/usr/lib/libEGL.so.1" || {
+        echo 'Reconfigure Buildroot Mesa with Wayland enabled before deploying to this ANGI device.' >&2
+        exit 1
+    }
+fi
 RUNTIME="$ROOT/.cache/agx-gui-runtime.tar"
 python3 "$ROOT/scripts/package-gui-runtime.py" "$TARGET" "$RUNTIME"
 
@@ -68,6 +76,10 @@ echo 'Staging desktop, graphical login and startup binaries'
 "${SSH[@]}" 'mkdir -p /usr/libexec'
 "${SCP[@]}" "$RELEASE/agx-display-devices" "$DESTINATION:/usr/libexec/agx-display-devices.new"
 "${SCP[@]}" "$ROOT/buildroot/board/agx/rootfs-overlay/usr/libexec/agx-display-access" "$DESTINATION:/usr/libexec/agx-display-access.new"
+if [[ "$wayland_installed" = true ]]; then
+    "${SCP[@]}" "$ROOT/buildroot/package/agx-wayland/agx-wayland-shell" "$DESTINATION:/usr/libexec/agx-wayland-shell.new"
+    "${SCP[@]}" "$ROOT/buildroot/package/agx-wayland/angi-wayland" "$DESTINATION:/usr/bin/angi-wayland.new"
+fi
 "${SSH[@]}" 'mkdir -p /etc/modules-load.d'
 "${SCP[@]}" "$ROOT/buildroot/board/agx/rootfs-overlay/etc/modules-load.d/agx-display.conf" "$DESTINATION:/etc/modules-load.d/agx-display.conf"
 "${SSH[@]}" 'set -e
@@ -94,6 +106,13 @@ gui=/var/lib/agx-data/agx-gui/agx-gui.$gui_hash
 mv /var/lib/agx-data/agx-gui/agx-gui.new "$gui"
 ln -sf "$gui" /usr/bin/agx-gui.new
 mv -f /usr/bin/agx-gui.new /usr/bin/agx-gui
+if test -f /usr/bin/angi-wayland.new && test -f /usr/libexec/agx-wayland-shell.new; then
+    chmod 755 /usr/bin/angi-wayland.new /usr/libexec/agx-wayland-shell.new
+    mv -f /usr/libexec/agx-wayland-shell.new /usr/libexec/agx-wayland-shell
+    mv -f /usr/bin/angi-wayland.new /usr/bin/angi-wayland
+    ln -sf agx-wayland-shell /usr/libexec/agx-gui-wayland.new
+    mv -f /usr/libexec/agx-gui-wayland.new /usr/libexec/agx-gui-wayland
+fi
 # `open FILE` is this same binary under another name; it follows whichever release agx-gui points at.
 ln -sf agx-gui /usr/bin/open.new
 mv -f /usr/bin/open.new /usr/bin/open

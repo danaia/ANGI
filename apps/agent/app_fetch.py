@@ -1,4 +1,4 @@
-"""Find a release asset on GitHub, download it against its published checksum, and unpack it safely.
+"""Resolve GitHub releases and verify and unpack publisher archives.
 
 Nothing downloaded is ever executed here. Archives are untrusted: member paths, links and sizes are
 checked before anything is written, and each program is confirmed to be a 64-bit ARM Linux ELF file.
@@ -51,9 +51,9 @@ def friendly(error):
     return str(error)
 
 
-def check_url(url):
+def check_url(url, hosts=DOWNLOAD_HOSTS):
     parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme != 'https' or parsed.hostname not in DOWNLOAD_HOSTS:
+    if parsed.scheme != 'https' or parsed.hostname not in hosts:
         raise AppError('The download was redirected somewhere unexpected, so it was stopped.')
     return url
 
@@ -85,29 +85,33 @@ def resolve(app, get=upstream.fetch):
 
 
 class Redirects(urllib.request.HTTPRedirectHandler):
+    def __init__(self, hosts=DOWNLOAD_HOSTS):
+        self.hosts = hosts
+
     def redirect_request(self, request, fp, code, msg, headers, new_url):
-        check_url(new_url)
+        check_url(new_url, self.hosts)
         return super().redirect_request(request, fp, code, msg, headers, new_url)
 
 
-def download(release, destination, progress, opener=None, pause=time.sleep):
+def download(release, destination, progress, opener=None, pause=time.sleep, *,
+             hosts=DOWNLOAD_HOSTS, publisher='GitHub'):
     """Stream the asset to `destination`; returns its SHA-256. Retries transient network failures."""
-    opener = opener or urllib.request.build_opener(Redirects)
-    request = urllib.request.Request(release.url, headers={'User-Agent': 'ANGI-apps/1', 'Accept': 'application/octet-stream'})
+    opener = opener or urllib.request.build_opener(Redirects(hosts))
+    request = urllib.request.Request(check_url(release.url, hosts), headers={'User-Agent': 'ANGI-apps/1', 'Accept': 'application/octet-stream'})
     last = None
     for attempt in range(ATTEMPTS):
         digest, received = hashlib.sha256(), 0
         try:
             with opener.open(request, timeout=30) as response, open(destination, 'wb') as out:
                 os.chmod(destination, 0o600)
-                check_url(response.url)
+                check_url(response.url, hosts)
                 while True:
                     block = response.read(CHUNK)
                     if not block:
                         break
                     received += len(block)
                     if received > release.size:
-                        raise AppError('The download was larger than GitHub said it would be, so it was stopped.')
+                        raise AppError(f'The download was larger than {publisher} said it would be, so it was stopped.')
                     digest.update(block)
                     out.write(block)
                     progress(received, release.size)
@@ -117,17 +121,17 @@ def download(release, destination, progress, opener=None, pause=time.sleep):
         except AppError:
             raise
         except urllib.error.HTTPError as error:
-            raise AppError(f'GitHub refused the download (HTTP {error.code}).') from error
+            raise AppError(f'{publisher} refused the download (HTTP {error.code}).') from error
         except (urllib.error.URLError, OSError, socket.timeout, TimeoutError) as error:
             reason = getattr(error, 'reason', error)
             if isinstance(reason, ssl.SSLCertVerificationError):
                 raise AppError(friendly(upstream.TemporarilyUnavailable('', 'clock'))
                                if getattr(reason, 'verify_code', None) == 9
-                               else 'The connection to GitHub could not be verified, so nothing was downloaded.') from error
+                               else f'The connection to {publisher} could not be verified, so nothing was downloaded.') from error
             last = error
             if attempt + 1 < ATTEMPTS:
                 pause(1 + 2 * attempt)
-    raise AppError('Cannot reach GitHub. Check the network connection and try again.') from last
+    raise AppError(f'Cannot reach {publisher}. Check the network connection and try again.') from last
 
 
 def verify(release, actual):

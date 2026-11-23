@@ -142,7 +142,12 @@ impl App {
                 _ => {}
             }
         }
-        ui.set_workspace(self.desk.current() as i32);
+        let current = self.desk.current();
+        #[cfg(feature = "wayland")]
+        if current as i32 != ui.get_workspace() {
+            crate::graphics::wayland_workspaces::select(current);
+        }
+        ui.set_workspace(current as i32);
         ui.set_windowed_mode(self.desk.mode() == Mode::Floating);
         ui.set_layout_name(
             match (self.desk.fullscreen_of(), self.desk.mode()) {
@@ -156,6 +161,25 @@ impl App {
         ui.set_focus_title(self.desk.focused().map_or("", Kind::title).into());
         ui.set_screen_full(self.view.scene.borrow().screen_full);
         self.refresh_drag(ui);
+    }
+
+    pub(super) fn fullscreen_action(&mut self, ui: &AppWindow, action: i32) {
+        let Some((kind, Full::Screen)) = self.desk.fullscreen_of() else {
+            return;
+        };
+        self.desk.focus(kind);
+        if action == 2 {
+            self.run(ui, Cmd::Close);
+            return;
+        }
+        self.desk.toggle_fullscreen(Full::Screen);
+        if action == 1 {
+            if !self.desk.is_floating(kind) {
+                self.desk.toggle_float();
+            }
+            self.desk.toggle_collapsed(kind);
+        }
+        self.refresh(ui);
     }
 
     pub(super) fn refresh_drag(&self, ui: &AppWindow) {
@@ -214,7 +238,15 @@ impl App {
             Cmd::AddWorkspace => {
                 self.desk.ensure_workspace(self.desk.workspace_count());
             }
-            Cmd::RemoveWorkspace(index) => self.desk.remove_workspace(index),
+            Cmd::RemoveWorkspace(index) => {
+                #[cfg(feature = "wayland")]
+                let previous_count = self.desk.workspace_count();
+                self.desk.remove_workspace(index);
+                #[cfg(feature = "wayland")]
+                if self.desk.workspace_count() != previous_count {
+                    crate::graphics::wayland_workspaces::remove(index, self.desk.current());
+                }
+            }
             Cmd::Workspace(n) => self.desk.goto(n),
             Cmd::MoveToWorkspace { ws, follow } => self.desk.move_to_workspace(ws, follow),
             Cmd::NextWorkspace => self.desk.next_workspace(false),

@@ -148,6 +148,11 @@ pub fn definitions(pid1: bool) -> Vec<Definition> {
         if std::path::Path::new(DISPLAY_ACCESS).is_file() {
             services.push(display_access());
         }
+        if std::path::Path::new("/usr/bin/angi-wayland").is_file()
+            && std::path::Path::new("/usr/bin/seatd").is_file()
+        {
+            services.push(Definition::new("seatd", "/usr/bin/seatd", &["-g", "agx-admin"], false));
+        }
         // Likewise only where scripts/deploy-tailscale.sh installed it.
         if std::path::Path::new(TAILSCALE).is_file() {
             services.push(tailscale());

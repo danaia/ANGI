@@ -3,9 +3,17 @@ mod meter;
 mod pulse;
 mod tone;
 
-use crate::{AppWindow, SoundSettings};
+use crate::{AppWindow, SoundSettings, VolumeHud};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
-use std::{cell::RefCell, rc::Rc, sync::mpsc, time::Duration};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::mpsc,
+    time::{Duration, Instant},
+};
+
+/// How long the volume indicator stays down after the last key press.
+const HUD_HOLD: Duration = Duration::from_millis(1600);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Choice {
@@ -138,13 +146,26 @@ pub(super) fn install(ui: &AppWindow) -> Timer {
     std::thread::spawn(move || {
         for request in requests {
             let volume = matches!(request, Request::Volume(_));
+            // The Settings slider already shows its own value; only the keys raise the indicator.
+            let keys = matches!(
+                request,
+                Request::Volume(VolumeAction::Step(_) | VolumeAction::Mute)
+            );
             let action = match request {
                 Request::Refresh => None,
                 Request::Select(control, id) => Some(pulse::select(control, &id)),
                 Request::Test => Some(pulse::play_tone(None)),
                 Request::Volume(action) => Some(pulse::change_volume(action)),
             };
-            if reply.send((action, volume, pulse::snapshot())).is_err() {
+            let state = pulse::snapshot();
+            if keys && action.as_ref().is_some_and(Result::is_ok) {
+                if let Ok(Snapshot { volume: Some(level), .. }) = &state {
+                    if !level.muted {
+                        pulse::play_blip(level.percent);
+                    }
+                }
+            }
+            if reply.send((action, volume, keys, state)).is_err() {
                 break;
             }
         }
@@ -200,17 +221,28 @@ pub(super) fn install(ui: &AppWindow) -> Timer {
 
     let weak = ui.as_weak();
     let timer = Timer::default();
-    let poll = RefCell::new((false, 0usize, meter::Meter::new()));
+    let poll = RefCell::new((false, 0usize, meter::Meter::new(), None::<Instant>));
     timer.start(TimerMode::Repeated, Duration::from_millis(120), move || {
         let Some(ui) = weak.upgrade() else { return };
         let global = ui.global::<SoundSettings>();
         let mut poll = poll.borrow_mut();
-        let (pending, ticks, meter) = &mut *poll;
-        while let Ok((action, volume, result)) = updates.try_recv() {
+        let (pending, ticks, meter, hud_until) = &mut *poll;
+        while let Ok((action, volume, keys, result)) = updates.try_recv() {
             if action.is_none() {
                 *pending = false;
             } else if !volume {
                 global.set_changing(false);
+            }
+            if keys {
+                if let Ok(state) = &result {
+                    if let Some(level) = state.volume {
+                        let hud = ui.global::<VolumeHud>();
+                        hud.set_percent(level.percent.clamp(0, 100));
+                        hud.set_muted(level.muted);
+                        hud.set_shown(true);
+                        *hud_until = Some(Instant::now() + HUD_HOLD);
+                    }
+                }
             }
             if volume && !global.get_active() {
                 continue;
@@ -231,6 +263,10 @@ pub(super) fn install(ui: &AppWindow) -> Timer {
                 state.show(&global, choices_changed);
                 *last = state;
             }
+        }
+        if hud_until.is_some_and(|until| Instant::now() >= until) {
+            ui.global::<VolumeHud>().set_shown(false);
+            *hud_until = None;
         }
         let current = snapshot.borrow();
         // The panel can be destroyed before Slint clears its active property.

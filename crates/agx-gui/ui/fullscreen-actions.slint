@@ -1,0 +1,49 @@
+import { Theme, Button, ButtonVariant, ControlSize } from "pebble/pebble.slint";
+
+export component FullscreenActions inherits Rectangle {
+    callback action(int);
+    callback pointer-moved(length, length);
+    width: 352px;
+    height: 36px + 2 * Theme.space-2;
+    border-radius: Theme.radius-md;
+    border-width: Theme.stroke-hair;
+    border-color: Theme.line;
+    background: Theme.surface;
+
+    HorizontalLayout {
+        alignment: center;
+        padding: Theme.space-2;
+        spacing: Theme.space-2;
+        Button {
+            width: 136px;
+            text: "Exit fullscreen"; size: ControlSize.sm; variant: ButtonVariant.ghost;
+            clicked => { root.action(0); }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+        Button {
+            width: 104px;
+            text: "Minimize"; size: ControlSize.sm; variant: ButtonVariant.ghost;
+            clicked => { root.action(1); }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+        Button {
+            width: 80px;
+            text: "Close"; size: ControlSize.sm; variant: ButtonVariant.danger;
+            clicked => { root.action(2); }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+    }
+}
+
+export component FullscreenActionWindow inherits Window {
+    callback action(int);
+    title: "ANGI Fullscreen Controls";
+    no-frame: true;
+    background: transparent;
+    default-font-family: "Poppins";
+    width: strip.width;
+    height: strip.height;
+    strip := FullscreenActions {
+        action(index) => { root.action(index); }
+    }
+}

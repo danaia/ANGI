@@ -405,6 +405,8 @@ impl App {
         self.set_menu_rows(ui, "");
         ui.set_menu_index(0);
         ui.set_menu_open(true);
+        // Local package eligibility can change between catalogue visits.
+        self.library.refresh(false);
         // Cheap when the cached answer is fresh; otherwise learns of newer releases of installed apps.
         self.library.check_if_stale();
     }

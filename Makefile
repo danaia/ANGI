@@ -65,7 +65,7 @@ bluetooth-build:
 
 .PHONY: gui-build deploy-gui
 gui-build:
-	PKG_CONFIG=$(CURDIR)/output/host/bin/pkg-config PKG_CONFIG_ALLOW_CROSS=1 ./scripts/cargo.sh build --manifest-path crates/agx-gui/Cargo.toml --release --target aarch64-unknown-linux-gnu --no-default-features --features kms
+	PKG_CONFIG=$(CURDIR)/output/host/bin/pkg-config PKG_CONFIG_ALLOW_CROSS=1 ./scripts/cargo.sh build --manifest-path crates/agx-gui/Cargo.toml --release --target aarch64-unknown-linux-gnu --no-default-features --features kms,wayland
 deploy-gui: gui-build init-build
 	./scripts/deploy-gui.sh
 

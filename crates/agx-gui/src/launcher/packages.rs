@@ -2,9 +2,10 @@
 //!
 //! Choosing an app that is not installed installs it in place; the launcher stays open, the row shows
 //! live progress, and the program is on the terminal's PATH the moment it finishes. Choosing an installed
-//! app opens it in a terminal; choosing one with an update waiting installs the update.
+//! app opens it in Wayland or a terminal; choosing one with an update waiting installs the update.
 use super::{APP_ICON, APPS, INSTALL, Entry, Status, apps, apps::Package};
 use crate::{App, AppWindow, keymap::Cmd, library::Availability};
+use std::process::{Command, Stdio};
 
 /// `MenuRow.state` values for package rows; 0 is every other row.
 const AVAILABLE: i32 = 1;
@@ -121,9 +122,25 @@ impl App {
         }
     }
 
-    /// Opens a terminal for an installed app: the program itself when it is a full-screen tool, else a shell.
+    /// Opens desktop apps as Wayland clients and terminal tools in ANGI Terminal.
     fn package_open(&mut self, ui: &AppWindow, package: &Package) {
         self.desk.goto(self.menu_workspace);
+        if package.kind == "Desktop" {
+            if !std::env::var_os("WAYLAND_DISPLAY").is_some_and(|display| !display.is_empty()) {
+                self.toast(ui, &format!("Open {} from an ANGI Wayland session.", package.name));
+                return;
+            }
+            let program = crate::library::bin_directory().join(&package.launch);
+            match Command::new(program).stdin(Stdio::null()).spawn() {
+                Ok(mut child) => {
+                    std::thread::spawn(move || {
+                        let _ = child.wait();
+                    });
+                }
+                Err(error) => self.toast(ui, &format!("Could not open {}. {error}", package.name)),
+            }
+            return;
+        }
         if package.launch.is_empty() {
             self.run(ui, Cmd::Open(crate::wm::Kind::Terminal));
             let command = package.commands.first().map(String::as_str).unwrap_or(&package.name);

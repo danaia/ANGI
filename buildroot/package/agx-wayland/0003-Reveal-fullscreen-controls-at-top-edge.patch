@@ -1,0 +1,206 @@
+Subject: [PATCH] desktop-shell: Reveal ANGI fullscreen controls at the top edge
+
+Position the Slint control surface above the fullscreen app on demand.
+
+--- a/desktop-shell/meson.build
++++ b/desktop-shell/meson.build
+@@ -4,6 +4,7 @@
+ 	srcs_shell_desktop = [
+ 		'shell.c',
+ 		'angi-workspaces.c',
++		'angi-fullscreen.c',
+ 		'input-panel.c',
+ 		weston_desktop_shell_server_protocol_h,
+ 		weston_desktop_shell_protocol_c,
+--- a/desktop-shell/shell.h
++++ b/desktop-shell/shell.h
+@@ -186,6 +186,9 @@
+ 	struct wl_listener seat_destroy_listener;
+ 	struct weston_surface *focused_surface;
+ 
++	struct desktop_shell *angi_shell;
++	struct wl_listener angi_motion;
++	struct wl_listener angi_pointer_destroy;
+ 	struct wl_listener caps_changed_listener;
+ 	struct wl_listener pointer_focus_listener;
+ 	struct wl_listener keyboard_focus_listener;
+@@ -294,6 +297,9 @@
+ 
+ 	struct workspace workspace;
+ 	struct weston_layer angi_hidden;
++	struct weston_layer angi_controls_layer;
++	struct shell_surface *angi_controls;
++	struct shell_surface *angi_fullscreen_target;
+ 	unsigned angi_workspace;
+ 	struct wl_event_source *angi_workspace_source;
+ 	char *angi_workspace_path;
+@@ -336,6 +342,19 @@
+ };
+ 
+ bool
++angi_fullscreen_register(struct shell_surface *surface);
++void
++angi_fullscreen_watch_pointer(struct shell_seat *seat, struct weston_pointer *pointer);
++void
++angi_fullscreen_detach_pointer(struct shell_seat *seat);
++void
++angi_fullscreen_hide(struct desktop_shell *shell);
++void
++angi_fullscreen_action(struct desktop_shell *shell, unsigned action);
++void
++angi_fullscreen_restore_covering_window(struct shell_surface *target);
++
++bool
+ angi_workspace_visible(struct shell_surface *surface);
+ 
+ void
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -1756,7 +1756,7 @@
+ static void
+ desktop_shell_destroy_seat(struct shell_seat *shseat)
+ {
+-
++	angi_fullscreen_detach_pointer(shseat);
+ 	wl_list_remove(&shseat->keyboard_focus_listener.link);
+ 	wl_list_remove(&shseat->caps_changed_listener.link);
+ 	wl_list_remove(&shseat->pointer_focus_listener.link);
+@@ -1816,6 +1816,7 @@
+ 
+ 	seat = container_of(listener, struct shell_seat, caps_changed_listener);
+ 	pointer = weston_seat_get_pointer(seat->seat);
++	angi_fullscreen_watch_pointer(seat, pointer);
+ 
+ 	if (pointer &&
+ 	    wl_list_empty(&seat->pointer_focus_listener.link)) {
+@@ -1840,6 +1841,9 @@
+ 	}
+ 
+ 	shseat->seat = seat;
++	shseat->angi_shell = shell;
++	wl_list_init(&shseat->angi_motion.link);
++	wl_list_init(&shseat->angi_pointer_destroy.link);
+ 
+ 	shseat->seat_destroy_listener.notify = destroy_shell_seat;
+ 	wl_signal_add(&seat->destroy_signal,
+@@ -2001,6 +2005,13 @@
+ 
+ 	if (!shsurf)
+ 		return;
++
++	if (shsurf->shell->angi_controls == shsurf) {
++		shsurf->shell->angi_controls = NULL;
++		angi_fullscreen_hide(shsurf->shell);
++	}
++	if (shsurf->shell->angi_fullscreen_target == shsurf)
++		angi_fullscreen_hide(shsurf->shell);
+ 
+ 	wl_list_for_each(seat, &shsurf->shell->compositor->seat_list, link) {
+ 		struct shell_seat *shseat = get_shell_seat(seat);
+@@ -2108,6 +2119,12 @@
+ 		weston_desktop_surface_get_surface(shsurf->desktop_surface);
+ 	struct weston_compositor *compositor = shell->compositor;
+ 	struct weston_seat *seat;
++
++	if (angi_fullscreen_register(shsurf)) {
++		weston_surface_map(surface);
++		weston_view_move_to_layer(shsurf->view, &shell->angi_hidden.view_list);
++		return;
++	}
+ 
+ 	/* initial positioning, see also configure() */
+ 	if (shsurf->state.fullscreen) {
+@@ -2176,6 +2193,8 @@
+ 	if (!weston_surface_has_content(surface) &&
+ 	    weston_surface_is_unmapping(surface) &&
+ 	    shsurf->state.fullscreen) {
++		if (shell->angi_fullscreen_target == shsurf)
++			angi_fullscreen_hide(shell);
+ 		unset_fullscreen(shsurf);
+ 		return;
+ 	}
+@@ -2211,8 +2230,12 @@
+ 	    was_maximized == shsurf->state.maximized)
+ 	    return;
+ 
+-	if (was_fullscreen)
++	if (was_fullscreen) {
+ 		unset_fullscreen(shsurf);
++		if (!shsurf->state.fullscreen &&
++		    shsurf->view->layer_link.layer == &shell->fullscreen_layer)
++			shell_surface_update_layer(shsurf);
++	}
+ 	if (was_maximized)
+ 		unset_maximized(shsurf);
+ 
+@@ -2295,6 +2318,8 @@
+ 	struct weston_surface *surface =
+ 		weston_desktop_surface_get_surface(shsurf->desktop_surface);
+ 
++	if (!fullscreen && shsurf->shell->angi_fullscreen_target == shsurf)
++		angi_fullscreen_hide(shsurf->shell);
+ 	weston_desktop_surface_set_fullscreen(desktop_surface, fullscreen);
+ 	if (fullscreen) {
+ 		/* handle clients launching in fullscreen */
+@@ -2428,6 +2453,31 @@
+ 	}
+ }
+ 
++void
++angi_fullscreen_action(struct desktop_shell *shell, unsigned action)
++{
++	struct shell_surface *target = shell->angi_fullscreen_target;
++
++	if (!target || !target->desktop_surface || shell->locked)
++		return;
++
++	angi_fullscreen_hide(shell);
++	if (action == 2) {
++		weston_desktop_surface_close(target->desktop_surface);
++		return;
++	}
++
++	if (weston_desktop_surface_get_fullscreen(target->desktop_surface))
++		set_fullscreen(target, false, NULL);
++	else if (action == 0)
++		angi_fullscreen_restore_covering_window(target);
++	if (action == 1) {
++		if (target->fullscreen.black_view)
++			weston_view_move_to_layer(target->fullscreen.black_view->view, NULL);
++		set_minimized(target->view->surface);
++	}
++}
++
+ static void
+ desktop_surface_fullscreen_requested(struct weston_desktop_surface *desktop_surface,
+ 				     bool fullscreen,
+@@ -3497,6 +3547,12 @@
+ 	shsurf = get_shell_surface(main_surface);
+ 	assert(shsurf);
+ 
++	if (shell->angi_controls == shsurf) {
++		struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
++		if (keyboard && shell->angi_fullscreen_target)
++			weston_keyboard_set_focus(keyboard, es);
++		return;
++	}
+ 	if (!angi_workspace_visible(shsurf))
+ 		return;
+ 
+@@ -4695,6 +4751,7 @@
+ 	workspace_destroy(&shell->workspace);
+ 	angi_workspaces_fini(shell);
+ 	desktop_shell_destroy_layer(&shell->angi_hidden);
++	desktop_shell_destroy_layer(&shell->angi_controls_layer);
+ 
+ 	desktop_shell_destroy_layer(&shell->panel_layer);
+ 	desktop_shell_destroy_layer(&shell->background_layer);
+@@ -4873,6 +4930,8 @@
+ 	wl_list_init(&shell->workspace.seat_destroyed_listener.link);
+ 
+ 	weston_layer_init(&shell->angi_hidden, ec);
++	weston_layer_init(&shell->angi_controls_layer, ec);
++	weston_layer_set_position(&shell->angi_controls_layer, WESTON_LAYER_POSITION_TOP_UI);
+ 	weston_layer_init(&shell->minimized_layer, ec);
+ 	weston_layer_init(&shell->workspace.layer, ec);
+ 

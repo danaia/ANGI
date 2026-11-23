@@ -1,0 +1,17 @@
+From: ANGI development
+Subject: [PATCH] Omit compositor plug-ins when the server feature is disabled
+
+The compositor module metadata can still be present in a client-only build.
+Test the server feature before adding the compositor hardware integrations.
+
+diff --git a/src/plugins/hardwareintegration/hardwareintegration.pro b/src/plugins/hardwareintegration/hardwareintegration.pro
+--- a/src/plugins/hardwareintegration/hardwareintegration.pro
++++ b/src/plugins/hardwareintegration/hardwareintegration.pro
+@@ -1,4 +1,6 @@
+ TEMPLATE=subdirs
+ 
+ qtHaveModule(waylandclient): SUBDIRS += client
+-qtHaveModule(waylandcompositor): SUBDIRS += compositor
++include($$OUT_PWD/../../compositor/qtwaylandcompositor-config.pri)
++QT_FOR_CONFIG += waylandcompositor-private
++qtHaveModule(waylandcompositor):qtConfig(wayland-server): SUBDIRS += compositor

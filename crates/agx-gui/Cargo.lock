@@ -52,6 +52,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "glow",
+ "i-slint-backend-winit",
  "i-slint-core",
  "input",
  "libc",

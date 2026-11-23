@@ -323,15 +323,37 @@ pub(super) fn play_tone(sink: Option<&str>) -> Result<(), &'static str> {
     play(sink).ok_or("Could not play the test tone")
 }
 
-fn play(sink: Option<&str>) -> Option<()> {
+/// The little tone for a volume key. It starts the player and returns, so key repeat is never
+/// held up waiting for the sound to finish; a finished player is reaped in the background.
+pub(super) fn play_blip(percent: i32) {
+    static LAST: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+    {
+        let Ok(mut last) = LAST.lock() else { return };
+        let now = Instant::now();
+        if last.is_some_and(|at| now.duration_since(at) < Duration::from_millis(70)) {
+            return;
+        }
+        *last = Some(now);
+    }
+    let Some(samples) = tone_file(&tone::blip(percent)) else { return };
+    let Ok(mut child) = player(None, "ANGI volume").stdin(samples).spawn() else { return };
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+}
+
+fn tone_file(pcm: &[u8]) -> Option<File> {
     let fd = unsafe { libc::memfd_create(c"angi-sound-tone".as_ptr(), libc::MFD_CLOEXEC) };
     if fd < 0 {
         return None;
     }
     let mut samples = unsafe { File::from_raw_fd(fd) };
-    samples.write_all(&tone::pcm()).ok()?;
+    samples.write_all(pcm).ok()?;
     samples.rewind().ok()?;
+    Some(samples)
+}
 
+fn player(sink: Option<&str>, stream: &str) -> Command {
     let mut player = Command::new("pacat");
     player.args([
         "--playback",
@@ -339,18 +361,19 @@ fn play(sink: Option<&str>) -> Option<()> {
         "--format=s16le",
         "--rate=48000",
         "--channels=1",
-        "--stream-name=ANGI sound test",
         "--latency-msec=80",
     ]);
+    player.arg(format!("--stream-name={stream}"));
     if let Some(sink) = sink {
         player.args(["--device", sink]);
     }
-    let mut child = player
-        .stdin(samples)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
+    player.stdout(Stdio::null()).stderr(Stdio::null());
+    player
+}
+
+fn play(sink: Option<&str>) -> Option<()> {
+    let samples = tone_file(&tone::pcm())?;
+    let mut child = player(sink, "ANGI sound test").stdin(samples).spawn().ok()?;
     let deadline = Instant::now() + Duration::from_secs(4);
     while Instant::now() < deadline {
         if let Some(status) = child.try_wait().ok()? {

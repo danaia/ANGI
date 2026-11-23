@@ -12,6 +12,15 @@ AGX_GUI_CARGO_BUILD_OPTS = --no-default-features --features headless
 else
 AGX_GUI_DEPENDENCIES += libinput libxkbcommon libudev libdrm mesa3d
 AGX_GUI_CARGO_BUILD_OPTS = --no-default-features --features kms
+ifeq ($(BR2_PACKAGE_AGX_WAYLAND),y)
+AGX_GUI_DEPENDENCIES += wayland
+AGX_GUI_CARGO_BUILD_OPTS += --features wayland
+define AGX_GUI_INSTALL_WAYLAND_ENTRY
+	mkdir -p $(TARGET_DIR)/usr/libexec
+	ln -sf agx-wayland-shell $(TARGET_DIR)/usr/libexec/agx-gui-wayland
+endef
+AGX_GUI_POST_INSTALL_TARGET_HOOKS += AGX_GUI_INSTALL_WAYLAND_ENTRY
+endif
 endif
 
 define AGX_GUI_INSTALL_TARGET_CMDS

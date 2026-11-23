@@ -34,6 +34,12 @@ The GUI launcher has its own boundaries: `src/launcher.rs` owns the Apps, Comman
 
 Desktop gestures live in `src/input.rs`, including keyboard routing, drag lifecycle and title-bar double-click recognition. `ui/header-controls.slint` owns top-bar pointer handling, and `ui/header-menu.slint` renders both top-bar and title-bar context menus. `src/app/header_menu.rs` supplies actions and routes selections to desktop commands. `wm/workspaces.rs` owns workspace growth, navigation and window transfers. `wm.rs` retains the desktop model, workspace membership and scene composition; `wm/startup.rs` owns the initial panel composition and windowed layout defaults; `wm/tiling.rs` owns split-tree algorithms, `wm/scene.rs` spatial queries and hit testing, `wm/windowed.rs` floating geometry, collapse/restore and layout transitions, and `wm/tests.rs` the model behavior suite. `wm.rs` remains on the review backlog for its existing composition/model role; desktop state and startup wiring now have the named boundaries documented below.
 
+`src/key_bindings/pointer.rs` routes LinuxKMS, VNC and Wayland pointer input to the desktop's saved mouse bindings. Its Wayland window event filter forwards unhandled events to Slint for normal widget input and shortcut recording.
+
+`src/graphics/wayland_workspaces.rs` sends workspace changes over a private session socket. The Weston desktop shell's `buildroot/package/agx-wayland/angi-workspaces.c` owns native window membership and visibility. Weston retains the live window views, including their position and size, across switches.
+
+`ui/fullscreen-actions.slint` renders the top-edge controls for both ANGI panels and native Wayland windows. Weston's `buildroot/package/agx-wayland/angi-fullscreen.c` decides when to show the native control surface and positions it on the fullscreen window's output. The session socket carries control actions back to Weston.
+
 The desktop calendar uses `ui/calendar.slint` for the resizable overlay, daily agenda, event editor, and time zone picker, `ui/calendar-grid.slint` for the responsive month grid, and `ui/calendar-schedule.slint` for the event date and time controls. `src/calendar.rs` coordinates view state, time zone lookup, and clock formatting. `src/calendar/events.rs` owns event validation and the stored event model, `src/calendar/picker.rs` builds the date and time options, and `src/calendar/holidays.rs` computes recurring U.S. federal holidays and observances. The top bar opens the overlay through `ui/header-controls.slint`.
 
 Some feature/service files remain large and are candidates for later focused passes. This library refactor does not claim to have segmented the entire repository.
@@ -177,7 +183,23 @@ and the storage worker moves validated files into the same per-volume Trash
 used by ANGI Files. `files/trash/inventory.rs` reads the per-volume records for
 restore and explicit permanent deletion.
 
-App installation lives in `apps/agent/`: `app_catalog.py` reads and validates `apps.json`; `app_fetch.py` resolves a GitHub release, downloads it against its published SHA-256 and unpacks it with hardened extraction, never executing anything; `app_platform.py` qualifies releases against the running device; `app_native.py` validates Buildroot package targets and supplies native terminal launchers; `scripts/package-native-gstreamer.py` packages Pi 5 Buildroot outputs; `app_store.py` owns the per-account NVMe layout, the ledger, `bin/` links and the cross-process lock; `app_install.py` orchestrates install, update and remove with real progress events and is the `angi-update app` / `apps` command; `app_updates.py` turns installed apps into Services rows using the shared cache in `update_checks.py` (`cached_checks`). `update_restart.py` describes their activation impact (the next launch). The native terminal prepends the account's apps `bin/` to `PATH` (`library::terminal_path`, applied in `terminal/session.rs`). In the desktop, `services.rs` runs an app's update from its Services row through the same progress overlay as the desktop update, with `Services.operation-component` naming what is being updated.
+App installation lives in `apps/agent/`. `app_catalog.py` validates the app
+index, and `app_platform.py` checks whether its releases are available on the
+running device. `app_fetch.py` resolves GitHub releases, verifies publisher
+downloads, and unpacks archives with size and path checks. `app_native.py`
+validates staged Buildroot packages, supplies launchers, and reads the Microsoft
+download pin for the separate VS Code archive. The `scripts/package-native-*.py`
+scripts package the Pi 5 artifacts.
+
+`app_store.py` manages the per-account NVMe store, ledger, command symlinks,
+and install lock. `app_install.py` combines the payload and runtime when
+required and reports progress through `angi-update app` and `angi-update apps`.
+`app_updates.py` builds Services rows from the shared `update_checks.py` cache.
+`update_restart.py` records that app changes take effect on the next launch.
+The Terminal prepends the account's apps `bin/` to `PATH` through
+`library::terminal_path` in `terminal/session.rs`. `services.rs` uses the same
+progress overlay for desktop and app updates, and `Services.operation-component`
+names the item being updated.
 
 The Overview drive picker in `ui/drive-mount.slint` owns NVMe selection and erase confirmation. `storage/mount.rs` calls `apps/agent/data_volume.py` with administrator access off the UI thread. The helper lists existing ext4 partitions and idle NVMe drives, rechecks the selected drive before creating a GPT and ext4 filesystem, and remembers the mounted filesystem UUID for `S12agx-data`.
 

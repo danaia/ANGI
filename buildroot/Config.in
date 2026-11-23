@@ -1,5 +1,6 @@
 source "$BR2_EXTERNAL_AGX_PATH/package/agx/Config.in"
 source "$BR2_EXTERNAL_AGX_PATH/package/agx-gui/Config.in"
+source "$BR2_EXTERNAL_AGX_PATH/package/agx-wayland/Config.in"
 source "$BR2_EXTERNAL_AGX_PATH/package/agx-webkit/Config.in"
 source "$BR2_EXTERNAL_AGX_PATH/package/agx-web/Config.in"
 source "$BR2_EXTERNAL_AGX_PATH/package/agx-opencode/Config.in"

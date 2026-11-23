@@ -7,15 +7,41 @@ use agx_core::Sampler;
 use slint::{ComponentHandle, ModelRc, Timer, TimerMode};
 use std::{cell::RefCell, rc::Rc, time::Duration};
 pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let wayland_shell = cfg!(feature = "wayland") && graphics::using_winit();
+    #[cfg(feature = "wayland")]
+    if wayland_shell {
+        graphics::wayland_workspaces::identify_shell()?;
+        graphics::wayland_workspaces::select(0);
+    }
     let ui = AppWindow::new()?;
+    if wayland_shell {
+        ui.set_wayland_shell(true);
+        // Maximized keeps the shell on the normal desktop layer, alongside native app windows.
+        ui.window().set_maximized(true);
+    }
     graphics::attach_input(&ui);
     let _settings_save = crate::settings::install(&ui);
     let _sound_watch = crate::sound::install(&ui);
     let _process_watch = crate::memory_processes::install(&ui);
     let _storage_watch = crate::storage::install(&ui);
-    crate::appearance::install(&ui);
+    #[cfg(feature = "wayland")]
+    let fullscreen_controls = if wayland_shell {
+        graphics::wayland_workspaces::fullscreen_controls()
+    } else {
+        None
+    };
+    #[cfg(feature = "wayland")]
+    let controls = fullscreen_controls.as_ref().map(ComponentHandle::as_weak);
+    crate::appearance::install(&ui, move |_dark| {
+        #[cfg(feature = "wayland")]
+        if let Some(controls) = controls.as_ref().and_then(slint::Weak::upgrade) {
+            controls.global::<crate::Theme>().set_dark(_dark);
+        }
+    });
     ui.global::<Sys>().set_mode_note(
-        if cfg!(feature = "kms") {
+        if wayland_shell {
+            "Native Wayland session"
+        } else if cfg!(feature = "kms") {
             "DRM/KMS appliance, no display server"
         } else {
             "desktop preview window; power actions disabled"
@@ -39,7 +65,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     ui.set_ws_occupied(ModelRc::from(app.borrow().occupied.clone()));
     ui.set_mod_name(app.borrow().modk.name().into());
     ui.set_draw_cursor(graphics::draw_cursor());
-    ui.set_resize_cursor_overlay(cfg!(feature = "kms"));
+    ui.set_resize_cursor_overlay(cfg!(feature = "kms") && !graphics::using_winit());
     let _remote = remote::start(&ui);
     // Callbacks never nest, but a stray re-entrant event is dropped rather than panicking.
     macro_rules! hook {
@@ -72,6 +98,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     hook!(on_mapped_pointer, |a, ui, kind, button, x, y| {
         a.native_mouse_binding(&ui, kind, button, x, y)
     });
+    hook!(on_fullscreen_action, |a, ui, action| a.fullscreen_action(&ui, action));
     hook!(on_pointer, |a,
                        ui,
                        kind,
@@ -154,14 +181,6 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
         ui.global::<crate::MouseSettings>().on_refresh(move || {
             if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
                 app.run(&ui, Cmd::RefreshDesktop);
-            }
-        });
-    }
-    {
-        let (weak, state) = (ui.as_weak(), app.clone());
-        ui.global::<crate::MouseSettings>().on_open(move || {
-            if let (Some(ui), Ok(mut app)) = (weak.upgrade(), state.try_borrow_mut()) {
-                app.run(&ui, Cmd::Open(crate::wm::Kind::Settings));
             }
         });
     }

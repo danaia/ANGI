@@ -8,6 +8,8 @@ mod detection;
 #[cfg(any(feature = "kms", test))]
 mod kms_input;
 mod virtual_display;
+#[cfg(feature = "wayland")]
+pub(crate) mod wayland_workspaces;
 
 pub const ENVIRONMENT: [&str; 5] = [
     "SLINT_BACKEND",
@@ -108,6 +110,19 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn draw_cursor() -> bool {
     SOFTWARE_CURSOR.load(Ordering::Relaxed) || std::env::var_os("AGX_GUI_CURSOR").is_some()
+}
+
+pub fn using_winit() -> bool {
+    std::env::var("SLINT_BACKEND").is_ok_and(|backend| backend.starts_with("winit-"))
+}
+
+pub fn prefer_wayland(home: &std::path::Path) -> bool {
+    use std::os::unix::fs::FileTypeExt;
+    cfg!(feature = "wayland")
+        && std::env::var("SLINT_BACKEND").is_ok_and(|name| name.starts_with("linuxkms-"))
+        && home.join(".config/agx/wayland-session").is_file()
+        && std::path::Path::new("/usr/bin/angi-wayland").is_file()
+        && std::fs::metadata("/run/seatd.sock").is_ok_and(|file| file.file_type().is_socket())
 }
 
 #[cfg(any(feature = "kms", feature = "headless", test))]

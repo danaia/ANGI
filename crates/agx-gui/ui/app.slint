@@ -17,6 +17,8 @@ import { HeaderMenu, HeaderMenuRow } from "header-menu.slint";
 import { BarButton, HeaderClock, HeaderInput, WorkspaceButton } from "header-controls.slint";
 export { HeaderMenuRow }
 import { DesktopInput } from "desktop-input.slint";
+import { FullscreenActions, FullscreenActionWindow } from "fullscreen-actions.slint";
+export { FullscreenActionWindow }
 import { StorageView, StorageCell, StorageTrashRow } from "storage.slint";
 import { EmptyTrashDialog } from "storage-trash.slint";
 import { DriveMount, DriveMountDialog } from "drive-mount.slint";
@@ -44,6 +46,8 @@ import { AppLauncher } from "launcher.slint";
 import { HoverTip } from "hover-tip.slint";
 import { Cursor } from "cursor.slint";
 import { NightLight, NightLightFilter } from "night-light.slint";
+import { VolumeHud, VolumeHudOverlay } from "volume-hud.slint";
+export { VolumeHud }
 export { NightLight }
 import { CursorPreviewWindow } from "cursor-preview.slint";
 export { CursorPreviewWindow }
@@ -173,7 +177,6 @@ component WindowFrame inherits Rectangle {
         height: max(0px, parent.height - Theme.header - 1px - Theme.frame-inset);
         cursor: root.cursor; hide-cursor: root.hide-cursor;
         refresh-desktop => { MouseSettings.refresh(); }
-        open-mouse => { MouseSettings.page = 0; MouseSettings.open(); }
         pointer(k, b, x, y, c, a, s, m) => { root.pointer(k, b, x, y, c, a, s, m); }
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
@@ -212,6 +215,8 @@ component WindowFrame inherits Rectangle {
 
 export component AppWindow inherits Window {
     title: "ANGI";
+    in property <bool> wayland-shell: false;
+    no-frame: wayland-shell;
     background: Theme.background;
     default-font-family: "Poppins";
     default-font-size: Theme.text-body;
@@ -235,6 +240,9 @@ export component AppWindow inherits Window {
     in property <string> date: "";
     in property <string> toast: "";
     in property <bool> screen-full: false;
+    private property <bool> fullscreen-actions-open: false;
+    changed screen-full => { root.fullscreen-actions-open = false; }
+    callback fullscreen-action(int);
     in property <bool> dragging: false;
     in property <int> cursor: 0;
     in property <bool> draw-cursor: false;
@@ -313,6 +321,10 @@ export component AppWindow inherits Window {
         root.cursor-x = x;
         root.cursor-y = y;
         root.cursor-seen = true;
+        if root.screen-full {
+            if y <= 3px { root.fullscreen-actions-open = true; }
+            if y > 36px + 2 * Theme.space-2 { root.fullscreen-actions-open = false; }
+        }
     }
 
     pure function key-name(t: string) -> string {
@@ -526,6 +538,18 @@ export component AppWindow inherits Window {
             }
         }
 
+        if root.screen-full: TouchArea {
+            y: 0px;
+            width: parent.width;
+            height: 3px;
+            pointer-event(e) => { root.track-cursor(self.mouse-x, self.mouse-y); }
+        }
+        if root.screen-full && root.fullscreen-actions-open: FullscreenActions {
+            x: (parent.width - self.width) / 2; y: 0px;
+            pointer-moved(x, y) => { root.track-cursor(x, y); }
+            action(index) => { root.fullscreen-action(index); }
+        }
+
         // Hint line: quiet keyboard help, replaced by a toast when there is news.
         if !root.screen-full: Rectangle {
             y: parent.height - Theme.hint-bar;
@@ -686,6 +710,8 @@ export component AppWindow inherits Window {
             pointer-moved(x, y) => { root.track-cursor(x, y); }
             record-key(t, c, a, s, m) => { KeyBindings.record-key(root.key-name(t), c, a, s, m); }
         }
+
+        VolumeHudOverlay { x: 0; y: 0; width: root.width; height: root.height; }
 
         // Night light warms everything above, including dialogs; the pointer stays crisp on top.
         NightLightFilter { x: 0; y: 0; width: root.width; height: root.height; }

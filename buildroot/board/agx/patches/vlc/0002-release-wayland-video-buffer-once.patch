@@ -1,0 +1,23 @@
+From: ANGI development
+Subject: [PATCH] Clear released Wayland video buffers in optimized builds
+
+PictureDetach checks the buffer's user data to decide whether it still
+owns a picture. Clear that pointer in release builds too so teardown
+does not release a picture already returned by the compositor.
+
+diff --git a/modules/video_output/wayland/shm.c b/modules/video_output/wayland/shm.c
+--- a/modules/video_output/wayland/shm.c
++++ b/modules/video_output/wayland/shm.c
+@@ -74,12 +74,8 @@ static void buffer_release_cb(void *data, struct wl_buffer *buffer)
+ {
+     picture_t *pic = data;
+ 
+-#ifndef NDEBUG
+     assert(pic != NULL);
+     wl_buffer_set_user_data(buffer, NULL);
+-#else
+-    (void) buffer;
+-#endif
+     picture_Release(pic);
+ }
+ 

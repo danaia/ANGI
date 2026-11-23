@@ -1,0 +1,53 @@
+import { Theme, Icons, Icon, Label, Progress } from "pebble/pebble.slint";
+
+// Shown for a moment when the keyboard's volume keys are used; driven by src/sound.rs.
+export global VolumeHud {
+    in property <bool> shown;
+    in property <int> percent;
+    in property <bool> muted;
+}
+
+// A pill that slides down from the top edge, over the desktop, and slides back up when idle.
+// It never takes the pointer or the keyboard.
+export component VolumeHudOverlay inherits Rectangle {
+    private property <length> pill-width: min(300px, root.width - 2 * Theme.space-4);
+    private property <length> rest: Theme.header + Theme.space-3;
+    background: transparent;
+    Rectangle {
+        width: root.pill-width;
+        height: 52px;
+        x: (parent.width - self.width) / 2;
+        y: VolumeHud.shown ? root.rest : -self.height - Theme.space-4;
+        opacity: VolumeHud.shown ? 1.0 : 0.0;
+        border-radius: Theme.radius-md;
+        background: Theme.surface;
+        border-width: Theme.stroke-hair;
+        border-color: Theme.line-strong;
+        animate y { duration: 320ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1.0); }
+        animate opacity { duration: 220ms; easing: ease-out; }
+        accessible-role: none;
+        HorizontalLayout {
+            padding-left: Theme.space-4; padding-right: Theme.space-4;
+            spacing: Theme.space-3;
+            VerticalLayout {
+                alignment: center;
+                Icon {
+                    source: VolumeHud.muted || VolumeHud.percent == 0 ? Icons.speaker-off : Icons.speaker;
+                    color: VolumeHud.muted ? Theme.ink-subtle : Theme.ink;
+                    width: 22px; height: 22px;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                Progress { progress: VolumeHud.muted ? 0 : VolumeHud.percent / 100.0; }
+            }
+            Label {
+                width: 44px;
+                text: VolumeHud.muted ? "Muted" : VolumeHud.percent + "%";
+                horizontal-alignment: right;
+                vertical-alignment: center;
+                color: VolumeHud.muted ? Theme.ink-subtle : Theme.ink;
+            }
+        }
+    }
+}

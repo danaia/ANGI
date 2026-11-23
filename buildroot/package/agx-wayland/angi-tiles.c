@@ -220,6 +220,8 @@ angi_tile_remove(struct shell_surface *surface)
 	tiles->count--;
 	wl_list_remove(&tile->metadata.link);
 	wl_list_remove(&tile->scale.link);
+	if (tile->resize_timer)
+		wl_event_source_remove(tile->resize_timer);
 	pixman_region32_fini(&tile->clip);
 	if (tiles->focus == tile->id) {
 		tiles->focus = 0;

@@ -17,6 +17,7 @@ config BR2_PACKAGE_AGX_WAYLAND
 	select BR2_PACKAGE_SEATD
 	select BR2_PACKAGE_SEATD_DAEMON
 	select BR2_PACKAGE_XKEYBOARD_CONFIG
+	select BR2_PACKAGE_ZLIB
 	help
 	  Build the native Wayland desktop with Weston using ANGI's
 	  libudev provider. Enable the graphical ANGI desktop as well to

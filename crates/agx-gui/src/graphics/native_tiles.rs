@@ -115,7 +115,7 @@ impl NativeTiles {
         }
     }
 
-    pub(crate) fn layout(&self, ui: &AppWindow, desk: &Desktop, scene: &Scene) {
+    pub(crate) fn layout(&self, ui: &AppWindow, desk: &Desktop, scene: &Scene, resizing: bool) {
         let mut state = self.0.borrow_mut();
         let Some(connection) = state.as_mut() else { return };
         let overlay = ui.get_native_overlay_open();
@@ -128,7 +128,10 @@ impl NativeTiles {
         for (&id, window) in &connection.windows {
             let kind = Kind::Native(id);
             let Some(workspace) = desk.workspace_of(kind) else { continue };
-            let message = placement_message(id, workspace, scene, overlay, ui.global::<Theme>().get_radius_lg());
+            let mut message = placement_message(id, workspace, scene, overlay, ui.global::<Theme>().get_radius_lg());
+            if resizing {
+                message.push_str(" D");
+            }
             if connection.sent.get(&id) != Some(&message) {
                 if connection.send(&message) {
                     connection.sent.insert(id, message);
@@ -246,15 +249,16 @@ fn apply_snapshot(app: &mut App, focus: u32, windows: BTreeMap<u32, Window>) -> 
         if !connection.windows.contains_key(&id) {
             let placement = connection.placements.get(&window.app_id).filter(|p| p.workspace < MAX_WORKSPACES);
             let workspace = placement.map_or(window.workspace, |p| p.workspace);
-            let mode = if placement.is_some_and(|p| p.windowed) { Mode::Floating } else { Mode::Tiled };
             if app.desk.ensure_workspace(workspace) {
-                app.desk.set_native_workspace_mode(workspace, mode);
-                let rect = placement.and_then(|p| p.floating).filter(|r| {
+                let mode = app.desk.workspace_mode(workspace);
+                let rect = placement.filter(|p| mode == Mode::Floating || !p.windowed)
+                    .and_then(|p| p.floating).filter(|r| {
                     [r.x, r.y, r.w, r.h].into_iter().all(|v| v.is_finite() && v.abs() <= 32768.0)
                         && r.w >= crate::wm::MIN_W && r.h >= crate::wm::MIN_H
                 });
                 app.desk.attach_native(Kind::Native(id), workspace, rect);
-                if rect.is_none() && let Some(extent) = placement.and_then(|p| p.tiled) {
+                if rect.is_none() && let Some(extent) = placement.and_then(|p| p.tiled)
+                    && (extent.0 < 0.85 || extent.1 < 0.85) {
                     app.desk.restore_native_extent(Kind::Native(id), extent);
                 }
                 if id == focus {

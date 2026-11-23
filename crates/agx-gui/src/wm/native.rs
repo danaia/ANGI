@@ -10,6 +10,7 @@ impl Desktop {
         if self.is_open(kind) || !self.ensure_workspace(workspace) {
             return;
         }
+        let rect = self.native_launch_rect(workspace, rect);
         self.attach(workspace, kind);
         if let Some(rect) = rect {
             self.float_rect.insert(kind, rect);
@@ -20,6 +21,41 @@ impl Desktop {
             }
             self.constrain_floats();
         }
+    }
+
+    fn native_launch_rect(&self, workspace: usize, saved: Option<Rect>) -> Option<Rect> {
+        let w = &self.ws[workspace];
+        let occupied: Vec<_> = w.z.iter().filter_map(|kind| {
+            let rect = *self.float_rect.get(kind)?;
+            (w.mode == Mode::Floating || w.floats.contains(kind))
+                .then_some(self.visible_float_rect(*kind, rect))
+        }).collect();
+        let area = self.usable;
+        let preferred = saved.or_else(|| (w.mode == Mode::Floating).then(|| self.default_float(w.z.len())))?;
+        let overlap = |a: Rect, b: Rect| {
+            (a.right().min(b.right()) - a.x.max(b.x)).max(0.0)
+                * (a.bottom().min(b.bottom()) - a.y.max(b.y)).max(0.0)
+        };
+        let fits = |rect: Rect| {
+            rect.x >= area.x && rect.right() <= area.right()
+                && rect.y >= area.y && rect.bottom() <= area.bottom()
+        };
+        if occupied.is_empty() || (fits(preferred) && occupied.iter().all(|r| overlap(*r, preferred) == 0.0)) {
+            return Some(preferred);
+        }
+        let gap = super::GAP_IN;
+        let free = occupied.iter().flat_map(|r| [
+            Rect::new(area.x, area.y, r.x - gap - area.x, area.h),
+            Rect::new(r.right() + gap, area.y, area.right() - r.right() - gap, area.h),
+            Rect::new(area.x, area.y, area.w, r.y - gap - area.y),
+            Rect::new(area.x, r.bottom() + gap, area.w, area.bottom() - r.bottom() - gap),
+        ]).filter(|r| r.w >= super::MIN_W && r.h >= super::MIN_H && fits(*r))
+            .filter(|r| occupied.iter().all(|o| overlap(*o, *r) == 0.0))
+            .max_by(|a, b| (a.w * a.h).total_cmp(&(b.w * b.h)));
+        free.or_else(|| (w.mode == Mode::Floating).then(|| {
+            let fallback = self.default_float(w.z.len());
+            Rect::new(fallback.x, fallback.y, fallback.w.min(area.w * 0.5), fallback.h.min(area.h * 0.65))
+        }))
     }
 
     pub(crate) fn native_float_rect(&self, kind: Kind) -> Option<Rect> {
@@ -55,20 +91,32 @@ impl Desktop {
         self.ws[workspace].mode
     }
 
-    pub(crate) fn set_native_workspace_mode(&mut self, workspace: usize, mode: Mode) {
-        if self.ws[workspace].mode == mode
-            || self.ws[workspace].z.iter().any(|kind| matches!(kind, Kind::Native(_)))
-        {
-            return;
-        }
-        let current = self.cur;
-        self.cur = workspace;
-        self.cycle_layout();
-        self.cur = current;
-    }
-
     pub(crate) fn forget_native(&mut self, kind: Kind) {
         self.close(kind);
         self.float_rect.remove(&kind);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restoring_a_floating_window_does_not_cover_an_existing_window() {
+        let screen = Rect::new(0., 0., 1920., 1080.);
+        let mut desk = Desktop::new(screen, screen);
+        desk.goto(3);
+        if desk.workspace_mode(3) != Mode::Floating {
+            desk.cycle_layout();
+        }
+        let browser = Kind::Native(1);
+        let editor = Kind::Native(2);
+        desk.attach_native(browser, 3, Some(Rect::new(400., 300., 1152., 594.)));
+        let before = desk.rect_of(browser).unwrap();
+        desk.attach_native(editor, 3, Some(Rect::new(129., 112., 1802., 926.)));
+        let new = desk.rect_of(editor).unwrap();
+        assert_eq!(desk.rect_of(browser), Some(before));
+        assert!(new.right() <= before.x || new.x >= before.right()
+            || new.bottom() <= before.y || new.y >= before.bottom());
     }
 }

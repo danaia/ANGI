@@ -1,0 +1,49 @@
+Allow Weston VNC through an authenticated SSH tunnel on ANGI
+
+ANGI uses OpenSSH for authentication and encryption. Require an explicit IPv4 loopback address and the TLS opt-out before allowing an unauthenticated connection.
+
+--- a/libweston/meson.build
++++ b/libweston/meson.build
+@@ -109,11 +109,10 @@
+ 	if not dep_pam.found()
+ 		dep_pam = cc.find_library('pam', required: false)
+ 	endif
+-	if not dep_pam.found()
+-		error('VNC backend requires libpam which was not found. Or, you can use \'-Dbackend-vnc=false\'.')
++	if dep_pam.found()
++		config_h.set('HAVE_PAM', '1')
++		deps_libweston += dep_pam
+ 	endif
+-	config_h.set('HAVE_PAM', '1')
+-	deps_libweston += dep_pam
+ endif
+ 
+ if get_option('perfetto')
+--- a/libweston/backend-vnc/vnc.c
++++ b/libweston/backend-vnc/vnc.c
+@@ -1278,6 +1278,16 @@
+ 						  vnc_aml_dispatch,
+ 						  backend->aml);
+ 
++	/* ANGI uses the authenticated OpenSSH tunnel for loopback access. */
++	bool ssh_loopback = config->disable_tls && config->bind_address &&
++			    strcmp(config->bind_address, "127.0.0.1") == 0;
++#ifndef HAVE_PAM
++	if (!ssh_loopback) {
++		weston_log("Without PAM, VNC requires --address=127.0.0.1 and --disable-transport-layer-security\n");
++		goto err_aml;
++	}
++#endif
++
+ 	backend->server = nvnc_open(config->bind_address, config->port);
+ 	if (!backend->server)
+ 		goto err_aml;
+@@ -1329,7 +1339,7 @@
+ 		}
+ 
+ 		weston_log("TLS support activated\n");
+-	} else {
++	} else if (!ssh_loopback) {
+ 		ret = nvnc_enable_auth(backend->server, NVNC_AUTH_REQUIRE_AUTH,
+ 				       vnc_handle_auth, NULL);
+ 		if (ret) {

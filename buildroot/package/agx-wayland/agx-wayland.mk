@@ -6,22 +6,46 @@ AGX_WAYLAND_SITE = https://gitlab.freedesktop.org/wayland/weston/-/releases/$(AG
 AGX_WAYLAND_SOURCE = weston-$(AGX_WAYLAND_VERSION).tar.xz
 AGX_WAYLAND_CURSOR_VERSION = 48.1
 AGX_WAYLAND_CURSOR_SOURCE = adwaita-icon-theme-$(AGX_WAYLAND_CURSOR_VERSION)
-AGX_WAYLAND_EXTRA_DOWNLOADS = https://download.gnome.org/sources/adwaita-icon-theme/48/$(AGX_WAYLAND_CURSOR_SOURCE).tar.xz
-AGX_WAYLAND_LICENSE = MIT, LGPL-3.0 or CC-BY-SA-3.0 (cursor assets)
-AGX_WAYLAND_LICENSE_FILES = COPYING $(addprefix $(AGX_WAYLAND_CURSOR_SOURCE)/,COPYING COPYING_LGPL COPYING_CCBYSA3)
+AGX_WAYLAND_AML_VERSION = 0.3.0
+AGX_WAYLAND_NEATVNC_VERSION = 0.9.5
+AGX_WAYLAND_EXTRA_DOWNLOADS = \
+	https://download.gnome.org/sources/adwaita-icon-theme/48/$(AGX_WAYLAND_CURSOR_SOURCE).tar.xz \
+	https://codeload.github.com/any1/aml/tar.gz/refs/tags/v$(AGX_WAYLAND_AML_VERSION) \
+	https://codeload.github.com/any1/neatvnc/tar.gz/refs/tags/v$(AGX_WAYLAND_NEATVNC_VERSION)
+AGX_WAYLAND_LICENSE = MIT, ISC (AML and Neat VNC), LGPL-3.0 or CC-BY-SA-3.0 (cursor assets)
+AGX_WAYLAND_LICENSE_FILES = COPYING subprojects/aml/COPYING subprojects/neatvnc/COPYING \
+	$(addprefix $(AGX_WAYLAND_CURSOR_SOURCE)/,COPYING COPYING_LGPL COPYING_CCBYSA3)
 AGX_WAYLAND_DEPENDENCIES = host-pkgconf wayland wayland-protocols libudev \
 	libxkbcommon pixman libpng cairo libinput libdisplay-info libdrm \
-	libegl libgbm libgles seatd
+	libegl libgbm libgles seatd zlib
 AGX_WAYLAND_CONF_OPTS = \
 	-Dbackend-default=drm -Dbackend-drm=true -Dbackend-headless=true \
 	-Dbackend-wayland=false -Dbackend-x11=false -Dbackend-rdp=false \
-	-Dbackend-pipewire=false -Dbackend-vnc=false -Dxwayland=false \
+	-Dbackend-pipewire=false -Dbackend-vnc=true -Dxwayland=false \
+	--force-fallback-for=aml,neatvnc -Daml:default_library=static -Dneatvnc:default_library=static \
+	-Dneatvnc:tls=disabled -Dneatvnc:nettle=disabled -Dneatvnc:h264=disabled -Dneatvnc:gbm=enabled \
 	-Drenderer-gl=true -Drenderer-vulkan=false -Dpipewire=false \
 	-Dshell-desktop=true -Dshell-ivi=false -Dshell-kiosk=false -Dshell-lua=false \
 	-Ddeprecated-shell-fullscreen=false -Ddeprecated-screenshare=false \
 	-Dcolor-management-lcms=false -Dimage-jpeg=false -Dimage-webp=false \
 	-Ddoc=false -Dremoting=false -Dsystemd=false -Dtest-junit-xml=false \
 	-Dsimple-clients=shm,egl -Ddemo-clients=false -Dtools=debug,terminal
+
+ifeq ($(BR2_PACKAGE_JPEG_TURBO),y)
+AGX_WAYLAND_DEPENDENCIES += jpeg
+AGX_WAYLAND_CONF_OPTS += -Dneatvnc:jpeg=enabled
+else
+AGX_WAYLAND_CONF_OPTS += -Dneatvnc:jpeg=disabled
+endif
+
+define AGX_WAYLAND_EXTRACT_VNC_SOURCES
+	mkdir -p $(@D)/subprojects/aml $(@D)/subprojects/neatvnc
+	tar -xzf $(AGX_WAYLAND_DL_DIR)/v$(AGX_WAYLAND_AML_VERSION) \
+		--strip-components=1 -C $(@D)/subprojects/aml
+	tar -xzf $(AGX_WAYLAND_DL_DIR)/v$(AGX_WAYLAND_NEATVNC_VERSION) \
+		--strip-components=1 -C $(@D)/subprojects/neatvnc
+endef
+AGX_WAYLAND_POST_EXTRACT_HOOKS += AGX_WAYLAND_EXTRACT_VNC_SOURCES
 
 define AGX_WAYLAND_EXTRACT_CURSORS
 	tar -xJf $(AGX_WAYLAND_DL_DIR)/$(AGX_WAYLAND_CURSOR_SOURCE).tar.xz -C $(@D) \

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run on an available local VT, or use --headless for an isolated test.
+# Run on an available local VT, through a VNC tunnel, or in a headless test.
 set -eu
 
 if [ "$(id -u)" = 0 ]; then
@@ -9,6 +9,7 @@ fi
 
 umask 077
 login=false
+remote=false
 preference="$HOME/.config/agx/wayland-session"
 set_preference() {
 	mkdir -p -- "${preference%/*}"
@@ -21,6 +22,14 @@ set_preference() {
 case "${1:-}" in
 	"") set -- --backend=drm --renderer=gl ;;
 	--login) login=true; set -- --backend=drm --renderer=gl ;;
+	--vnc)
+		remote=true
+		# Give single-instance apps a profile scoped to the remote session.
+		XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}/angi-vnc"
+		export XDG_CONFIG_HOME
+		set -- --backend=vnc --renderer=gl --width=1280 --height=720 \
+			--address=127.0.0.1 --port=5900 --disable-transport-layer-security
+		;;
 	--headless)
 		export AGX_WAYLAND_RENDERER=software
 		set -- --backend=headless --renderer=pixman
@@ -35,7 +44,7 @@ case "${1:-}" in
 		printf 'The standalone ANGI desktop will start at your next sign-in.\n'
 		exit 0
 		;;
-	*) printf 'Usage: angi-wayland [--next-login | --regular-next-login | --headless]\n' >&2; exit 2 ;;
+	*) printf 'Usage: angi-wayland [--next-login | --regular-next-login | --vnc | --headless]\n' >&2; exit 2 ;;
 esac
 
 XDG_RUNTIME_DIR=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/angi-wayland.XXXXXXXX")
@@ -63,7 +72,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM HUP
 
 config=/usr/share/agx/wayland/weston.ini
-if [ -r "$HOME/.config/agx/weston.ini" ]; then
+if [ "$remote" = false ] && [ -r "$HOME/.config/agx/weston.ini" ]; then
 	config="$HOME/.config/agx/weston.ini"
 fi
 if [ "${AGX_WAYLAND_DEBUG:-0}" = 1 ]; then

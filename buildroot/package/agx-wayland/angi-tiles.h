@@ -10,6 +10,8 @@ struct angi_tile {
 	struct wl_listener metadata;
 	struct weston_transform scale;
 	struct weston_geometry applied_geometry;
+	struct wl_event_source *resize_timer;
+	bool resize_pending;
 	int applied_width, applied_height;
 	int x, y, width, height;
 	bool fullscreen, positioned;

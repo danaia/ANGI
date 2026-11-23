@@ -175,7 +175,8 @@ impl App {
     pub(super) fn sync_scene(&self, ui: &AppWindow) {
         self.view.sync(self.desk.scene(), self.target);
         #[cfg(feature = "wayland")]
-        self.native_tiles.layout(ui, &self.desk, &self.view.scene.borrow());
+        self.native_tiles.layout(ui, &self.desk, &self.view.scene.borrow(),
+            matches!(self.drag, Drag::Split { .. } | Drag::ResizeTiled { .. } | Drag::ResizeFloat { .. }));
         #[cfg(not(feature = "wayland"))]
         let _ = ui;
     }

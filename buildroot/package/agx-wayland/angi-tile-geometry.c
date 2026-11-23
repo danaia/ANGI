@@ -3,6 +3,8 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include <libweston/desktop.h>
 #include "shared/helpers.h"
@@ -10,6 +12,48 @@
 #include "angi-tiles.h"
 
 #define MAX_TILE_COORD 32768
+#define CLIENT_RESIZE_INTERVAL_MS 66
+
+static int
+configure_size(void *data)
+{
+	struct angi_tile *tile = data;
+	tile->resize_pending = false;
+	if (tile->positioned &&
+	    (tile->applied_width != tile->width || tile->applied_height != tile->height)) {
+		weston_desktop_surface_set_size(tile->surface->desktop_surface, tile->width, tile->height);
+		tile->applied_width = tile->width;
+		tile->applied_height = tile->height;
+		if (getenv("AGX_WAYLAND_RESIZE_TRACE"))
+			weston_log("ANGI tile configure %u %dx%d\n", tile->id, tile->width, tile->height);
+	}
+	return 0;
+}
+
+static void
+schedule_size(struct angi_tile *tile, bool interactive)
+{
+	if (!interactive) {
+		if (tile->resize_pending)
+			wl_event_source_timer_update(tile->resize_timer, 0);
+		configure_size(tile);
+		return;
+	}
+	if (tile->resize_pending ||
+	    (tile->applied_width == tile->width && tile->applied_height == tile->height))
+		return;
+	if (!tile->resize_timer) {
+		struct wl_display *display = tile->surface->shell->compositor->wl_display;
+		tile->resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(display),
+		                                          configure_size, tile);
+	}
+	if (tile->resize_timer &&
+	    wl_event_source_timer_update(tile->resize_timer, CLIENT_RESIZE_INTERVAL_MS) == 0) {
+		tile->resize_pending = true;
+		return;
+	}
+	configure_size(tile);
+}
 
 static void
 apply_region(struct angi_tile *tile, struct weston_geometry geometry)
@@ -78,8 +122,11 @@ angi_tile_committed(struct shell_surface *surface)
 		return false;
 	geometry = weston_desktop_surface_get_geometry(surface->desktop_surface);
 	if (geometry.x != tile->applied_geometry.x || geometry.y != tile->applied_geometry.y ||
-	    geometry.width != tile->applied_geometry.width || geometry.height != tile->applied_geometry.height)
+	    geometry.width != tile->applied_geometry.width || geometry.height != tile->applied_geometry.height) {
+		if (getenv("AGX_WAYLAND_RESIZE_TRACE"))
+			weston_log("ANGI tile commit %u %dx%d\n", tile->id, geometry.width, geometry.height);
 		apply_geometry(tile);
+	}
 	return true;
 }
 
@@ -119,6 +166,8 @@ angi_tile_position(struct desktop_shell *shell, const char *message)
 	struct angi_tile *tile;
 	unsigned id, workspace, full;
 	int x, y, width, height, radius, offset = 0;
+	const char *last_field = strrchr(message, ' ');
+	bool interactive = last_field && strcmp(last_field, " D") == 0;
 
 	if (sscanf(message, "%u %u %d %d %d %d %u %d%n",
 	           &id, &workspace, &x, &y, &width, &height, &full, &radius, &offset) != 8 ||
@@ -157,13 +206,9 @@ angi_tile_position(struct desktop_shell *shell, const char *message)
 			pixman_region32_fini(&cover);
 			message += offset;
 		}
-		if (tile->applied_width != width || tile->applied_height != height) {
-			weston_desktop_surface_set_size(surface->desktop_surface, width, height);
-			tile->applied_width = width;
-			tile->applied_height = height;
-		}
 		apply_geometry(tile);
 	}
+	schedule_size(tile, interactive && tile->positioned);
 	shell_surface_update_layer(surface);
 	wl_list_for_each(child, &shell->shsurf_list, link) {
 		if (child != surface && child->desktop_surface && angi_tile_owner(child) == surface) {

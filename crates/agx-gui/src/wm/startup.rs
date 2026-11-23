@@ -39,8 +39,8 @@ impl Desktop {
         desktop.ws[0].focus = Some(Kind::Memory);
         desktop.cur = 1;
         desktop.open(Kind::AgentAngi);
-        // Workspaces 3–5 are available for windows the user opens.
-        for i in 0..desktop.workspace_count() {
+        // Keep the built-in workspaces windowed. Empty workspaces tile new apps.
+        for i in 0..2 {
             desktop.cur = i;
             desktop.cycle_layout();
         }

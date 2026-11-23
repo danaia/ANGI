@@ -86,8 +86,17 @@ their parent application's workspace.
 Use the header to move, float, fullscreen, or close a window. The desktop
 keyboard shortcuts work when focus is in the app. Switching workspaces
 retains the running apps and split geometry. Reopening an app with a Wayland
-app ID restores its last workspace, layout mode, and saved size when the
-current layout has room. The app manages its own documents and session state.
+app ID restores its last workspace and a compatible saved size. The
+workspace's active layout governs new placements. In windowed mode,
+the shell checks for space beside existing floating windows before
+restoring overlapping bounds. The app manages its own documents and
+session state.
+
+During a live resize, Weston moves the tile immediately and uses the last
+client buffer until the app commits a new one. Size requests are coalesced
+over 66 ms during the drag and the final size is sent immediately on release.
+Set `AGX_WAYLAND_RESIZE_TRACE=1` in a test session to log requested and
+committed native tile sizes.
 
 Move the pointer to the top edge of a fullscreen window to reveal Exit
 fullscreen, Minimize, and Close. Move down to hide the controls.
@@ -102,6 +111,13 @@ Wayland choice. If Weston or the shell exits with an error, the session
 launcher starts the standalone desktop with the same account.
 For a side-by-side protocol check, `angi-wayland --headless` creates its
 own socket in a private temporary runtime directory, with no HDMI output.
+
+For remote access to native Wayland apps such as VS Code, start
+`angi-wayland --vnc` as the signed-in user when the Pi's port 5900 is free.
+Weston starts a separate GPU-rendered desktop with its own application
+configuration and listens on `127.0.0.1:5900`. Connect through the
+[existing SSH tunnel](pi-ethernet.md#see-and-control-the-desktop).
+The HDMI desktop can keep running beside the remote session.
 
 For frame pacing measurements, start a test session on an available VT with
 `AGX_WAYLAND_DEBUG=1 angi-wayland`. In its Terminal, run

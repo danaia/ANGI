@@ -1,7 +1,102 @@
 import { Theme } from "data.slint";
 import { Cursor } from "cursor.slint";
 import { FirstBootPanel, GreeterSetup } from "first-boot.slint";
-import { Button, ButtonVariant, ControlSize, TextField, Icons, Heading2, Hint } from "pebble/pebble.slint";
+import { Button, ButtonVariant, ControlSize, FocusRing, TextField, Icon, Icons, Heading2, Hint, Label } from "pebble/pebble.slint";
+
+export enum SessionMode { native, wayland }
+
+component SessionOption inherits Rectangle {
+    in property <string> label;
+    in property <string> description;
+    in property <image> icon;
+    in property <bool> selected;
+    in property <bool> enabled;
+    private property <bool> pointer-focus;
+    callback choose();
+    callback other();
+    callback submit();
+    callback pointer-moved(length, length);
+    forward-focus: keys;
+
+    horizontal-stretch: 1;
+    border-radius: self.height / 2;
+    background: root.selected ? Theme.surface-muted
+        : root.enabled && touch.has-hover ? Theme.surface-hover : Theme.surface;
+    border-width: Theme.stroke-hair;
+    border-color: root.selected ? Theme.line-bold : Theme.line;
+
+    accessible-role: radio-button;
+    accessible-label: root.label;
+    accessible-description: root.description;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.choose(); } }
+
+    HorizontalLayout {
+        alignment: center;
+        spacing: Theme.space-2;
+        Rectangle {
+            width: 12px;
+            height: self.width;
+            y: (parent.height - self.height) / 2;
+            border-radius: self.width / 2;
+            border-width: Theme.stroke-rule;
+            border-color: root.enabled ? Theme.line-bold : Theme.line;
+            Rectangle {
+                width: 6px;
+                height: self.width;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                border-radius: self.width / 2;
+                background: Theme.accent;
+                visible: root.selected;
+            }
+        }
+        Icon {
+            source: root.icon;
+            y: (parent.height - self.height) / 2;
+            color: root.enabled ? Theme.ink-muted : Theme.ink-subtle;
+        }
+        Label {
+            text: root.label;
+            color: root.enabled ? Theme.ink : Theme.ink-subtle;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        focus-on-click: false;
+        focus-on-tab-navigation: root.selected;
+        focus-lost => { root.pointer-focus = false; }
+        key-pressed(event) => {
+            root.pointer-focus = false;
+            if (event.text == Key.LeftArrow || event.text == Key.RightArrow
+                || event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                root.other();
+                return accept;
+            }
+            if (event.text == Key.Space) { root.choose(); return accept; }
+            if (event.text == Key.Return) { root.submit(); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.pointer-focus = true; root.choose(); }
+        pointer-event(event) => {
+            root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+        }
+    }
+    FocusRing {
+        width: parent.width + 8px;
+        height: parent.height + 8px;
+        shown: keys.has-focus && root.enabled && !root.pointer-focus;
+        radius: root.border-radius;
+    }
+}
 
 export component LoginWindow inherits Window {
     title: GreeterSetup.step == 0 ? "ANGI · Sign in" : "Set up ANGI";
@@ -16,28 +111,39 @@ export component LoginWindow inherits Window {
     in property <bool> busy: false;
     in property <bool> draw-cursor: false;
     in property <string> error-text;
-    callback sign-in(string, string);
-    callback authenticated(string);
+    in property <string> wayland-unavailable;
+    in-out property <SessionMode> session-mode: SessionMode.native;
+    private property <bool> compact: self.height < 540px;
+    private property <string> native-caption: "Lightweight · Slint + DRM/KMS. No compositor.";
+    private property <string> wayland-caption: "Wayland · Chromium, VS Code and Linux apps.";
+    private property <length> cursor-x;
+    private property <length> cursor-y;
+    callback sign-in(string, string, SessionMode);
+    callback authenticated(string, SessionMode);
     public function show-login(account: string) {
         username.text = account;
         GreeterSetup.step = 0;
         if (account != "") { password.focus(); } else { username.focus(); }
     }
     function submit() {
-        if (!root.busy) {
-            root.sign-in(username.text, password.text);
+        if (!root.busy && (root.session-mode == SessionMode.native || root.wayland-unavailable == "")) {
+            root.sign-in(username.text, password.text, root.session-mode);
             password.text = "";
         }
+    }
+    function track(x: length, y: length) {
+        root.cursor-x = x;
+        root.cursor-y = y;
     }
     tracker := TouchArea {
         width: parent.width;
         height: parent.height;
+        pointer-event(event) => { root.track(self.mouse-x, self.mouse-y); }
         if GreeterSetup.step != 0: FirstBootPanel { width: parent.width; height: parent.height; }
         Rectangle {
             visible: GreeterSetup.step == 0;
-            // Pebble Line login: a radius-xl outlined card, icon fields and one primary pill.
-            width: min(440px, parent.width - 48px);
-            height: 452px;
+            width: min(440px, parent.width - Theme.space-12);
+            height: root.compact ? 384px : 516px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             background: Theme.surface;
@@ -45,45 +151,96 @@ export component LoginWindow inherits Window {
             border-width: Theme.stroke-hair;
             border-color: Theme.line;
             VerticalLayout {
-                padding: Theme.space-10;
-                spacing: Theme.space-3;
+                alignment: center;
+                padding: root.compact ? Theme.space-4 : Theme.space-10;
+                spacing: root.compact ? Theme.space-1 : Theme.space-3;
                 Image {
-                    height: 44px;
+                    height: root.compact ? 28px : 44px;
                     source: @image-url("../../../brand/brand-mark-text.svg");
                     image-fit: contain;
                     colorize: Theme.ink;
+                    accessible-role: image;
                     accessible-label: "ANGI";
                 }
-                Rectangle { height: Theme.space-2; }
                 Heading2 { text: "Sign in"; horizontal-alignment: center; }
-                Hint { text: "Welcome back to your desktop."; horizontal-alignment: center; }
-                Rectangle { height: Theme.space-2; }
                 username := TextField {
-                    height: 46px;
+                    height: root.compact ? 36px : 44px;
                     icon: Icons.user;
                     placeholder-text: "Username";
+                    accessible-label: self.placeholder-text;
+                    accessible-enabled: self.enabled;
                     enabled: !root.busy;
                     accepted => { password.focus(); }
+                    pointer-moved(x, y) => { root.track(x, y); }
                 }
                 password := TextField {
-                    height: 46px;
+                    height: root.compact ? 36px : 44px;
                     icon: Icons.lock;
                     placeholder-text: "Password";
+                    accessible-label: self.placeholder-text;
+                    accessible-enabled: self.enabled;
                     input-type: InputType.password;
                     enabled: !root.busy;
                     accepted => { root.submit(); }
+                    pointer-moved(x, y) => { root.track(x, y); }
+                }
+                VerticalLayout {
+                    spacing: Theme.space-1;
+                    Label { text: "Desktop environment"; }
+                    HorizontalLayout {
+                        height: root.compact ? 36px : 42px;
+                        spacing: Theme.space-2;
+                        accessible-role: radio-group;
+                        accessible-label: "Desktop environment";
+                        native := SessionOption {
+                            label: "Native";
+                            description: root.native-caption;
+                            icon: Icons.zap;
+                            selected: root.session-mode == SessionMode.native;
+                            enabled: !root.busy;
+                            choose => { root.session-mode = SessionMode.native; self.focus(); }
+                            other => { if (full.enabled) { full.choose(); } }
+                            submit => { root.submit(); }
+                            pointer-moved(x, y) => { root.track(x, y); }
+                        }
+                        full := SessionOption {
+                            label: "Full Desktop";
+                            description: root.wayland-unavailable == "" ? root.wayland-caption : root.wayland-unavailable;
+                            icon: Icons.app-window;
+                            selected: root.session-mode == SessionMode.wayland;
+                            enabled: !root.busy && root.wayland-unavailable == "";
+                            choose => { root.session-mode = SessionMode.wayland; self.focus(); }
+                            other => { native.choose(); }
+                            submit => { root.submit(); }
+                            pointer-moved(x, y) => { root.track(x, y); }
+                        }
+                    }
+                    Hint { text: root.session-mode == SessionMode.native ? root.native-caption : root.wayland-caption; }
+                    if root.wayland-unavailable != "": Hint { text: root.wayland-unavailable; }
                 }
                 Button {
                     variant: ButtonVariant.primary;
-                    size: ControlSize.md;
+                    size: root.compact ? ControlSize.sm : ControlSize.md;
                     horizontal-stretch: 1;
-                    text: root.busy ? "Signing in…" : "Sign in";
-                    enabled: !root.busy;
+                    text: root.busy ? "Signing in…" : root.session-mode == SessionMode.native ? "Sign in to Native" : "Sign in to Full Desktop";
+                    enabled: !root.busy && (root.session-mode == SessionMode.native || root.wayland-unavailable == "");
                     clicked => { root.submit(); }
+                    pointer-moved(x, y) => { root.track(x, y); }
                 }
-                Text { text: root.error-text; color: Theme.danger; wrap: word-wrap; font-size: Theme.text-body-sm; horizontal-alignment: center; min-height: 32px; }
+                Text {
+                    text: root.error-text;
+                    color: Theme.danger;
+                    wrap: word-wrap;
+                    font-size: Theme.text-body-sm;
+                    horizontal-alignment: center;
+                    min-height: 36px;
+                }
             }
         }
     }
-    if root.draw-cursor: Cursor { x: tracker.mouse-x; y: tracker.mouse-y; shape: 0; }
+    if root.draw-cursor: Cursor {
+        x: GreeterSetup.step == 0 ? root.cursor-x : tracker.mouse-x;
+        y: GreeterSetup.step == 0 ? root.cursor-y : tracker.mouse-y;
+        shape: 0;
+    }
 }

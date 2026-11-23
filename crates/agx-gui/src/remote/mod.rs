@@ -43,6 +43,14 @@ pub struct Exec {
 }
 
 impl Remote {
+    pub fn has_viewers(&self) -> bool {
+        self.shared.has_viewers()
+    }
+
+    pub fn stop_accepting_if_idle(&self) -> bool {
+        self.shared.stop_accepting_if_idle()
+    }
+
     /// Describe the open connections for the process that will replace this one.
     pub fn handoff_for_exec(&self) -> Option<Exec> {
         let handoff = self.shared.handoff()?;

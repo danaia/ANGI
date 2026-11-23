@@ -7,11 +7,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 mod detection;
 #[cfg(any(feature = "kms", test))]
 mod kms_input;
+#[cfg(feature = "wayland")]
+pub(crate) mod native_tiles;
 mod virtual_display;
 #[cfg(feature = "wayland")]
 pub(crate) mod wayland_workspaces;
-#[cfg(feature = "wayland")]
-pub(crate) mod native_tiles;
 
 pub const ENVIRONMENT: [&str; 5] = [
     "SLINT_BACKEND",
@@ -118,27 +118,36 @@ pub fn using_winit() -> bool {
     std::env::var("SLINT_BACKEND").is_ok_and(|backend| backend.starts_with("winit-"))
 }
 
-pub fn prefer_wayland(home: &std::path::Path, remote_viewer: bool) -> bool {
-    use std::os::unix::fs::FileTypeExt;
-    let Ok(backend) = std::env::var("SLINT_BACKEND") else {
-        return false;
-    };
-    cfg!(feature = "wayland")
-        && backend.starts_with("linuxkms-")
-        && std::path::Path::new("/usr/bin/angi-wayland").is_file()
-        && std::fs::metadata("/run/seatd.sock").is_ok_and(|file| file.file_type().is_socket())
-        && wayland_preference(
-            std::fs::read_to_string(home.join(".config/agx/wayland-session")),
-            !remote_viewer && backend == "linuxkms-femtovg",
-        )
-}
+pub const WAYLAND_VNC_UNAVAILABLE: &str =
+    "Full Desktop is unavailable while a VNC viewer is connected.";
 
-fn wayland_preference(preference: std::io::Result<String>, local_gpu_default: bool) -> bool {
-    match preference {
-        // Empty files were the opt-in marker on existing installs.
-        Ok(mode) => matches!(mode.trim(), "" | "wayland"),
-        Err(error) => error.kind() == std::io::ErrorKind::NotFound && local_gpu_default,
+pub fn wayland_unavailable(remote_viewer: bool) -> Option<&'static str> {
+    use std::{os::unix::fs::FileTypeExt, path::Path};
+
+    if remote_viewer {
+        return Some(WAYLAND_VNC_UNAVAILABLE);
     }
+    if !cfg!(feature = "wayland")
+        || ![
+            "/usr/bin/angi-wayland",
+            "/usr/bin/weston",
+            "/usr/libexec/agx-wayland-shell",
+        ]
+        .iter()
+        .all(|path| Path::new(path).is_file())
+    {
+        return Some("Full Desktop requires the Weston runtime.");
+    }
+    if !Path::new("/usr/bin/seatd").is_file() {
+        return Some("Full Desktop requires seatd.");
+    }
+    if !std::fs::metadata("/run/seatd.sock").is_ok_and(|file| file.file_type().is_socket()) {
+        return Some("Full Desktop requires the seatd service to be running.");
+    }
+    if !std::env::var("SLINT_BACKEND").is_ok_and(|backend| backend.starts_with("linuxkms-")) {
+        return Some("Full Desktop requires a local display.");
+    }
+    None
 }
 
 #[cfg(any(feature = "kms", feature = "headless", test))]
@@ -179,20 +188,6 @@ mod tests {
         assert!(parse_config("LD_PRELOAD=/tmp/untrusted.so").is_err());
         assert!(parse_config("export SLINT_BACKEND=linuxkms-software").is_err());
         assert!(parse_config("SLINT_BACKEND=").is_err());
-    }
-
-    #[test]
-    fn local_login_defaults_to_wayland_and_remote_login_keeps_its_viewer() {
-        let absent = || Err(std::io::ErrorKind::NotFound.into());
-        assert!(wayland_preference(absent(), true));
-        assert!(!wayland_preference(absent(), false));
-        assert!(wayland_preference(Ok(String::new()), false));
-        assert!(wayland_preference(Ok("wayland\n".into()), false));
-        assert!(!wayland_preference(Ok("kms\n".into()), true));
-        assert!(!wayland_preference(
-            Err(std::io::ErrorKind::PermissionDenied.into()),
-            true,
-        ));
     }
 }
 

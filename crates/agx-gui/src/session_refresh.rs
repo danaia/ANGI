@@ -44,13 +44,6 @@ pub(super) fn restart_if_requested() -> io::Result<()> {
     // Resolve the installed entry point again, so a staged update takes effect.
     // exec retains the authenticated account and the supervisor's existing child PID.
     #[cfg(feature = "kms")]
-    if std::env::var_os("HOME").is_some_and(|home| {
-        // Only an explicit opt-in switches an already running KMS session.
-        crate::graphics::prefer_wayland(home.as_ref(), true)
-    }) {
-        return replace_with(std::path::Path::new("/usr/bin/angi-wayland"), &["--login"]);
-    }
-    #[cfg(feature = "kms")]
     let executable = std::path::PathBuf::from(
         if cfg!(feature = "wayland") && crate::graphics::using_winit() {
             "/usr/libexec/agx-gui-wayland"
@@ -60,10 +53,10 @@ pub(super) fn restart_if_requested() -> io::Result<()> {
     );
     #[cfg(not(feature = "kms"))]
     let executable = std::env::current_exe()?;
-    replace_with(&executable, &[])
+    replace_with(&executable)
 }
 
-fn replace_with(executable: &std::path::Path, args: &[&str]) -> io::Result<()> {
+fn replace_with(executable: &std::path::Path) -> io::Result<()> {
     let jobs = std::mem::take(&mut *CLEANUPS.lock().unwrap_or_else(|p| p.into_inner()));
     for job in jobs {
         let _ = job.join();
@@ -75,7 +68,6 @@ fn replace_with(executable: &std::path::Path, args: &[&str]) -> io::Result<()> {
         return Err(io::Error::last_os_error());
     }
     Err(Command::new(executable)
-        .args(args)
         .env_remove("AGX_GUI_VNC_HANDOFF")
         .env_remove("AGX_GUI_VNC_FDS")
         .exec())
@@ -105,7 +97,7 @@ mod tests {
             });
             panic!(
                 "exec failed: {:?}",
-                replace_with(std::path::Path::new(&script), &[])
+                replace_with(std::path::Path::new(&script))
             );
         }
         let directory =

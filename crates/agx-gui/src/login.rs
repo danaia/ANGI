@@ -1,16 +1,10 @@
 //! Root greeter only. A successful login execs a fresh, unprivileged session.
 mod setup;
 
-use crate::{ComponentHandle, GreeterSetup, LoginWindow, graphics, remote};
-use slint::Timer;
+use crate::{ComponentHandle, GreeterSetup, LoginWindow, SessionMode, graphics, remote};
+use slint::{Timer, TimerMode};
 use std::{
-    cell::RefCell,
-    ffi::CString,
-    io,
-    os::unix::process::CommandExt,
-    path::Path,
-    process::Command,
-    rc::Rc,
+    cell::RefCell, ffi::CString, io, os::unix::process::CommandExt, process::Command, rc::Rc,
     time::Duration,
 };
 use zeroize::Zeroizing;
@@ -24,11 +18,23 @@ pub fn run(preview: bool) -> Result<(), Box<dyn std::error::Error>> {
     ui.set_draw_cursor(graphics::draw_cursor());
     let _setup = (!preview).then(|| setup::install(&ui));
     let _bluetooth = (!preview).then(|| crate::bluetooth::watch(&ui, || true));
-    let remote = remote::start(&ui);
-    let authenticated = Rc::new(RefCell::new(None::<String>));
+    let remote = remote::start(&ui).map(Rc::new);
+    let availability = Timer::default();
+    update_modes(&ui, remote.as_deref());
+    if cfg!(target_arch = "x86_64") && ui.get_wayland_unavailable().is_empty() {
+        ui.set_session_mode(SessionMode::Wayland);
+    }
+    let weak = ui.as_weak();
+    let viewers = remote.clone();
+    availability.start(TimerMode::Repeated, Duration::from_millis(250), move || {
+        if let Some(ui) = weak.upgrade() {
+            update_modes(&ui, viewers.as_deref());
+        }
+    });
+    let authenticated = Rc::new(RefCell::new(None));
     let result = authenticated.clone();
     let weak = ui.as_weak();
-    ui.on_sign_in(move |username, password| {
+    ui.on_sign_in(move |username, password, mode| {
         let Some(ui) = weak.upgrade() else { return };
         if ui.get_busy() || ui.global::<GreeterSetup>().get_step() != 0 {
             return;
@@ -47,7 +53,7 @@ pub fn run(preview: bool) -> Result<(), Box<dyn std::error::Error>> {
                 let Some(ui) = weak.upgrade() else { return };
                 if ok {
                     // Store the verified username in a UI property-free callback.
-                    ui.invoke_authenticated(username.into());
+                    ui.invoke_authenticated(username.into(), mode);
                 } else {
                     ui.set_error_text(
                         "Username or password is incorrect, or the account is unavailable.".into(),
@@ -62,21 +68,57 @@ pub fn run(preview: bool) -> Result<(), Box<dyn std::error::Error>> {
             });
         });
     });
-    ui.on_authenticated(move |username| {
-        *result.borrow_mut() = Some(username.to_string());
+    let viewers = remote.clone();
+    let weak = ui.as_weak();
+    ui.on_authenticated(move |username, mode| {
+        let Some(ui) = weak.upgrade() else { return };
+        if mode == SessionMode::Wayland {
+            let reason = graphics::wayland_unavailable(
+                viewers.as_deref().is_some_and(remote::Remote::has_viewers),
+            )
+            .or_else(|| {
+                viewers
+                    .as_deref()
+                    .is_some_and(|remote| !remote.stop_accepting_if_idle())
+                    .then_some(graphics::WAYLAND_VNC_UNAVAILABLE)
+            });
+            if let Some(reason) = reason {
+                ui.set_busy(false);
+                show_unavailable(&ui, reason);
+                ui.invoke_show_login(username);
+                return;
+            }
+        }
+        *result.borrow_mut() = Some((username.to_string(), mode));
         let _ = slint::quit_event_loop();
     });
     ui.run()?;
     drop(ui);
-    if let Some(username) = authenticated.borrow_mut().take() {
+    if let Some((username, mode)) = authenticated.borrow_mut().take() {
         // Viewers connected over VNC follow the sign-in into the desktop.
-        let handoff = remote.as_ref().and_then(remote::Remote::handoff_for_exec);
-        return Err(exec_session(&username, handoff).into());
+        let handoff = remote.as_deref().and_then(remote::Remote::handoff_for_exec);
+        return Err(exec_session(&username, mode, handoff).into());
     }
     Ok(())
 }
 
-fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
+fn update_modes(ui: &LoginWindow, remote: Option<&remote::Remote>) {
+    let reason = graphics::wayland_unavailable(remote.is_some_and(remote::Remote::has_viewers));
+    if let Some(reason) = reason {
+        show_unavailable(ui, reason);
+    } else {
+        ui.set_wayland_unavailable("".into());
+    }
+}
+
+fn show_unavailable(ui: &LoginWindow, reason: &str) {
+    ui.set_wayland_unavailable(reason.into());
+    if !ui.get_busy() {
+        ui.set_session_mode(SessionMode::Native);
+    }
+}
+
+fn exec_session(username: &str, mode: SessionMode, handoff: Option<remote::Exec>) -> io::Error {
     let Ok(name) = CString::new(username) else {
         return io::Error::other("Invalid account");
     };
@@ -102,18 +144,13 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
     {
         eprintln!("agx-gui: Web storage is unavailable: {error}");
     }
-    let remote_viewer = handoff.as_ref().is_some_and(|exec| exec.fds.len() > 1);
-    let wayland = graphics::prefer_wayland(Path::new(&home), remote_viewer);
-    let mut session = if wayland {
-        let mut command = Command::new("/usr/bin/angi-wayland");
-        command.arg("--login");
-        command
-    } else {
-        let mut command = Command::new("/usr/bin/agx");
-        command.arg("desktop");
-        command
+    let mode_arg = match mode {
+        SessionMode::Native => "native",
+        SessionMode::Wayland => "wayland",
     };
+    let mut session = Command::new("/usr/bin/agx");
     session
+        .args(["desktop", "--mode", mode_arg])
         .env_clear()
         .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
         .env("HOME", &home)
@@ -127,12 +164,14 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
             session.env(key, value);
         }
     }
-    let keep_open = handoff.filter(|_| !wayland).map_or_else(Vec::new, |exec| {
-        for (name, value) in &exec.env {
-            session.env(name, value);
-        }
-        exec.fds
-    });
+    let keep_open = handoff
+        .filter(|_| mode == SessionMode::Native)
+        .map_or_else(Vec::new, |exec| {
+            for (name, value) in &exec.env {
+                session.env(name, value);
+            }
+            exec.fds
+        });
     unsafe {
         session.pre_exec(move || {
             // The software framebuffer backend needs access to the active VT.
@@ -157,3 +196,6 @@ fn exec_session(username: &str, handoff: Option<remote::Exec>) -> io::Error {
     }
     session.exec()
 }
+
+#[cfg(test)]
+mod tests;

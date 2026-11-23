@@ -8,20 +8,10 @@ if [ "$(id -u)" = 0 ]; then
 fi
 
 umask 077
-login=false
 remote=false
-preference="$HOME/.config/agx/wayland-session"
-set_preference() {
-	mkdir -p -- "${preference%/*}"
-	temporary=$(mktemp "$preference.XXXXXXXX")
-	if ! { printf '%s\n' "$1" >"$temporary" && mv -fT -- "$temporary" "$preference"; }; then
-		rm -f -- "$temporary"
-		exit 1
-	fi
-}
 case "${1:-}" in
 	"") set -- --backend=drm --renderer=gl ;;
-	--login) login=true; set -- --backend=drm --renderer=gl ;;
+	--login) set -- --backend=drm --renderer=gl ;;
 	--vnc)
 		remote=true
 		# Give single-instance apps a profile scoped to the remote session.
@@ -35,13 +25,11 @@ case "${1:-}" in
 		set -- --backend=headless --renderer=pixman
 		;;
 	--next-login)
-		set_preference wayland
-		printf 'Sign out and back in on HDMI to start ANGI Wayland. This session uses the local display.\n'
+		printf 'Sign out, then choose Full Desktop on the ANGI sign-in screen.\n'
 		exit 0
 		;;
 	--regular-next-login)
-		set_preference kms
-		printf 'The standalone ANGI desktop will start at your next sign-in.\n'
+		printf 'Sign out, then choose Native on the ANGI sign-in screen.\n'
 		exit 0
 		;;
 	*) printf 'Usage: angi-wayland [--next-login | --regular-next-login | --vnc | --headless]\n' >&2; exit 2 ;;
@@ -83,11 +71,4 @@ weston_pid=$!
 status=0
 wait "$weston_pid" || status=$?
 weston_pid=
-if [ "$login" = true ] && [ "$status" -ne 0 ]; then
-	printf 'ANGI Wayland failed to start. Opening the regular desktop.\n' >&2
-	cleanup
-	trap - EXIT
-	unset XDG_RUNTIME_DIR XDG_SESSION_TYPE
-	exec /usr/bin/agx desktop
-fi
 exit "$status"

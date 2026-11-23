@@ -431,3 +431,15 @@ fn an_idle_poll_releases_a_capture_finished_after_the_last_viewer_left() {
     shared.register().unwrap();
     assert!(shared.wants_frame());
 }
+
+#[test]
+fn local_login_can_stop_registration_only_without_viewers() {
+    let shared = Shared::new(|_| {});
+    assert!(!shared.has_viewers());
+    let viewer = shared.register().unwrap();
+    assert!(shared.has_viewers());
+    assert!(!shared.stop_accepting_if_idle());
+    shared.unregister(viewer);
+    assert!(shared.stop_accepting_if_idle());
+    assert!(shared.register().is_none());
+}

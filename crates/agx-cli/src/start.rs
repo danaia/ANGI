@@ -3,6 +3,7 @@
 //! The prompt is plain terminal I/O so it works on the HDMI console (tty1)
 //! before any graphics stack runs. Timeout and Enter pick the console, which
 //! keeps unattended and headless boots behaving as they did before the GUI.
+use clap::ValueEnum;
 use std::{
     io::{self, Write},
     os::fd::AsRawFd,
@@ -20,11 +21,46 @@ const GUI_PATHS: [&str; 2] = ["/usr/bin/agx-gui", "/usr/local/bin/agx-gui"];
 const VNC_HANDOFF: [&str; 2] = ["AGX_GUI_VNC_HANDOFF", "AGX_GUI_VNC_FDS"];
 static VNC_HANDOFF_SPENT: AtomicBool = AtomicBool::new(false);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum DesktopMode {
+    Native,
+    Wayland,
+}
+
+fn desktop_command(mode: Option<DesktopMode>) -> Command {
+    let mut command = if mode == Some(DesktopMode::Wayland) {
+        let mut command = Command::new("/usr/bin/angi-wayland");
+        command.arg("--login");
+        command
+    } else {
+        Command::new("/usr/bin/agx-gui")
+    };
+    if mode.is_some() {
+        for name in [
+            "DISPLAY",
+            "WAYLAND_DISPLAY",
+            "WAYLAND_SOCKET",
+            "XDG_SESSION_TYPE",
+        ] {
+            command.env_remove(name);
+        }
+    }
+    if mode == Some(DesktopMode::Native)
+        && !matches!(
+            std::env::var("SLINT_BACKEND").as_deref(),
+            Ok("linuxkms-femtovg" | "linuxkms-software" | "vnc-software")
+        )
+    {
+        command.env("SLINT_BACKEND", "auto");
+    }
+    command
+}
+
 /// Run the desktop and wait for it. The first launch inherits the login screen's VNC
 /// sockets; this process then closes its own copies so only the desktop holds them.
 /// Later launches (after a visit to the console) start without them.
-pub fn run_gui() -> io::Result<ExitStatus> {
-    let mut command = Command::new("/usr/bin/agx-gui");
+pub fn run_gui(mode: Option<DesktopMode>) -> io::Result<ExitStatus> {
+    let mut command = desktop_command(mode);
     let first = !VNC_HANDOFF_SPENT.swap(true, Ordering::SeqCst);
     if !first {
         for name in VNC_HANDOFF {
@@ -41,6 +77,29 @@ pub fn run_gui() -> io::Result<ExitStatus> {
         }
     }
     child.wait()
+}
+
+pub fn run_interfaces(
+    initial: Choice,
+    options: agx_tui::Options,
+    mode: Option<DesktopMode>,
+) -> io::Result<()> {
+    session_loop(initial, |choice| match choice {
+        Choice::Tui => Ok(match agx_tui::run(options)? {
+            agx_tui::Exit::Gui => Some(Choice::Gui),
+            agx_tui::Exit::Quit => None,
+        }),
+        Choice::Gui => {
+            let status = run_gui(mode);
+            reset_console();
+            let status = status?;
+            match status.code() {
+                Some(GUI_WANTS_TUI) => Ok(Some(Choice::Tui)),
+                Some(0) => Ok(None),
+                _ => Err(io::Error::other(format!("Desktop exited with {status}"))),
+            }
+        }
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -203,6 +262,29 @@ mod tests {
         assert_eq!(seen.last(), Some(&Choice::Gui));
         assert!(seen.windows(2).all(|pair| pair[0] != pair[1]));
     }
+    #[test]
+    fn explicit_desktop_modes_select_distinct_launch_commands() {
+        let native = desktop_command(Some(DesktopMode::Native));
+        assert_eq!(native.get_program(), "/usr/bin/agx-gui");
+        assert_eq!(native.get_args().count(), 0);
+        let wayland = desktop_command(Some(DesktopMode::Wayland));
+        assert_eq!(wayland.get_program(), "/usr/bin/angi-wayland");
+        assert!(wayland.get_args().eq(["--login"]));
+        for command in [&native, &wayland] {
+            assert!(
+                command
+                    .get_envs()
+                    .any(|(key, value)| key == "WAYLAND_DISPLAY" && value.is_none())
+            );
+            assert!(
+                command
+                    .get_envs()
+                    .any(|(key, value)| key == "WAYLAND_SOCKET" && value.is_none())
+            );
+        }
+        assert_eq!(desktop_command(None).get_envs().count(), 0);
+    }
+
     #[test]
     fn keys_choose_interfaces() {
         assert_eq!(parse_key(b'1', Choice::Tui), Some(Choice::Gui));

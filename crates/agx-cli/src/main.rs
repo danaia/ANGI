@@ -23,7 +23,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Open the desktop directly
-    Desktop,
+    Desktop {
+        /// Graphics session to start
+        #[arg(long, value_enum)]
+        mode: Option<start::DesktopMode>,
+    },
     /// Ask whether to open the desktop (GUI) or the console (TUI)
     Start {
         /// Interface used on Enter or timeout
@@ -328,32 +332,12 @@ enum StartDefault {
     Tui,
 }
 fn run_tui() -> io::Result<()> {
-    run_interfaces(start::Choice::Tui, Options::default())
-}
-fn run_interfaces(initial: start::Choice, options: Options) -> io::Result<()> {
-    start::session_loop(initial, |choice| match choice {
-        start::Choice::Tui => Ok(match agx_tui::run(options)? {
-            agx_tui::Exit::Gui => Some(start::Choice::Gui),
-            agx_tui::Exit::Quit => None,
-        }),
-        start::Choice::Gui => {
-            let status = start::run_gui();
-            start::reset_console();
-            match status {
-                Ok(status) if status.code() == Some(start::GUI_WANTS_TUI) => {
-                    Ok(Some(start::Choice::Tui))
-                }
-                Ok(status) if status.success() => Ok(None),
-                Ok(status) => Err(io::Error::other(format!("Desktop exited with {status}"))),
-                Err(error) => Err(error),
-            }
-        }
-    })
+    start::run_interfaces(start::Choice::Tui, Options::default(), None)
 }
 fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
     match command {
-        Commands::Desktop => {
-            run_interfaces(start::Choice::Gui, Options::default())?;
+        Commands::Desktop { mode } => {
+            start::run_interfaces(start::Choice::Gui, Options::default(), mode)?;
         }
         Commands::Start { default, timeout } => {
             use std::io::IsTerminal;
@@ -370,7 +354,9 @@ fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
             };
             let choice = start::ask(default, Duration::from_secs(timeout))?;
             if choice == start::Choice::Gui {
-                if let Err(error) = run_interfaces(start::Choice::Gui, Options::default()) {
+                if let Err(error) =
+                    start::run_interfaces(start::Choice::Gui, Options::default(), None)
+                {
                     eprintln!("Could not run the desktop ({error}); opening the console.");
                     run_tui()?;
                 }
@@ -404,7 +390,7 @@ fn run(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
             if embedded {
                 agx_tui::run(options)?;
             } else {
-                run_interfaces(start::Choice::Tui, options)?;
+                start::run_interfaces(start::Choice::Tui, options, None)?;
             }
         }
         Commands::Status { json } => {

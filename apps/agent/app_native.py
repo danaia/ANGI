@@ -105,7 +105,7 @@ esac
 case "${1:-}" in
     --version|--help|-h|-H|--longhelp) ;;
     *) if ! [ -S "$display" ] && ! [ -S "/proc/self/fd/${WAYLAND_SOCKET:-}" ]; then
-           printf '%s\\n' 'VLC needs an ANGI Wayland session. On HDMI, run angi-wayland --next-login, then sign out and back in.' >&2
+           printf '%s\\n' 'VLC needs an ANGI Wayland session. On HDMI, sign out and choose Full Desktop at sign-in.' >&2
            exit 1
        fi ;;
 esac

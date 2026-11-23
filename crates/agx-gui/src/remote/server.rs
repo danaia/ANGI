@@ -51,6 +51,7 @@ struct Hub {
     sequence: u64,
     clients: HashMap<u64, ClientState>,
     next_id: u64,
+    registration_closed: bool,
 }
 
 /// State shared between the UI thread and the network threads.
@@ -189,7 +190,7 @@ impl Shared {
         size: (usize, usize),
     ) -> Option<u64> {
         let mut hub = self.hub();
-        if hub.clients.len() >= MAX_CLIENTS {
+        if hub.registration_closed || hub.clients.len() >= MAX_CLIENTS {
             return None;
         }
         hub.next_id += 1;
@@ -209,6 +210,21 @@ impl Shared {
             },
         );
         Some(id)
+    }
+
+    pub fn has_viewers(&self) -> bool {
+        self.hub().clients.values().any(|client| !client.closed)
+    }
+
+    /// Commit to a local-only login if no VNC client is connected. Serialize with
+    /// registration so a viewer cannot arrive between this check and exec.
+    pub fn stop_accepting_if_idle(&self) -> bool {
+        let mut hub = self.hub();
+        if hub.clients.values().any(|client| !client.closed) {
+            return false;
+        }
+        hub.registration_closed = true;
+        true
     }
 
     /// Describe the listener and connected viewers so the next process can adopt them.

@@ -66,8 +66,8 @@ Preview just the login screen without root or real authentication:
 
 ### Native Wayland session
 
-Pi 5 images enable the Wayland desktop by default. Other graphical Buildroot
-images can enable it with `BR2_PACKAGE_WAYLAND=y` and
+The full Pi 5 image includes Weston and the Native desktop. Other graphical
+Buildroot images can include Weston with `BR2_PACKAGE_WAYLAND=y` and
 `BR2_PACKAGE_AGX_WAYLAND=y`. Weston uses ANGI's existing libudev provider.
 Weston owns the HDMI display, input, and external app windows. Settings,
 Calendar, and the other Slint panels still live in the ANGI shell window.
@@ -104,14 +104,18 @@ committed native tile sizes.
 Move the pointer to the top edge of a fullscreen window to reveal Exit
 fullscreen, Minimize, and Close. Move down to hide the controls.
 
-On HDMI, local sign-in starts Wayland when the compositor and seat service
-are available. Sign-in with an active VNC viewer keeps the standalone desktop
-so the viewer can follow the session. Run `angi-wayland --next-login` to
-explicitly choose Wayland or `angi-wayland --regular-next-login` to choose the
-standalone desktop. Sign out and back in to apply the choice. From the
-standalone HDMI desktop, **Refresh desktop** also applies an explicit
-Wayland choice. If Weston or the shell exits with an error, the session
-launcher starts the standalone desktop with the same account.
+Choose **Native** or **Full Desktop** on the sign-in screen. Native is the
+default on Raspberry Pi 4 and 5. On HDMI it uses Slint and FemtoVG directly
+through DRM/KMS, with no Weston process. ANGI Files, Agent Angi, Terminal and
+the built-in Web panel are available in Native. Choose Full Desktop to open
+standalone Wayland applications such as Chromium and VS Code.
+
+Full Desktop requires a local display, the installed Weston runtime and a running
+seatd service. An active greeter VNC viewer also disables Full Desktop so that
+the viewer can follow Native across sign-in. An earlier saved Wayland choice
+does not overwrite the selection. To change modes, sign out and select the
+other mode. Refresh desktop restarts the current shell. If the selected
+desktop fails to start, the console logs the failure and returns to sign-in.
 For a side-by-side protocol check, `angi-wayland --headless` creates its
 own socket in a private temporary runtime directory, with no HDMI output.
 

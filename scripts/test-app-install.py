@@ -436,7 +436,7 @@ class Cli(Case):
         run = subprocess.run([self.store.bin / 'vlc'], capture_output=True, text=True,
                              env={'PATH': os.environ['PATH'], 'XDG_RUNTIME_DIR': str(root)})
         self.assertEqual(run.returncode, 1)
-        self.assertIn('angi-wayland --next-login', run.stderr)
+        self.assertIn('choose Full Desktop at sign-in', run.stderr)
 
     def test_chromium_installs_with_sibling_runtime_files(self):
         from unittest.mock import patch

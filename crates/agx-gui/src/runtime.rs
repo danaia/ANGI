@@ -73,7 +73,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     ui.set_ws_occupied(ModelRc::from(app.borrow().occupied.clone()));
     ui.set_mod_name(app.borrow().modk.name().into());
     ui.set_draw_cursor(graphics::draw_cursor());
-    ui.set_resize_cursor_overlay(cfg!(feature = "kms") && !graphics::using_winit());
+    ui.set_resize_cursor_overlay(cfg!(feature = "kms") && !graphics::using_winit() && !graphics::hardware_cursor());
     let _remote = remote::start(&ui);
     // Callbacks never nest, but a stray re-entrant event is dropped rather than panicking.
     macro_rules! hook {

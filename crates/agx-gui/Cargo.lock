@@ -52,6 +52,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "glow",
+ "i-slint-backend-linuxkms",
  "i-slint-backend-winit",
  "i-slint-core",
  "input",
@@ -1694,8 +1695,6 @@ checksum = "48ce8546b993eaf241d69ded33b1be6d205dd9857ec879d9d18bd05d3676e144"
 [[package]]
 name = "i-slint-backend-linuxkms"
 version = "1.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c37b8172486f2c8afc5c98305b66a8b4ac3612bcec2343db556497ae3652727"
 dependencies = [
  "bytemuck",
  "calloop 0.14.5",

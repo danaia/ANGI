@@ -137,6 +137,13 @@ mod native {
                     _ => None,
                 };
                 if let Some(schedule) = motion {
+                    // Move the hardware pointer now, ahead of the render the move triggers.
+                    let at = pointer.borrow().get(size);
+                    let scale = window.scale_factor();
+                    i_slint_backend_linuxkms::hwcursor::move_to(
+                        (at.x * scale).round() as i32,
+                        (at.y * scale).round() as i32,
+                    );
                     if schedule {
                         let pointer = pointer.clone();
                         let weak = weak.clone();

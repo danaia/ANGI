@@ -101,6 +101,12 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     ) {
         return Err(format!("Unsupported SLINT_BACKEND: {backend}").into());
     }
+    if backend == "linuxkms-software" {
+        // The software comparison backend draws its own pointer in the scene.
+        unsafe {
+            std::env::set_var("AGX_SOFTWARE_CURSOR", "1");
+        }
+    }
     let selector = slint::BackendSelector::new().backend_name(backend.clone());
     #[cfg(feature = "kms")]
     let selector = selector.with_libinput_event_hook(kms_input::filter);
@@ -112,6 +118,14 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn draw_cursor() -> bool {
     SOFTWARE_CURSOR.load(Ordering::Relaxed) || std::env::var_os("AGX_GUI_CURSOR").is_some()
+}
+
+/// The KMS pointer lives on the display's hardware cursor plane, not in the frame.
+pub fn hardware_cursor() -> bool {
+    #[cfg(feature = "kms")]
+    return i_slint_backend_linuxkms::hwcursor::available();
+    #[cfg(not(feature = "kms"))]
+    false
 }
 
 pub fn using_winit() -> bool {

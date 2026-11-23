@@ -1,6 +1,8 @@
 Install ANGI from source for {{name}}. The selected target is {{board}} and the
-deployment method is {{medium}}. Do the terminal work yourself, describe what
-you are doing, and wait whenever I need to move something or make a decision.
+deployment method is {{medium}}.
+{{desktopSummary}}
+Do the terminal work yourself, describe what you are doing, and wait whenever I
+need to move something or make a decision.
 Before you start, tell me that you will check this computer, build and verify
 ANGI, prepare the boot media, then guide me through first boot in this chat.
 Passwords belong in ANGI's local setup or terminal, never in this chat.
@@ -42,13 +44,21 @@ the workstation private key and the private boot artifact out of chat and logs.
 
 4. FINISH FIRST BOOT
 {{connection}}
-Follow {{guide}} from the same checkout. Use the retained private key,
+Use {{guide}} from the same checkout for the direct connection and SSH details.
+For account and network setup, use the steps below. Use the retained private key,
 UserKnownHostsFile=PRIVATE_DIR/known_hosts, HostKeyAlias={{alias}},
 StrictHostKeyChecking=yes and IdentitiesOnly=yes on the installed OS. The agent
 must do SSH pin and SHA-256 verification itself. Do not ask me to copy keys or
 fingerprints for the installed OS. Stop on a host-key mismatch.
 {{identity}}
-Finish administrator and network setup. Verify the administrator can reconnect
-using the same SSH identity, and verify network connectivity. Report artifact
-SHA-256, written-media verification, successful hardware boot and network setup
-as separate results. A verified write alone is not a verified hardware boot.
+{{setup}}
+
+If the administrator needs a login key, install the workstation public key for
+that account with the correct ownership and permissions. Preserve existing keys.
+Verify administrator SSH with the same pinned host identity and check the network
+connection before removing the direct link.
+
+5. VERIFY THE INSTALLED INTERFACE
+{{desktopChecks}}
+Report the artifact SHA-256, written-media verification, hardware boot, network
+setup and session verification as separate results.

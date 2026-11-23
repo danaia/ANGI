@@ -69,6 +69,10 @@ gui-build:
 deploy-gui: gui-build init-build
 	./scripts/deploy-gui.sh
 
+.PHONY: deploy-gui-only
+deploy-gui-only:
+	./scripts/deploy-gui-only.sh
+
 .PHONY: web-build deploy-web deploy-web-host
 web-build:
 	./scripts/build-web.sh

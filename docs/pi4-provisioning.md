@@ -1,6 +1,6 @@
 # Provision ANGI on Raspberry Pi 4 / 400
 
-Build a card with your workstation’s SSH public key, boot the Pi over the direct USB-C link, and use the ANGI TUI to create the administrator and join Wi-Fi. The [README install prompt](../README.md#get-started-with-one-prompt) gives these steps to an agent that can run them for you.
+Build a card with your workstation’s SSH public key and use the Pebble first-boot wizard to create the administrator and join Wi-Fi. Use a local display or reach the wizard over VNC through the direct SSH link. The [README install prompt](../README.md#get-started-with-one-prompt) gives these steps to an agent that can run them for you.
 
 ## Build and write the card
 
@@ -40,11 +40,9 @@ scripts/flash-sd.sh --board rpi4 --image PRIVATE_DIR/sdcard.img --device /dev/sd
    ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -o "HostKeyAlias=$pi_id" \
      -o "UserKnownHostsFile=$trust" -o StrictHostKeyChecking=yes "root@$pi" \
      'cat /proc/device-tree/model; echo; agx status --json'
-   ssh -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes -o "HostKeyAlias=$pi_id" \
-     -o "UserKnownHostsFile=$trust" -o StrictHostKeyChecking=yes -t "root@$pi" 'agx tui'
    ```
 
-4. In **Profile** (`1`), set the hostname and create the administrator account. In **Network** (`4`), set the Wi-Fi country, scan, and choose **Connect & save**. Enter passwords in the terminal. Keep the direct SSH link available if you need to retry Wi-Fi.
+4. Complete the [Pebble first-boot wizard](install-prompts/part2-rpi4.txt) on the local display or through the tunnel below. Enter passwords in the wizard. Keep the direct SSH link available if you need to retry Wi-Fi or open `agx tui` for recovery.
 5. Verify the Wi-Fi address with `agx wifi status --json` and DNS and HTTPS with `agx wifi check`. Confirm that the named administrator can sign in. The same per-device host alias can identify the Pi over USB, direct Ethernet, and Wi-Fi. Check `agx services --json` for the supervised services.
 
 ## Open the desktop
@@ -57,6 +55,6 @@ ssh -NT -i "$HOME/.ssh/id_ed25519" -o IdentitiesOnly=yes \
   -o ExitOnForwardFailure=yes -L 127.0.0.1:5943:127.0.0.1:5900 "root@$pi"
 ```
 
-Connect Remmina to `127.0.0.1:5943` with its built-in SSH tunnel disabled. Sign in with the ANGI administrator account. Use the desktop power menu or `F9` in the TUI to shut down safely.
+Connect Remmina to `127.0.0.1:5943` with its built-in SSH tunnel disabled. On first boot, complete the wizard. Sign in with the ANGI administrator account. Use the desktop power menu or `F9` in the TUI to shut down safely.
 
 The [hybrid ISO workflow](install-prompts/iso-headless.md) is also available for USB-C browser setup or provisioning from a previously downloaded generic image.

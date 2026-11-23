@@ -7,6 +7,8 @@ install is allowed only while that marker names the release that is installed no
 place by anything else (the workstation, another checkout) therefore blocks installs from a checkout
 that does not contain its source, instead of silently rolling the desktop back to older code.
 """
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -29,6 +31,21 @@ SWAP = 'ln -sf "$1" "$2.new" && mv -f "$2.new" "$2"'
 
 class Refused(RuntimeError):
     """An install that must not happen; the message says why and what to do instead."""
+
+
+@contextmanager
+def update_lock():
+    # Lock the checkout's existing Git directory so root and the desktop user
+    # use the same inode without creating a root-owned lockfile.
+    fd = os.open(SOURCE / ".git", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Refused("Another desktop update is already running.") from None
+        yield
+    finally:
+        os.close(fd)
 
 
 def git(*arguments, source=None, env=None, input=None):

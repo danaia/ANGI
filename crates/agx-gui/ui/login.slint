@@ -1,7 +1,7 @@
 import { Theme } from "data.slint";
 import { Cursor } from "cursor.slint";
 import { FirstBootPanel, GreeterSetup } from "first-boot.slint";
-import { Button, ButtonVariant, ControlSize, FocusRing, TextField, Icon, Icons, Heading2, Hint, Label } from "pebble/pebble.slint";
+import { Button, ButtonVariant, ControlSize, FocusRing, TextField, Icon, Icons, Heading2, Hint } from "pebble/pebble.slint";
 
 export enum SessionMode { native, wayland }
 
@@ -18,12 +18,11 @@ component SessionOption inherits Rectangle {
     callback pointer-moved(length, length);
     forward-focus: keys;
 
-    horizontal-stretch: 1;
+    // One segment of the trough in LoginWindow: the chosen one is a `surface` pill.
     border-radius: self.height / 2;
-    background: root.selected ? Theme.surface-muted
-        : root.enabled && touch.has-hover ? Theme.surface-hover : Theme.surface;
+    background: root.selected ? Theme.surface : transparent;
     border-width: Theme.stroke-hair;
-    border-color: root.selected ? Theme.line-bold : Theme.line;
+    border-color: root.selected ? Theme.line-strong : transparent;
 
     accessible-role: radio-button;
     accessible-label: root.label;
@@ -35,32 +34,23 @@ component SessionOption inherits Rectangle {
 
     HorizontalLayout {
         alignment: center;
+        padding-left: Theme.space-4;
+        padding-right: Theme.space-4;
         spacing: Theme.space-2;
-        Rectangle {
-            width: 12px;
-            height: self.width;
-            y: (parent.height - self.height) / 2;
-            border-radius: self.width / 2;
-            border-width: Theme.stroke-rule;
-            border-color: root.enabled ? Theme.line-bold : Theme.line;
-            Rectangle {
-                width: 6px;
-                height: self.width;
-                x: (parent.width - self.width) / 2;
-                y: (parent.height - self.height) / 2;
-                border-radius: self.width / 2;
-                background: Theme.accent;
-                visible: root.selected;
-            }
-        }
         Icon {
             source: root.icon;
+            width: 16px;
+            height: 16px;
             y: (parent.height - self.height) / 2;
-            color: root.enabled ? Theme.ink-muted : Theme.ink-subtle;
+            color: !root.enabled ? Theme.ink-subtle
+                : root.selected || touch.has-hover ? Theme.ink : Theme.ink-muted;
         }
-        Label {
+        Text {
             text: root.label;
-            color: root.enabled ? Theme.ink : Theme.ink-subtle;
+            color: !root.enabled ? Theme.ink-subtle
+                : root.selected || touch.has-hover ? Theme.ink : Theme.ink-muted;
+            font-size: Theme.text-body-sm;
+            font-weight: 500;
             vertical-alignment: center;
             accessible-role: none;
         }
@@ -114,8 +104,8 @@ export component LoginWindow inherits Window {
     in property <string> wayland-unavailable;
     in-out property <SessionMode> session-mode: SessionMode.native;
     private property <bool> compact: self.height < 540px;
-    private property <string> native-caption: "Lightweight · Slint + DRM/KMS. No compositor.";
-    private property <string> wayland-caption: "Wayland · Chromium, VS Code and Linux apps.";
+    private property <string> native-caption: "A Rust-native environment. No compositor.";
+    private property <string> wayland-caption: "Wayland for traditional apps, such as Chromium and VS Code.";
     private property <length> cursor-x;
     private property <length> cursor-y;
     callback sign-in(string, string, SessionMode);
@@ -143,7 +133,7 @@ export component LoginWindow inherits Window {
         Rectangle {
             visible: GreeterSetup.step == 0;
             width: min(440px, parent.width - Theme.space-12);
-            height: root.compact ? 384px : 516px;
+            height: root.compact ? 392px : 536px;
             x: (parent.width - self.width) / 2;
             y: (parent.height - self.height) / 2;
             background: Theme.surface;
@@ -162,7 +152,10 @@ export component LoginWindow inherits Window {
                     accessible-role: image;
                     accessible-label: "ANGI";
                 }
-                Heading2 { text: "Sign in"; horizontal-alignment: center; }
+                VerticalLayout {
+                    padding-top: root.compact ? Theme.space-1 : Theme.space-3;
+                    Heading2 { text: "Sign in"; horizontal-alignment: center; }
+                }
                 username := TextField {
                     height: root.compact ? 36px : 44px;
                     icon: Icons.user;
@@ -185,38 +178,51 @@ export component LoginWindow inherits Window {
                     pointer-moved(x, y) => { root.track(x, y); }
                 }
                 VerticalLayout {
-                    spacing: Theme.space-1;
-                    Label { text: "Desktop environment"; }
+                    spacing: Theme.space-2;
+                    padding-top: root.compact ? Theme.space-2 : Theme.space-5;
+                    padding-bottom: root.compact ? 0px : Theme.space-2;
                     HorizontalLayout {
-                        height: root.compact ? 36px : 42px;
-                        spacing: Theme.space-2;
-                        accessible-role: radio-group;
-                        accessible-label: "Desktop environment";
-                        native := SessionOption {
-                            label: "Native";
-                            description: root.native-caption;
-                            icon: Icons.zap;
-                            selected: root.session-mode == SessionMode.native;
-                            enabled: !root.busy;
-                            choose => { root.session-mode = SessionMode.native; self.focus(); }
-                            other => { if (full.enabled) { full.choose(); } }
-                            submit => { root.submit(); }
-                            pointer-moved(x, y) => { root.track(x, y); }
-                        }
-                        full := SessionOption {
-                            label: "Full Desktop";
-                            description: root.wayland-unavailable == "" ? root.wayland-caption : root.wayland-unavailable;
-                            icon: Icons.app-window;
-                            selected: root.session-mode == SessionMode.wayland;
-                            enabled: !root.busy && root.wayland-unavailable == "";
-                            choose => { root.session-mode = SessionMode.wayland; self.focus(); }
-                            other => { native.choose(); }
-                            submit => { root.submit(); }
-                            pointer-moved(x, y) => { root.track(x, y); }
+                        alignment: center;
+                        Rectangle {
+                            height: root.compact ? 32px : 36px;
+                            border-radius: self.height / 2;
+                            background: Theme.surface-muted;
+                            accessible-role: radio-group;
+                            accessible-label: "Desktop environment";
+                            HorizontalLayout {
+                                padding: 3px;
+                                spacing: 2px;
+                                native := SessionOption {
+                                    label: "Native";
+                                    description: root.native-caption;
+                                    icon: Icons.zap;
+                                    selected: root.session-mode == SessionMode.native;
+                                    enabled: !root.busy;
+                                    choose => { root.session-mode = SessionMode.native; self.focus(); }
+                                    other => { if (full.enabled) { full.choose(); } }
+                                    submit => { root.submit(); }
+                                    pointer-moved(x, y) => { root.track(x, y); }
+                                }
+                                full := SessionOption {
+                                    label: "Full Desktop";
+                                    description: root.wayland-unavailable == "" ? root.wayland-caption : root.wayland-unavailable;
+                                    icon: Icons.app-window;
+                                    selected: root.session-mode == SessionMode.wayland;
+                                    enabled: !root.busy && root.wayland-unavailable == "";
+                                    choose => { root.session-mode = SessionMode.wayland; self.focus(); }
+                                    other => { native.choose(); }
+                                    submit => { root.submit(); }
+                                    pointer-moved(x, y) => { root.track(x, y); }
+                                }
+                            }
                         }
                     }
-                    Hint { text: root.session-mode == SessionMode.native ? root.native-caption : root.wayland-caption; }
-                    if root.wayland-unavailable != "": Hint { text: root.wayland-unavailable; }
+                    Hint {
+                        text: root.wayland-unavailable != "" ? root.wayland-unavailable
+                            : root.session-mode == SessionMode.native ? root.native-caption : root.wayland-caption;
+                        horizontal-alignment: center;
+                        min-height: 18px;
+                    }
                 }
                 Button {
                     variant: ButtonVariant.primary;

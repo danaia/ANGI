@@ -149,6 +149,10 @@ scripts otherwise default to USB. Scripts that support the host-key alias use
 it; older ones rely on the existing known-host entry for `10.78.0.2`. If that
 entry is missing or mismatched, resolve trust before using those scripts.
 
+Use `make deploy-gui-only BOARD=rpi5` for a desktop binary change on a device
+with the current agent runtime and a recorded, compatible desktop release.
+Then refresh from the authenticated session and check `angi-update status`.
+
 Preserve the current executable/link and relevant configuration for rollback
 before replacement. `deploy-gui.sh` keeps the first installed binaries under
 `/root/agx-gui-backup`; those are not necessarily the immediately preceding

@@ -30,6 +30,7 @@ window.ANGI_INSTALL_GUIDE = function ({guide, hardware, shortcuts, images, esc, 
         <select id="install-medium">${modes.map(([method, mode]) =>
           `<option value="${method}">${esc(mode.label)}</option>`).join('')}</select></p>`}
       <p class="bring" id="install-method-status" role="status" hidden></p>
+      <p class="bring" id="install-desktop-summary">${esc(profile.desktopSummary)}</p>
       <div class="prompt panel">
         <div class="prompt-bar">
           <p>Paste this prompt into your coding agent.</p>

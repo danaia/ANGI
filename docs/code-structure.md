@@ -25,7 +25,7 @@ Existing large files should be evaluated when touched, rather than forcing unrel
 | --- | --- |
 | `agx-core` | `models.rs` owns snapshots and counters; `parsers.rs` owns pure counter parsing; `sampler.rs` owns Linux collection; `vnc.rs` observes VNC TCP sockets and GUI resident memory without connecting or controlling services. |
 | `agx-net` | `protocol.rs` owns wire models, `client.rs` owns socket requests, `ssid.rs` owns byte encoding and scan parsing, `credentials.rs` owns validation and PSK derivation, `service.rs` owns the network service, and `service/clock.rs` saves network-synchronized time to the hardware clock. `setup/` owns the USB-only first-boot listener, its HTTP transport and the claim workflow. |
-| `agx-gui` (standalone) | `graphics/detection.rs` discovers connected HDMI outputs at startup and rejects kernel-forced connections without monitor EDID; `graphics.rs` resolves automatic or explicit renderer selection before threads start. `graphics/kms_input.rs` bridges physical Super keys and native scroll events missing from Slint’s LinuxKMS mapping into the current login/desktop window, tracking native pointer position for scroll targeting. `graphics/virtual_display.rs` owns the optional resizable VNC-only software platform and its event loop. `remote/` owns optional VNC access: `rfb.rs` is the pure wire protocol, `resize.rs` validates single-screen resize requests and encodes layout replies, `frame.rs` captured pixels and change detection, `input.rs` key/pointer translation into Slint events, `server.rs` shared state, listeners and client lifecycle, `server/session.rs` established sessions, framebuffer streaming and message dispatch, `server/tests.rs` live socket and request scheduling tests, `handoff.rs` passing the listener and viewers from the login screen to the desktop across the exec, `mod.rs` configuration, UI-thread capture and resize callbacks. `wm.rs` and `login.rs` retain their existing composition and authentication responsibilities. |
+| `agx-gui` (standalone) | `graphics/detection.rs` discovers connected HDMI outputs at startup and rejects kernel-forced connections without monitor EDID; `graphics.rs` resolves automatic or explicit renderer selection before threads start. `graphics/kms_input.rs` batches consecutive LinuxKMS mouse motion for the next frame, preserves pointer ordering around discrete input, and forwards native scroll and physical Super keys to the current login or desktop window. `graphics/virtual_display.rs` owns the optional resizable VNC-only software platform and its event loop. `remote/` owns optional VNC access: `rfb.rs` is the pure wire protocol, `resize.rs` validates single-screen resize requests and encodes layout replies, `frame.rs` captured pixels and change detection, `input.rs` key/pointer translation into Slint events, `server.rs` shared state, listeners and client lifecycle, `server/session.rs` established sessions, framebuffer streaming and message dispatch, `server/tests.rs` live socket and request scheduling tests, `handoff.rs` passing the listener and viewers from the login screen to the desktop across the exec, `mod.rs` configuration, UI-thread capture and resize callbacks. `wm.rs` and `login.rs` retain their existing composition and authentication responsibilities. |
 | `agx-tui` | `app/mod.rs` owns state/navigation; `app/render.rs` owns chrome/composition; `app/screens.rs` owns built-in read-only screens; `runtime.rs` owns the event loop; `terminal.rs` owns terminal cleanup/signals and suspend/resume; `shell.rs` owns foreground process groups, shell/tmux launch and restoring terminal ownership/modes; `app/shell.rs` renders the Terminal launch screen; `worker.rs` owns sampling; `palette.rs` owns shared styling; `remote_access.rs` composes the shared VNC status panel on Network and Services. Feature screens retain their own modules. |
 
 The desktop greeter uses `ui/login.slint` for sign-in and `ui/first-boot.slint` for first-run setup. `login/setup.rs` gates setup on the administrator account and completion marker, and `login/setup/wifi.rs` waits for the system Wi-Fi service off the UI thread. The greeter and desktop Settings share the Bluetooth page and socket client. The profile service records the completion marker when it creates an administrator, so the desktop, USB browser and TUI can all finish account setup.
@@ -92,8 +92,10 @@ approved write and read-back.
 
 `scripts/sync-install-prompt.py` renders one website prompt template, target
 profiles, and Pi first-boot guides from `docs/install-prompts/` and
-`scripts/boards.json`. `website/install.js` selects the target and deployment
-method. Both website branches consume the same generated sources.
+`scripts/boards.json`. It reads available sessions from the Buildroot defconfigs
+at the commit pinned in `website/source-commit.txt`. `website/install.js` uses
+the generated profiles for the target, deployment method and included sessions.
+Both website branches consume the same generated sources.
 
 The Zero 2 W defconfig selects the GUI's `headless` feature and the existing
 software VNC platform. Its board overlay owns the gadget address, Wi-Fi module
@@ -135,6 +137,11 @@ owns durable peer mail. Role profiles and the development skill are separate
 assets. `angi-root.c` is the small administrator execution boundary;
 `sdk-env.sh` and `angi-build.sh` own native build configuration. SDK preparation,
 provisioning and runtime deployment are separate scripts under `scripts/`.
+
+`scripts/deploy-gui-only.sh` selects the board's workstation toolchain and
+transfers a prebuilt desktop and source snapshot. `apps/agent/gui_deploy.py`
+verifies the transfer and uses `releases.py` for source adoption, serialization,
+and release activation.
 
 Desktop preferences live in `agx-gui/src/settings.rs`: validated per-account mouse settings, the shared atomic per-account file writer (`config_file`, `write_private`) that `appearance.rs` reuses, live libinput device configuration and hotplug reapplication. `ui/settings.slint` owns the responsive Settings tile content, mouse controls and test area; `ui/app.slint` hosts it in the regular window frame and exposes it through the session menu. `ui/desktop-input.slint` owns shared desktop pointer forwarding behind windows and above their read-only content, allowing native Settings controls to receive input within normal window stacking. `graphics/kms_input.rs` forwards device lifecycle events and applies the configured native scroll multiplier.
 

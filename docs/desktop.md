@@ -210,7 +210,7 @@ Both appliance and preview builds include FemtoVG and software rendering. The de
 
 Slint 1.19 aligns FemtoVG's rounded clip layers to the device pixel grid. Pebble Line uses these layers for window tiles. Fractional tile positions previously caused FemtoVG to resample the whole layer, softening text and icons inside the tile. [Slint 1.19 release notes](https://github.com/slint-ui/slint/blob/v1.19.0/CHANGELOG.md#1190---2026-11-16)
 
-Pointer hover uses the cached window scene without rebuilding layout or replacing Slint models. Tiled dragging updates only the ghost and affected target highlights. Floating dragging and resizing notify changed window rows in a persistent `VecModel`. Membership/stacking changes rebuild the rows within that same model. Motion remains immediate; frame-based input coalescing can be evaluated if physical profiling still shows a backlog.
+Pointer hover uses the cached window scene without rebuilding layout or replacing Slint models. Tiled dragging updates only the ghost and affected target highlights. Floating dragging and resizing notify changed window rows in a persistent `VecModel`. Membership/stacking changes rebuild the rows within that same model. On Native HDMI, mouse motion is accumulated while libinput drains its events. Slint receives the latest position before drawing the next frame and before a click, scroll or modifier change.
 
 The shared desktop gesture layer forwards motion only through Slint's `pointer-event`. Slint also emits `moved` during a grabbed drag; forwarding both processes the same physical motion twice. Because the first callback can move the window, recomputing desktop coordinates in the second callback adds the window's displacement to the pointer position and causes jumps. Rendered input checks cover forward/reverse floating motion, top-left resizing and tiled drag ghosts.
 
@@ -243,7 +243,7 @@ The first GPU deployment mistakenly linked `/lib/libgcc_s.so.1` to NVMe, creatin
 
 `agx-gui` can serve its own screen over VNC so a viewer can display the login screen and desktop without a monitor on the Pi. The Pi 4 / 400 and Pi 5 images include the desktop and ANGI Web and set `AGX_GUI_VNC=on` at build time. On other images, set it in `/etc/agx/gui.env` on the Pi and reboot to enable it, or export it when running a preview. The greeter passes this setting to the signed-in session. Accepted values are `on` (127.0.0.1, port 5900), a port number, or a loopback `address:port`. Set `off` to disable it. The log in `/run/agx/gui.log` shows `vnc listening on ...` when it started.
 
-For Pi 4 / 400, the [provisioning guide](pi4-provisioning.md#open-the-desktop) shows how to open VNC over the direct SSH connection after creating the administrator. For a browser-provisioned ISO, use the administrator’s SSH login and verify the host fingerprint shown during browser setup.
+For Pi 4 / 400, the [provisioning guide](pi4-provisioning.md#open-the-desktop) shows how to reach the Pebble wizard and desktop over the direct SSH connection. For a browser-provisioned ISO, use the administrator’s SSH login and verify the host fingerprint shown during browser setup.
 
 For an actual desktop resolution that follows the Remmina window, select the VNC-only software display in `/etc/agx/gui.env`:
 

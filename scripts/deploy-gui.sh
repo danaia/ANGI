@@ -126,6 +126,12 @@ if "${SSH[@]}" 'test -f /usr/libexec/agx-agent/update.py'; then
     (cd "$ROOT" && git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d '' file; do [[ -e $file || -L $file ]] && printf '%s\0' "$file"; done | tar --null -T - -cf "$ROOT/.cache/angi-source.tar")
     "${SCP[@]}" "$ROOT/.cache/angi-source.tar" "$DESTINATION:/var/lib/agx-data/angi-source.tar"
     "${SSH[@]}" "set -e; python3 /usr/libexec/agx-agent/update.py adopt agx-gui.$(sha256sum "$STRIPPED" | cut -c1-16) workstation $TREE '$PREVIOUS' /var/lib/agx-data/angi-source.tar auto; rm -f /var/lib/agx-data/angi-source.tar"
+    # Keep the device's dependency cache in step with the release just installed, so the first change an agent
+    # makes there is an incremental build. Lowest priority; skipped if a build is already running.
+    "${SSH[@]}" 'if test -x /usr/bin/angi-build && ! pidof cargo >/dev/null 2>&1; then
+    su dana -c "setsid /usr/bin/angi-build gui </dev/null >/var/lib/agx-data/agx-opencode-users/1000/angi-warm.log 2>&1 &" </dev/null >/dev/null 2>&1
+    echo "Started a low-priority build on the device to warm its cache (log: /var/lib/agx-data/agx-opencode-users/1000/angi-warm.log)"
+fi'
 else
     echo 'warning: angi-update is not installed on the device (run make deploy-agent, then deploy the GUI again), so this release is not recorded.' >&2
 fi

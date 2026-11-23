@@ -43,7 +43,12 @@ independent checkout; future edits are not automatically synchronized with the
 workstation or pushed to GitHub. The SDK and caches are also on NVMe.
 
 - `angi-build cli`: release CLI build on the Pi.
-- `angi-build gui`: release LinuxKMS GUI build on the Pi.
+- `angi-build gui`: release LinuxKMS GUI build on the Pi. It runs at the lowest priority with one core left
+  free, so the desktop stays responsive. A small UI change rebuilds in about a minute. When the dependency
+  manifests or compiler changed since the last good build there (for example after a workstation release added
+  a feature), it compiles the dependencies again (about 14 minutes) and says so first. `make deploy-gui` starts
+  one such build in the background after installing, so an agent's first change is already incremental; its log
+  is `/var/lib/agx-data/agx-opencode-users/1000/angi-warm.log`.
 - `angi-build test`: root workspace tests.
 - `angi-build gui-test`: standalone GUI tests with LinuxKMS enabled.
 - `source "$(angi-build env)"`: native build environment for custom commands.
@@ -197,6 +202,11 @@ desktop).
 
 ## OS updates: `angi-update` and the revert guard
 
+The single-agent `angi-system-changes` skill selects the smallest workflow.
+Use existing preferences for settings, the agent runtime for skills and Python
+tools, and the desktop updater for GUI code. Base system and boot changes use
+the board's Buildroot workflow.
+
 `angi-update gui` builds the desktop from the checkout (incremental), installs it as a new
 versioned release and switches `/usr/bin/agx-gui` atomically, keeping the previous release.
 `angi-update status` shows the installed release and whether an install is allowed;
@@ -229,6 +239,20 @@ unsaved edits are first kept as `refs/angi/pi-edits-*`, so a sync never destroys
 device's agent runtime is not installed yet, deploy it first (`make deploy-agent`) and deploy the GUI
 again. Skills tell the agent never to link, copy or move releases, to stop when `angi-update`
 refuses, and never to reset, stash or clean the checkout.
+
+`make deploy-gui-only BOARD=rpi5` builds just the desktop on the workstation
+using the board's existing Buildroot toolchain and GUI features. It sends the
+binary and its source snapshot, verifies them on the device and uses the same
+release ledger and rollback. It requires the current agent runtime, a recorded
+desktop release, and compatible runtime libraries already installed. Finish
+with `angi-update refresh` in the authenticated session. Use the full deployment
+when changing the desktop's runtime, startup binaries, or boot configuration.
+
+The target also selects the x86-64 toolchain for `BOARD=x86-desktop` (AMD or
+Intel). That path requires an existing desktop-enabled board build and a
+provisioned device with the agent runtime. The checked-in x86 desktop image
+configuration does not yet enable the desktop, and the Buildroot agent
+package currently targets ARM64.
 
 ## Provider setup on workspace 2
 

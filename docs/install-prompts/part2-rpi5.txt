@@ -13,28 +13,33 @@ internet route.
 Check the route and source address before connecting. If the Pi fails to appear
 within two minutes, check the data cable, power and card seating with the customer.
 
-## Verify SSH and open the TUI
+## Verify SSH
 
 Connect as root with the workstation identity and the prepared known_hosts.
 Use IdentitiesOnly=yes, StrictHostKeyChecking=yes and the profile's HostKeyAlias
 from the first connection onward. If the key differs, stop. Read
 /proc/device-tree/model and run agx status --json. Confirm this is the selected
-board. Open a workstation terminal with ssh -t ... agx tui.
+board.
 
-## Create the administrator and connect to the network
+## Complete the Pebble first-boot wizard
 
-In Profile, let the customer set the hostname and create an administrator.
-In Network, let them set the Wi-Fi country, scan and use Connect & save. Use
-manual entry for a hidden network. Enter passwords only in the TUI.
-Keep direct SSH connected. Verify the network address with agx wifi status --json
-and test DNS and HTTPS with agx wifi check. If the administrator needs a login
-key, install the workstation's selected public key in that account with the
+Open the Pebble first-boot wizard on the target's display. For remote setup,
+forward a free workstation loopback port to the target's 127.0.0.1:5900 over the
+verified SSH connection. Check for an RFB greeting and open the local port in
+a VNC viewer. Use the same wizard over VNC on headless images.
+
+Follow Connect to Wi-Fi, Pair Bluetooth devices, and Create your administrator
+account. Wi-Fi can be deferred, and Bluetooth pairing is optional. Have the
+person enter passwords directly in the wizard. After account setup, confirm the sign-in
+screen appears. For Wi-Fi, check agx wifi status --json and agx wifi check.
+If the wizard cannot be reached, use agx tui over trusted SSH for recovery and
+report which setup path was used.
+Keep direct SSH connected. If the administrator needs a login key, install the
+workstation's selected public key in that account with the
 account's ownership and SSH permissions. Preserve any existing keys. Verify the
 administrator can reconnect before removing the direct link.
 
 ## Open the desktop
 
-Forward a free workstation loopback port to the Pi's 127.0.0.1:5900 using the
-trusted SSH connection. Verify an RFB greeting and connect the workstation VNC
-viewer to the local port. Have the customer sign in, then check
+Have the customer sign in on the display they used for setup, then check
 agx services --json. Show how to reconnect and shut down safely.

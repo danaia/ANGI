@@ -31,8 +31,8 @@ scripts/flash-sd.sh --board rpizero2w --image PRIVATE_DIR/sdcard.img \
 1. Insert the card into the powered-off Zero 2 W. Connect a data cable to the **micro-USB port marked USB**. Use the separate power port if the workstation cannot reliably supply power.
 2. Assign the workstation’s gadget adapter `10.79.0.1/24` with no gateway or default route. The adapter MAC is `02:79:00:00:00:01`. The Pi is at `10.79.0.2`. On NetworkManager, reuse `angi-zero-usb` if present.
 3. Connect as root with the workstation’s matching private key, `UserKnownHostsFile` set to the private install directory’s `known_hosts` file, and strict host-key checking. Confirm the model with `cat /proc/device-tree/model`.
-4. Open `agx tui` in an interactive SSH session. Create the administrator in **Profile**, then use **Network** to join a **2.4 GHz** network. Verify the connection with `agx wifi check` and confirm that the new account can sign in.
-5. With the same SSH identity and trust file, forward a free workstation loopback port to the Pi’s loopback VNC listener. Point the VNC viewer at `127.0.0.1:5943` and check **Settings → Appearance** in light and dark.
+4. With the same SSH identity and trust file, forward a free workstation loopback port to the Pi’s loopback VNC listener. Point the VNC viewer at `127.0.0.1:5943` and complete the [Pebble first-boot wizard](install-prompts/part2-rpizero2w.txt). Choose a **2.4 GHz** Wi-Fi network and continue past the optional Bluetooth step.
+5. Verify the connection with `agx wifi check` and confirm that the new account can sign in. Check **Settings → Appearance** in light and dark. Use `agx tui` through the trusted SSH link if VNC needs recovery.
 
 ```sh
 ssh -NT -i WORKSTATION_KEY -o IdentitiesOnly=yes \

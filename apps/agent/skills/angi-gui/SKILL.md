@@ -32,7 +32,10 @@ checkout. Use its shared Slint components from Agent Angi's OS and Project toggl
 ## The loop
 
 1. Edit the source in the checkout. Keep changes small and reviewable.
-2. Run `angi-build gui-test` when you changed Rust logic (skip it for pure layout or text).
+2. Skip `angi-build gui-test` for UI work (layout, colours, text, click or toggle behaviour). It compiles a
+   separate unoptimized test build with its own cache, which takes ten minutes or more on the Pi and
+   proves nothing the release build and a look at the screen do not. Run it only for changes to
+   non-UI logic that existing tests cover, or when the user asks.
 3. Run `angi-update gui`. It builds the release desktop (incremental, so repeat runs are fast),
    records the release with its exact source, and switches `/usr/bin/agx-gui` to it atomically.
    It prints the new and the previous release.
@@ -63,7 +66,7 @@ checkout. Use its shared Slint components from Agent Angi's OS and Project toggl
   is also kept as `refs/angi/<release>` for recovery.
 - Do not run `cargo clean` or start two builds at once; both slow everything down.
 - Finish all your edits before running `angi-update gui`; it refuses a build whose source changed
-  while it ran. A build can take two minutes or more, so give the command a timeout of at least ten
+  while it ran. A UI change builds in about a minute, but the first build after a dependency change takes about fourteen, so give the command a timeout of at least ten
   minutes and never interrupt it: a build cut off partway damages the incremental cache. If the
   linker reports undefined references, `angi-update` discards the cache and retries once by itself.
 

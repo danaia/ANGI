@@ -92,8 +92,9 @@ media and leaves the internal disk alone.
 
 Follow the steps in the same chat. The agent checks the target over strict SSH
 using the prepared identity. Enter your administrator and network passwords
-directly in ANGI. The [first-boot guides](docs/install-prompts/) cover the
-physical links and network checks.
+directly in ANGI. The Pi images use the Pebble first-boot wizard on a local
+display or over VNC through SSH. The [first-boot guides](docs/install-prompts/)
+cover the physical links and network checks.
 
 A [direct Ethernet installer](docs/install-prompts/ethernet.md) is experimental
 on compatible Pi 4, Pi 5 and UEFI targets. It requires separate approval to erase
@@ -104,9 +105,9 @@ transport, independently from artifact and write verification.
 ```text
 Help me install ANGI from source. Ask me whether the target is a Pi Zero 2 W,
 Pi 4, Pi 5, ARM64 UEFI, AMD x86-64 UEFI, or Intel x86-64 UEFI.
-Use the matching profile and deployment method in website/prompts.js from the
-released source checkout. Follow that prompt in this conversation, including
-exact-device erase approval, SHA-256 verification, and trusted first boot.
+Use the matching profile and deployment method in website/prompts.js. Follow the
+generated prompt, including its pinned source commit, exact-device erase
+approval, SHA-256 verification, and trusted first boot.
 ```
 <!-- prompt1:end -->
 

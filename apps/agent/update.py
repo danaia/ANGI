@@ -47,7 +47,7 @@ def build(compile=compile_gui, cache=None):
     status, output = compile()
     if status and any(sign in output for sign in DAMAGED_CACHE):
         print("angi-update: the incremental build cache looks damaged (an earlier build was probably cut off). "
-              "Discarding it and building once more; this one takes about two minutes.", flush=True)
+              "Discarding it and building once more; this one takes about six minutes.", flush=True)
         shutil.rmtree(cache, ignore_errors=True)
         status, output = compile()
     if status:
@@ -71,17 +71,25 @@ def main(args):
         import install_progress
         return install_progress.run(build)
     elif args == ["gui"]:
-        print(releases.install(build))
+        with releases.update_lock():
+            print(releases.install(build))
     elif args == ["refresh"]:
         print(refresh.start())
     elif len(args) == 4 and args[0] == "watch":
         # Started by `refresh`, detached: PID RELEASE PREVIOUS.
         refresh.watch(int(args[1]), args[2], args[3])
     elif args == ["rollback"]:
-        print(releases.rollback())
+        with releases.update_lock():
+            print(releases.rollback())
+    elif len(args) == 5 and args[0] == "deploy-gui":
+        if os.geteuid() != 0:
+            raise releases.Refused("Workstation desktop deployment requires an administrator SSH session.")
+        import gui_deploy
+        print(gui_deploy.install(*args[1:]))
     elif len(args) == 7 and args[0] == "adopt":
         # Used by `make deploy-gui` on the workstation: RELEASE ORIGIN TREE PARENT ARCHIVE OWNER.
-        releases.adopt(*args[1:])
+        with releases.update_lock():
+            releases.adopt(*args[1:])
         print("recorded " + args[1])
     else:
         print(__doc__.strip())

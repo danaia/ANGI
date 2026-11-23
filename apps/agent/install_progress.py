@@ -1,6 +1,5 @@
 """NDJSON install events and a durable, verified desktop installation receipt."""
 from contextlib import redirect_stdout
-import fcntl
 import io
 import json
 import os
@@ -103,31 +102,32 @@ class BuildOutput(io.TextIOBase):
 def run(build, path=None, stream=None):
     path = Path(path or JOB)
     stream = stream or sys.stdout
-    # The source Git directory is writable by the desktop account and ignored by
-    # source hashing. A second progress invocation cannot race the first install.
-    with (releases.SOURCE / '.git/angi-update.lock').open('a') as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print(json.dumps({'state': 'failed', 'message': 'Another desktop update is already running.'}), file=stream, flush=True)
-            return 3
-        reporter = Reporter(path, stream)
-        output = BuildOutput(reporter)
-        try:
-            with redirect_stdout(output):
-                message = releases.install(build, progress=reporter.phase)
-                output.flush()
-            release = releases.installed()
-            # Completion is sent only after the installer read back the file,
-            # active link and release ledger successfully.
-            running = refresh.desktops()
-            pending = bool(running) and any(name != release for name in running.values())
-            reporter.emit(state='succeeded', phase='complete', step=len(STAGES), indeterminate=False,
-                          message=('Desktop already current. The installed release has been verified.' if message.startswith('Already installed')
-                                   else 'The desktop update is installed. Its file and release record have been verified.'),
-                          detail=message, release=release, activation_pending=pending, completed_at=time.time())
-            return 0
-        except (releases.Refused, OSError, RuntimeError, subprocess.SubprocessError) as error:
+    try:
+        with releases.update_lock():
+            return run_locked(build, path, stream)
+    except releases.Refused as error:
+        print(json.dumps({'state': 'failed', 'message': str(error)}), file=stream, flush=True)
+        return 3
+
+
+def run_locked(build, path, stream):
+    reporter = Reporter(path, stream)
+    output = BuildOutput(reporter)
+    try:
+        with redirect_stdout(output):
+            message = releases.install(build, progress=reporter.phase)
             output.flush()
-            reporter.emit(state='failed', message=str(error), indeterminate=False, completed_at=time.time())
-            return 3 if isinstance(error, releases.Refused) else 1
+        release = releases.installed()
+        # Completion is sent only after the installer read back the file,
+        # active link and release ledger successfully.
+        running = refresh.desktops()
+        pending = bool(running) and any(name != release for name in running.values())
+        reporter.emit(state='succeeded', phase='complete', step=len(STAGES), indeterminate=False,
+                      message=('Desktop already current. The installed release has been verified.' if message.startswith('Already installed')
+                               else 'The desktop update is installed. Its file and release record have been verified.'),
+                      detail=message, release=release, activation_pending=pending, completed_at=time.time())
+        return 0
+    except (releases.Refused, OSError, RuntimeError, subprocess.SubprocessError) as error:
+        output.flush()
+        reporter.emit(state='failed', message=str(error), indeterminate=False, completed_at=time.time())
+        return 3 if isinstance(error, releases.Refused) else 1

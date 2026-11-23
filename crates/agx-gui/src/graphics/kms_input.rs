@@ -1,5 +1,4 @@
-//! Bridge Super keys and apply ANGI's scroll preferences on LinuxKMS.
-//! Movement/clicks still go through Slint; mirror its cursor position for scroll targeting.
+//! Route native mouse input and bridge Super keys on LinuxKMS.
 use slint::{
     LogicalPosition, LogicalSize,
     platform::{Key, WindowEvent},
@@ -20,29 +19,37 @@ fn super_event(code: u32, down: bool) -> Option<WindowEvent> {
 }
 
 #[derive(Default)]
-struct PointerPosition(Option<LogicalPosition>);
-impl PointerPosition {
+struct PointerMotion {
+    position: Option<LogicalPosition>,
+    pending: bool,
+}
+impl PointerMotion {
     fn get(&self, size: LogicalSize) -> LogicalPosition {
         let position = self
-            .0
+            .position
             .unwrap_or(LogicalPosition::new(size.width / 2.0, size.height / 2.0));
         LogicalPosition::new(
             position.x.clamp(0.0, size.width),
             position.y.clamp(0.0, size.height),
         )
     }
-    fn relative(&mut self, dx: f64, dy: f64, size: LogicalSize) {
+    fn relative(&mut self, dx: f64, dy: f64, size: LogicalSize) -> bool {
         let position = self.get(size);
-        self.0 = Some(LogicalPosition::new(
-            (position.x + dx as f32).clamp(0.0, size.width),
-            (position.y + dy as f32).clamp(0.0, size.height),
-        ));
+        self.absolute(position.x + dx as f32, position.y + dy as f32, size)
     }
-    fn absolute(&mut self, x: f64, y: f64, size: LogicalSize) {
-        self.0 = Some(LogicalPosition::new(
-            (x as f32).clamp(0.0, size.width),
-            (y as f32).clamp(0.0, size.height),
+    fn absolute(&mut self, x: f32, y: f32, size: LogicalSize) -> bool {
+        self.position = Some(LogicalPosition::new(
+            x.clamp(0.0, size.width),
+            y.clamp(0.0, size.height),
         ));
+        !std::mem::replace(&mut self.pending, true)
+    }
+    fn take_pending(&mut self) -> Option<LogicalPosition> {
+        if std::mem::take(&mut self.pending) {
+            self.position
+        } else {
+            None
+        }
     }
 }
 fn scroll_event(
@@ -69,7 +76,7 @@ fn scroll_event(
 
 #[cfg(feature = "kms")]
 mod native {
-    use super::{PointerPosition, scroll_event, super_event};
+    use super::{PointerMotion, scroll_event, super_event};
     use input::{
         Event,
         event::{
@@ -78,8 +85,11 @@ mod native {
             pointer::{Axis, ButtonState, PointerScrollEvent},
         },
     };
-    use slint::{ComponentHandle, platform::WindowEvent};
-    use std::{cell::RefCell, rc::Rc};
+    use slint::{
+        ComponentHandle, Timer, Window,
+        platform::{PointerEventButton, WindowEvent},
+    };
+    use std::{cell::RefCell, rc::Rc, time::Duration};
     type Target = Rc<dyn Fn(&Event) -> bool>;
     thread_local! { static TARGET: RefCell<Option<Target>> = RefCell::new(None); }
     fn smooth_values(event: &impl PointerScrollEvent) -> (f64, f64) {
@@ -95,9 +105,17 @@ mod native {
         };
         (horizontal, vertical)
     }
+    fn flush_motion(window: &Window, pointer: &RefCell<PointerMotion>) {
+        let position = pointer.borrow_mut().take_pending();
+        if let Some(position) = position {
+            crate::key_bindings::dispatch_pointer(window, 2, 3, position);
+            window.dispatch_event(WindowEvent::PointerMoved { position });
+        }
+    }
+
     pub(in crate::graphics) fn attach<C: ComponentHandle + 'static>(ui: &C) {
         let weak = ui.as_weak();
-        let pointer = RefCell::new(PointerPosition::default());
+        let pointer = Rc::new(RefCell::new(PointerMotion::default()));
         TARGET.with(|target| {
             *target.borrow_mut() = Some(Rc::new(move |input| {
                 let Some(ui) = weak.upgrade() else {
@@ -105,6 +123,36 @@ mod native {
                 };
                 let window = ui.window();
                 let size = window.size().to_logical(window.scale_factor());
+                let motion = match input {
+                    Event::Pointer(PointerEvent::Motion(event)) => {
+                        Some(pointer.borrow_mut().relative(event.dx(), event.dy(), size))
+                    }
+                    Event::Pointer(PointerEvent::MotionAbsolute(event)) => {
+                        Some(pointer.borrow_mut().absolute(
+                            event.absolute_x_transformed(size.width as u32) as f32,
+                            event.absolute_y_transformed(size.height as u32) as f32,
+                            size,
+                        ))
+                    }
+                    _ => None,
+                };
+                if let Some(schedule) = motion {
+                    if schedule {
+                        let pointer = pointer.clone();
+                        let weak = weak.clone();
+                        // Run after libinput drains the available events, before the
+                        // next frame. A high-polling mouse can send many moves per frame.
+                        Timer::single_shot(Duration::ZERO, move || {
+                            if let Some(ui) = weak.upgrade() {
+                                flush_motion(ui.window(), &pointer);
+                            }
+                        });
+                    }
+                    return true;
+                }
+                // Deliver queued motion before buttons, scroll, or modifiers that
+                // can change how the desktop interprets the move.
+                flush_motion(window, &pointer);
                 let event = match input {
                     Event::Keyboard(KeyboardEvent::Key(key)) => {
                         let pressed = key.key_state() == KeyState::Pressed;
@@ -124,44 +172,31 @@ mod native {
                         Some(event)
                     }
                     Event::Pointer(PointerEvent::Button(event)) => {
-                        let button = match event.button() {
-                            0x110 => 0, 0x111 => 1, 0x112 => 2, 0x113 | 0x116 => 4,
-                            0x114 | 0x115 => 5, _ => return false,
+                        let (binding, button) = match event.button() {
+                            0x110 => (Some(0), PointerEventButton::Left),
+                            0x111 => (Some(1), PointerEventButton::Right),
+                            0x112 => (Some(2), PointerEventButton::Middle),
+                            0x113 | 0x116 => (Some(4), PointerEventButton::Back),
+                            0x114 | 0x115 => (Some(5), PointerEventButton::Forward),
+                            _ => (None, PointerEventButton::Other),
                         };
-                        let kind = if event.button_state() == ButtonState::Pressed { 0 } else { 1 };
+                        let pressed = event.button_state() == ButtonState::Pressed;
                         let position = pointer.borrow().get(size);
-                        if crate::key_bindings::dispatch_pointer(window, kind, button, position) {
+                        if binding.is_some_and(|binding| {
+                            crate::key_bindings::dispatch_pointer(
+                                window,
+                                i32::from(!pressed),
+                                binding,
+                                position,
+                            )
+                        }) {
                             return true;
                         }
-                        // Slint's KMS backend leaves BTN_SIDE and BTN_EXTRA as Other.
-                        if matches!(event.button(), 0x113 | 0x114) {
-                            use slint::platform::PointerEventButton;
-                            let button = if button == 4 { PointerEventButton::Back } else { PointerEventButton::Forward };
-                            let event = if kind == 0 {
-                                WindowEvent::PointerPressed { position, button }
-                            } else {
-                                WindowEvent::PointerReleased { position, button }
-                            };
-                            window.dispatch_event(event);
-                            return true;
-                        }
-                        return false;
-                    }
-                    Event::Pointer(PointerEvent::Motion(event)) => {
-                        pointer.borrow_mut().relative(event.dx(), event.dy(), size);
-                        // Keep Slint's native pointer position synchronized during a mapped drag.
-                        crate::key_bindings::dispatch_pointer(window, 2, 3, pointer.borrow().get(size));
-                        return false;
-                    }
-                    Event::Pointer(PointerEvent::MotionAbsolute(event)) => {
-                        pointer.borrow_mut().absolute(
-                            event.absolute_x_transformed(size.width as u32),
-                            event.absolute_y_transformed(size.height as u32),
-                            size,
-                        );
-                        // Keep Slint's native pointer position synchronized during a mapped drag.
-                        crate::key_bindings::dispatch_pointer(window, 2, 3, pointer.borrow().get(size));
-                        return false;
+                        Some(if pressed {
+                            WindowEvent::PointerPressed { position, button }
+                        } else {
+                            WindowEvent::PointerReleased { position, button }
+                        })
                     }
                     Event::Pointer(PointerEvent::ScrollWheel(event)) => {
                         let horizontal = if event.has_axis(Axis::Horizontal) {
@@ -244,7 +279,7 @@ mod tests {
     #[test]
     fn scroll_targets_follow_native_relative_absolute_and_clamped_cursor_motion() {
         let size = LogicalSize::new(1000.0, 700.0);
-        let mut pointer = PointerPosition::default();
+        let mut pointer = PointerMotion::default();
         assert_eq!(pointer.get(size), LogicalPosition::new(500.0, 350.0));
         pointer.relative(100.0, -50.0, size);
         assert_eq!(pointer.get(size), LogicalPosition::new(600.0, 300.0));
@@ -256,6 +291,27 @@ mod tests {
             pointer.get(LogicalSize::new(200.0, 90.0)),
             LogicalPosition::new(200.0, 90.0)
         );
+    }
+
+    #[test]
+    fn native_motion_batches_keep_the_latest_position_across_input_boundaries() {
+        let size = LogicalSize::new(1920.0, 1080.0);
+        let mut motion = PointerMotion::default();
+        assert!(motion.relative(-2000.0, 0.0, size));
+        assert!(!motion.relative(12.0, 4.0, size));
+        assert_eq!(
+            motion.take_pending(),
+            Some(LogicalPosition::new(12.0, 544.0))
+        );
+        assert_eq!(motion.take_pending(), None);
+
+        assert!(motion.absolute(90.0, 120.0, size));
+        assert!(!motion.relative(2.0, -1.0, size));
+        assert_eq!(
+            motion.take_pending(),
+            Some(LogicalPosition::new(92.0, 119.0))
+        );
+        assert_eq!(motion.get(size), LogicalPosition::new(92.0, 119.0));
     }
     #[test]
     fn both_super_keys_have_matching_press_and_release_events() {

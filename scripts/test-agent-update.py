@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """angi-update: the release ledger, the install guard against reverting to older source, and rollback."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/agent"))
 # Recording a release or an app in ANGI's knowledge graph must not touch this account's real one.
 os.environ['XDG_STATE_HOME'] = tempfile.mkdtemp(prefix='angi-test-state-')
+import gui_deploy
 import main
 import models
 import refresh
@@ -98,6 +100,69 @@ class GuardTests(unittest.TestCase):
             state = releases.status()
             self.assertFalse(state["can_install"])
             self.assertIn("no source record", state["reason"])
+
+
+class WorkstationDeployTests(unittest.TestCase):
+    def candidate(self, device):
+        stage = device.gui / "incoming"
+        stage.mkdir()
+        binary = stage / "agx-gui"
+        binary.write_bytes(Path("/bin/true").read_bytes())
+        binary.chmod(0o755)
+        with tempfile.TemporaryDirectory() as source:
+            run("git", "init", "-q", cwd=source)
+            (Path(source) / "app.slint").write_text("workstation edit\n")
+            tree = releases.tree_hash(source)
+            run("git", "archive", "--output", str(stage / "source.tar"), tree, cwd=source)
+        return stage, hashlib.sha256(binary.read_bytes()).hexdigest(), tree
+
+    def test_installs_prebuilt_binary_and_source_and_retains_rollback(self):
+        with Device() as device:
+            device.trusted_baseline()
+            previous = releases.installed()
+            stage, digest, tree = self.candidate(device)
+            gui_deploy.install(stage, digest, tree, previous)
+            release = releases.installed()
+            self.assertEqual(device.link.read_bytes(), (stage / "agx-gui").read_bytes())
+            self.assertEqual(releases.tree_hash(), tree)
+            self.assertEqual(releases.entry(release)["parent"], previous)
+            gui_deploy.install(stage, digest, tree, release)
+            self.assertEqual(releases.entry(release)["parent"], previous)
+            releases.rollback()
+            self.assertEqual(releases.installed(), previous)
+
+    def test_refuses_stale_deploy_and_preserves_device_edits(self):
+        with Device() as device:
+            device.trusted_baseline()
+            previous = releases.installed()
+            stage, digest, tree = self.candidate(device)
+            with self.assertRaisesRegex(releases.Refused, "changed during deployment"):
+                gui_deploy.install(stage, digest, tree, "stale")
+            (device.source / "app.slint").write_text("device edit\n")
+            with self.assertRaisesRegex(releases.Refused, "source edits"):
+                gui_deploy.install(stage, digest, tree, previous)
+            self.assertEqual(releases.installed(), previous)
+            self.assertEqual((device.source / "app.slint").read_text(), "device edit\n")
+
+    def test_uses_same_lock_as_the_device_updater(self):
+        with Device() as device:
+            device.trusted_baseline()
+            stage, digest, tree = self.candidate(device)
+            with releases.update_lock(), self.assertRaisesRegex(releases.Refused, "already running"):
+                gui_deploy.install(stage, digest, tree, releases.installed())
+
+    def test_rejects_mismatched_payloads_before_switching_releases(self):
+        with Device() as device:
+            device.trusted_baseline()
+            previous = releases.installed()
+            stage, digest, tree = self.candidate(device)
+            with self.assertRaisesRegex(releases.Refused, "desktop did not match"):
+                gui_deploy.install(stage, "0" * 64, tree, previous)
+            with self.assertRaisesRegex(releases.Refused, "source did not match"):
+                gui_deploy.install(stage, digest, "0" * 40, previous)
+            self.assertEqual(releases.installed(), previous)
+            self.assertEqual(releases.base(), previous)
+            self.assertEqual((device.source / "app.slint").read_text(), "one\n")
 
 
 class InstallTests(unittest.TestCase):

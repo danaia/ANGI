@@ -39,6 +39,7 @@ console.log(JSON.stringify(outputs));
         output = subprocess.check_output(["node", "-e", javascript], cwd=ROOT, text=True)
         prompts = json.loads(output)
         self.assertEqual(set(prompts), {"rpizero2w", "rpi4", "rpi5", "arm-desktop", "amd", "intel"})
+        pin = (ROOT / "website/source-commit.txt").read_text().strip()
         for board, config in BY_ID.items():
             for choice in config["install"]["choices"]:
                 selected = prompts[choice["id"]]
@@ -46,6 +47,7 @@ console.log(JSON.stringify(outputs));
                 for mode, prompt in selected.items():
                     with self.subTest(target=choice["id"], deployment=mode):
                         self.assertNotRegex(prompt, r"{{|undefined")
+                        self.assertIn(f"Fetch\n{pin}", prompt)
                         for command in ("configure", "dependencies", "build", "check-image"):
                             self.assertIn(f"make {command} BOARD={board}\n", prompt)
                         for text in (f"--require {board}", config["install"]["first_boot"],
@@ -59,6 +61,22 @@ console.log(JSON.stringify(outputs));
                             self.assertIn("If more than\none device could be mine, stop", prompt)
                             self.assertLess(prompt.index("erase PATH"), prompt.index("--confirm-erase"))
                             self.assertLess(prompt.index("ejection"), prompt.index("move it"))
+                        if board == "rpi5":
+                            for text in ("Choose a session at sign-in", "Choose Native",
+                                         "Choose Full Desktop at", "local HDMI", "seatd", "Weston"):
+                                self.assertIn(text, prompt)
+                        elif board in {"rpi4", "rpizero2w"}:
+                            self.assertIn("Choose Native", prompt)
+                            self.assertNotIn("Full Desktop", prompt)
+                        else:
+                            self.assertIn("text login", prompt)
+                            self.assertIn("agx tui", prompt)
+                            self.assertNotIn("VNC", prompt)
+                        if board.startswith("rpi"):
+                            for text in ("Pebble first-boot wizard", "Pair Bluetooth devices",
+                                         "127.0.0.1:5900", "passwords directly in the wizard"):
+                                self.assertIn(text, prompt)
+        self.assertIn("verify the software VNC backend", prompts["rpizero2w"]["sd"])
         self.assertIn("micro-USB port marked USB", prompts["rpizero2w"]["sd"])
         self.assertIn("AuthenticAMD", prompts["amd"]["usb"])
         self.assertIn("GenuineIntel", prompts["intel"]["usb"])

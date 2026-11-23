@@ -105,6 +105,7 @@ agent-test:
 	python3 scripts/test-agent-mail.py
 	python3 scripts/test-agent-models.py
 	python3 scripts/test-agent-providers.py
+	python3 scripts/test-agent-voice.py
 	python3 scripts/test-agent-scope.py
 	python3 scripts/test-data-volume.py
 	python3 scripts/test-agent-history.py

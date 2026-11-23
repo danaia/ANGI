@@ -1,0 +1,211 @@
+import { Theme } from "data.slint";
+import { Alert, Badge, Button, ButtonVariant, ControlSize, Dialog, Divider, Heading2, Hint, IconButton, Icons, Label, Progress, SegmentedControl, TextField, Tone, Well } from "pebble/pebble.slint";
+import { AgentVoice } from "agent-voice.slint";
+
+// One on-device model: a radio mark, its name and badges, and what to expect. The whole row picks it.
+component ModelRow inherits Rectangle {
+    in property <string> name;
+    in property <string> quality;
+    in property <string> detail;
+    in property <bool> selected;
+    in property <bool> recommended;
+    in property <bool> current;
+    in property <bool> installed;
+    in property <bool> enabled: true;
+    callback picked();
+    callback pointer-moved(length, length);
+    accessible-role: radio-button;
+    accessible-label: root.name + ". " + root.quality + " " + root.detail;
+    height: 92px;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.picked(); }
+    background: root.selected ? Theme.surface-muted : touch.has-hover && root.enabled ? Theme.surface-hover : transparent;
+    animate background { duration: 150ms; }
+    opacity: root.enabled ? 1 : 0.5;
+    HorizontalLayout {
+        padding: Theme.space-4; padding-left: Theme.space-5; padding-right: Theme.space-5;
+        spacing: Theme.space-4;
+        VerticalLayout {
+            alignment: start; padding-top: 2px;
+            // Radio mark: a ring, with an accent dot when chosen.
+            Rectangle {
+                width: 20px; height: 20px; border-radius: 10px;
+                border-width: Theme.stroke-rule; border-color: root.selected ? Theme.accent : Theme.line-bold;
+                Rectangle {
+                    width: 10px; height: 10px; border-radius: 5px; x: 5px; y: 5px;
+                    background: Theme.accent; visible: root.selected;
+                }
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1; min-width: 0px; spacing: Theme.space-1;
+            HorizontalLayout {
+                spacing: Theme.space-2; alignment: start;
+                Label { text: root.name; vertical-alignment: center; }
+                if root.recommended: Badge { text: "Recommended"; tone: Tone.accent; }
+                if root.current: Badge { text: "In use"; tone: Tone.success; dot: true; }
+                if root.installed && !root.current: Badge { text: "On this device"; }
+            }
+            Hint { text: root.quality; overflow: elide; }
+            Hint { text: root.detail; overflow: elide; }
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.picked(); }
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
+    }
+}
+
+// The choice itself: where speech is transcribed, with its model list or key field and the action.
+// The overlay and the Settings AI page both show it, so the two always agree.
+export component VoiceSetupForm inherits VerticalLayout {
+    callback pointer-moved(length, length);
+    // In Settings there is nothing to cancel.
+    in property <bool> inline;
+    spacing: Theme.space-5;
+    property <string> typed-key;
+    property <int> tab: -1;
+    property <int> picked: -1;
+    property <bool> on-device-usable: AgentVoice.local-ready && AgentVoice.choices.length > 0;
+    property <int> shown-tab: root.tab >= 0 ? root.tab : (AgentVoice.current == "openai" || !root.on-device-usable ? 1 : 0);
+    property <int> shown-index: root.picked >= 0 ? root.picked : AgentVoice.default-index;
+    property <bool> working: AgentVoice.working != "";
+    property <bool> device-tab: root.shown-tab == 0;
+    property <string> action: root.device-tab
+        ? (root.shown-index >= 0 && root.shown-index < AgentVoice.choices.length ? AgentVoice.choices[root.shown-index].action : "Use")
+        : (root.typed-key != "" ? "Save and use" : AgentVoice.key-saved ? "Use saved key" : "Save and use");
+    property <bool> can-act: !root.working && (root.device-tab
+        ? (root.on-device-usable && root.shown-index >= 0)
+        : (root.typed-key != "" || AgentVoice.key-saved));
+    function act() {
+        if (!root.can-act) { return; }
+        if (root.device-tab) { AgentVoice.choose(AgentVoice.choices[root.shown-index].id, ""); }
+        else { AgentVoice.choose("openai", root.typed-key); root.typed-key = ""; }
+    }
+    SegmentedControl {
+        options: ["On this device", "OpenAI"];
+        label: "Where speech is transcribed";
+        current-index: root.shown-tab;
+        enabled: !root.working;
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        selected(index) => { root.tab = index; }
+    }
+    // Both tabs live in this one region, so switching tabs never moves anything above or below it.
+    Rectangle {
+        vertical-stretch: 1; min-height: 0px;
+        if root.device-tab: VerticalLayout {
+            vertical-stretch: 1; min-height: 0px; spacing: Theme.space-3;
+            if !AgentVoice.local-ready || AgentVoice.choices.length == 0: Alert {
+                tone: Tone.warning; icon: Icons.alert;
+                title: AgentVoice.local-ready ? "No model fits this device" : "On-device recognition is not installed";
+                text: AgentVoice.local-ready ? "Use OpenAI instead." : "Install an ANGI update that includes it, or use OpenAI.";
+            }
+            if AgentVoice.local-ready && AgentVoice.choices.length > 0: Rectangle {
+                vertical-stretch: 1; min-height: 0px;
+                border-radius: Theme.radius-md; border-width: Theme.stroke-hair; border-color: Theme.line;
+                background: Theme.surface; clip: true;
+                Flickable {
+                    content-height: AgentVoice.choices.length * 93px;
+                    init => {
+                        self.viewport-y = -min(max(0px, (root.shown-index - 1) * 93px), max(0px, self.content-height - self.height));
+                    }
+                    rows := VerticalLayout {
+                        for choice[index] in AgentVoice.choices: VerticalLayout {
+                            if index > 0: Divider { }
+                            ModelRow {
+                                name: choice.name; quality: choice.quality; detail: choice.detail;
+                                recommended: choice.recommended; installed: choice.installed;
+                                current: AgentVoice.current == choice.id;
+                                selected: root.shown-index == index;
+                                enabled: !root.working;
+                                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                                picked => { root.picked = index; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !root.device-tab: VerticalLayout {
+            vertical-stretch: 1; min-height: 0px; spacing: Theme.space-3; alignment: start;
+            Label { text: "OpenAI API key"; }
+            Hint { text: "Needs a key from platform.openai.com. Transcription costs about $0.006 per minute of speech and is billed to your OpenAI account. A ChatGPT sign-in cannot be used for speech."; }
+            TextField {
+                text <=> root.typed-key; input-type: password; enabled: !root.working;
+                placeholder-text: AgentVoice.key-saved ? "A key is saved. Paste a new one to replace it" : "Paste your key (sk-…)";
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                accepted(value) => { root.act(); }
+            }
+            Hint { text: "Audio is sent to OpenAI for transcription. The key is stored privately on this device."; }
+        }
+    }
+    if AgentVoice.setup-error != "": Alert {
+        tone: Tone.danger; icon: Icons.alert; title: "That did not work"; text: AgentVoice.setup-error;
+    }
+    if root.working: VerticalLayout {
+        spacing: Theme.space-2;
+        Progress { progress: AgentVoice.progress; indeterminate: AgentVoice.progress <= 0; }
+        Hint { text: AgentVoice.progress > 0 ? "Downloading… " + round(AgentVoice.progress * 100) + "%" : "Saving…"; }
+    }
+    HorizontalLayout {
+        min-height: 44px; max-height: 44px;
+        spacing: Theme.space-3; alignment: end;
+        if !root.inline: Button {
+            text: "Cancel"; variant: ButtonVariant.ghost; size: ControlSize.md; enabled: !root.working;
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            clicked => { AgentVoice.close-setup(); }
+        }
+        Button {
+            text: root.action; variant: ButtonVariant.primary; size: ControlSize.md; enabled: root.can-act;
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            clicked => { root.act(); }
+        }
+    }
+}
+
+// How ANGI turns speech into text. It opens as soon as the microphone is clicked with nothing set
+// up (and again if a saved choice stops working), and from AI providers.
+export component VoiceSetup inherits FocusScope {
+    callback pointer-moved(length, length);
+    init => { self.focus(); }
+    key-pressed(event) => {
+        if (event.text == Key.Escape && AgentVoice.working == "") { AgentVoice.close-setup(); return accept; }
+        reject
+    }
+
+    Dialog {
+        width: parent.width; height: parent.height;
+        card-width: 580px; card-height: 660px;
+        scrim-pointer(x, y) => { root.pointer-moved(x, y); }
+        VerticalLayout {
+            padding: Theme.space-8; spacing: Theme.space-5;
+            HorizontalLayout {
+                // Fixed, so it cannot be squeezed differently by the tab below it.
+                min-height: 56px; max-height: 56px;
+                spacing: Theme.space-4;
+                VerticalLayout {
+                    horizontal-stretch: 1; min-width: 0px; spacing: Theme.space-1;
+                    Heading2 { text: "Speech to text"; }
+                    Hint {
+                        text: AgentVoice.pending ? "Your recording is saved. Choose how to transcribe it."
+                            : AgentVoice.device != "" ? AgentVoice.device : "Choose how ANGI turns your voice into text.";
+                    }
+                }
+                VerticalLayout {
+                    alignment: start;
+                    IconButton {
+                        icon: Icons.x; label: "Close"; quiet: true; enabled: AgentVoice.working == "";
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                        clicked => { AgentVoice.close-setup(); }
+                    }
+                }
+            }
+            VoiceSetupForm {
+                vertical-stretch: 1; min-height: 0px;
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+    }
+}

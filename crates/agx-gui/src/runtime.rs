@@ -68,6 +68,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     let _services_watch = crate::services::install(&ui);
+    let _build_notice_watch = crate::build_notice::install(&ui);
     ui.set_wins(ModelRc::from(app.borrow().view.windows.clone()));
     ui.set_ws_occupied(ModelRc::from(app.borrow().occupied.clone()));
     ui.set_mod_name(app.borrow().modk.name().into());
@@ -207,6 +208,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let _browser_watch = browser::install(&ui, &app);
     let _provider_watch = crate::agent_providers::install(&ui, &app);
     let _chat_watch = crate::agent_chat::install(&ui, &attachments);
+    let _voice_watch = crate::agent_voice::install(&ui);
     let _history_watch = crate::agent_history::install(&ui, &app);
     let _knowledge_watch = crate::agent_knowledge::install(&ui);
     let _files_watch = crate::files::install(&ui, &app);

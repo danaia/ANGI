@@ -32,7 +32,9 @@ mod scroll_probe; // TEMPORARY
 mod agent_project;
 mod agent_providers;
 mod agent_swarm;
+mod agent_voice;
 mod app;
+mod build_notice;
 mod cpu_temperature;
 mod network_safety;
 mod night_light;

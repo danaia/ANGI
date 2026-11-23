@@ -105,6 +105,11 @@ def main():
         print(json.dumps(chat.turn(state, args[-1].strip(), new=new, folder=folder,
                                    session_id=session_id, attachments=attachments)))
         return
+    if args[:1] == ["voice"]:
+        # The microphone button's speech-to-text: audio or an API key arrives on stdin, never argv.
+        from voice import run as voice
+        print(json.dumps(voice(args[1:], sys.stdin.buffer if args[1:2] == ["transcribe"] else sys.stdin)))
+        return
     if args and args[0] == "_dispatch":
         dispatch(Path(args[1]))
         return

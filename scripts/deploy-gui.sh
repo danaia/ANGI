@@ -129,7 +129,7 @@ if "${SSH[@]}" 'test -f /usr/libexec/agx-agent/update.py'; then
     # Keep the device's dependency cache in step with the release just installed, so the first change an agent
     # makes there is an incremental build. Lowest priority; skipped if a build is already running.
     "${SSH[@]}" 'if test -x /usr/bin/angi-build && ! pidof cargo >/dev/null 2>&1; then
-    su dana -c "setsid /usr/bin/angi-build gui </dev/null >/var/lib/agx-data/agx-opencode-users/1000/angi-warm.log 2>&1 &" </dev/null >/dev/null 2>&1
+    su dana -c "ANGI_BUILD_WARM_CACHE=1 setsid /usr/bin/angi-build gui </dev/null >/var/lib/agx-data/agx-opencode-users/1000/angi-warm.log 2>&1 &" </dev/null >/dev/null 2>&1
     echo "Started a low-priority build on the device to warm its cache (log: /var/lib/agx-data/agx-opencode-users/1000/angi-warm.log)"
 fi'
 else

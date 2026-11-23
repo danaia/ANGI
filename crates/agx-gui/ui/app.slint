@@ -8,6 +8,7 @@ import { ServicesPanel, Services, ServiceRow } from "services.slint";
 export { Services, ServiceRow }
 import { ServiceUpdateDialog } from "services-dialog.slint";
 import { ServiceUpdateProgress } from "services-progress.slint";
+import { BuildNotice } from "build-notice.slint";
 import { Web, WebOption, BookmarkItem, BookmarkRow, BrowserPanel, BrowserTabs, BookmarkChrome, BookmarkMenus } from "browser.slint";
 export { Web, WebOption, BookmarkItem, BookmarkRow }
 import { Terminal, TerminalRow, TerminalRun, TerminalPanel, TerminalView } from "terminal.slint";
@@ -28,8 +29,8 @@ import { CacheDialog } from "cache-dialog.slint";
 import { MemoryProcesses, ProcessRow, MemoryProcessDialog } from "memory-processes.slint";
 export { MemoryProcesses, ProcessRow }
 export { StorageView, StorageCell, StorageTrashRow }
-import { AgentPanel, AgentAngi, AgentChat, AgentHistory, AgentProviders, AgentScope, CardModels, ChatMessage, HistoryEntry } from "agent.slint";
-export { AgentAngi, AgentChat, AgentHistory, AgentProviders, AgentScope, CardModels, ChatMessage, HistoryEntry }
+import { AgentPanel, AgentAngi, AgentChat, AgentHistory, AgentProviders, AgentScope, AgentVoice, CardModels, ChatMessage, HistoryEntry } from "agent.slint";
+export { AgentAngi, AgentChat, AgentHistory, AgentProviders, AgentScope, AgentVoice, CardModels, ChatMessage, HistoryEntry }
 import { AgentKnowledge, KnowledgeNode, KnowledgeLink, KnowledgeEvent, KnowledgeUse, KnowledgeDetail } from "agent.slint";
 export { AgentKnowledge, KnowledgeNode, KnowledgeLink, KnowledgeEvent, KnowledgeUse, KnowledgeDetail }
 import { AgentWork, WorkRecord, WorkResource } from "agent-work-summary.slint";
@@ -214,6 +215,7 @@ component WindowFrame inherits Rectangle {
 }
 
 export component AppWindow inherits Window {
+    in-out property <bool> build-notice-open: false;
     title: "ANGI";
     in property <bool> wayland-shell: false;
     in property <bool> native-tiles-active: false;
@@ -685,6 +687,14 @@ export component AppWindow inherits Window {
         if Services.progress-open: ServiceUpdateProgress {
             dismissed => { root-keys.focus(); }
             pointer-moved(x, y) => { root.track-cursor(x, y); }
+        }
+
+        if root.build-notice-open: BuildNotice {
+            width: min(460px, root.width - 2 * Theme.space-4);
+            x: (root.width - self.width) / 2;
+            y: Theme.space-12 + Theme.space-4;
+            pointer-moved(x, y) => { root.track-cursor(x, y); }
+            dismissed => { root.build-notice-open = false; root-keys.focus(); }
         }
 
         // Confirmation dialog for disruptive actions.

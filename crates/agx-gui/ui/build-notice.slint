@@ -1,0 +1,29 @@
+import { Body, Button, Floating, Theme, Title } from "pebble/pebble.slint";
+
+export component BuildNotice inherits Floating {
+    callback dismissed();
+    callback pointer-moved(length, length);
+    height: content.preferred-height;
+
+    TouchArea {
+        pointer-event(_) => {
+            root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+        }
+    }
+    content := VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-3;
+        Title { text: "Building on this Pi"; }
+        Body {
+            text: "Build on a faster computer next time and send the update over Ethernet or USB. This build will continue on the Pi.";
+        }
+        HorizontalLayout {
+            alignment: end;
+            Button {
+                text: "Dismiss";
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                clicked => { root.dismissed(); }
+            }
+        }
+    }
+}

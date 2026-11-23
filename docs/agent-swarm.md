@@ -53,6 +53,10 @@ workstation or pushed to GitHub. The SDK and caches are also on NVMe.
 - `angi-build gui-test`: standalone GUI tests with LinuxKMS enabled.
 - `source "$(angi-build env)"`: native build environment for custom commands.
 
+When a native CLI or desktop build starts on a Raspberry Pi, the desktop shows
+a dismissible suggestion to build on a faster computer and deploy over Ethernet
+or USB. The build continues while the notice is visible.
+
 The SDK combines checksum-pinned Debian ARM64 GCC 12/binutils, make, pkgconf
 and Python 3.11 packages with the development image's own Buildroot sysroot,
 plus Rust 1.97.1. Debian packages are extracted privately; no package manager

@@ -14,6 +14,23 @@ mkdir -m700 -- "$build_store" 2>/dev/null || true
 [[ -d $build_store && -O $build_store && ! -L $build_store ]] || { echo 'Unsafe ANGI build storage.' >&2; exit 1; }
 chmod 700 "$build_store"
 cd /var/lib/agx-data/angi-dev
+
+publish_build_notice() {
+    local stat token marker
+    stat=$(cat "/proc/$$/stat") || return
+    # Field 22 is the process start time. Strip the parenthesized command first.
+    token=$(awk '{print $20}' <<< "${stat##*) }") || return
+    [[ "$token" =~ ^[0-9]+$ ]] || return
+    mkdir -p -- "$build_store/build-notices" || return
+    notice="$build_store/build-notices/$$"
+    marker=$(mktemp "$build_store/build-notices/.notice.XXXXXX") || return
+    if ! { printf '%s\n' "$token" > "$marker" && mv -f -- "$marker" "$notice"; }; then
+        rm -f -- "$marker"
+        return 1
+    fi
+    trap 'rm -f -- "$notice"' EXIT
+}
+
 # The desktop's Slint UI compiles into 8 MB of generated Rust. Without incremental compilation every
 # change recompiles all of it (about 50 s on a 16-core workstation, about 1 minute here); with it, only
 # what changed (about 5 s on the workstation). The first build after this is a full one.
@@ -28,6 +45,9 @@ if [[ ${1:-} == gui ]]; then
     if [[ $(cat "$warm_stamp" 2>/dev/null || true) != "$warm_key" ]]; then
         echo 'angi-build: the dependencies changed since the last desktop build on this device, so this one compiles them again (about 14 minutes at low priority). Later builds of a small change take about a minute.' >&2
     fi
+fi
+if [[ ${1:-} == gui || ${1:-} == cli ]] && [[ -z ${ANGI_BUILD_WARM_CACHE:-} ]]; then
+    publish_build_notice || true
 fi
 case "${1:-}" in
     cli) cargo build --locked --release -p agx-cli ;;

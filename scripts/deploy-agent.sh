@@ -19,6 +19,9 @@ install -m755 "$ROOT/apps/agent/angi-build.sh" "$stage/usr/bin/angi-build"
 install -m755 "$ROOT/apps/agent/angi-update.sh" "$stage/usr/bin/angi-update"
 "$ROOT/output/host/bin/aarch64-linux-gcc" -Os -Wall -Wextra -Werror "$ROOT/apps/agent/angi-root.c" -o "$stage/usr/bin/angi-root"
 install -m644 "$ROOT"/apps/agent/*.py "$stage/usr/libexec/agx-agent/"
+# On-device speech recognition (scripts/build-whisper.sh); the microphone still works with an OpenAI key without it.
+whisper="$ROOT/.cache/whisper/whisper-cli-${BOARD:-rpi5}"
+if [[ -f "$whisper" ]]; then install -m755 "$whisper" "$stage/usr/libexec/agx-agent/whisper-cli"; else echo 'Skipping on-device speech recognition: run scripts/build-whisper.sh first.' >&2; fi
 cp -RL "$ROOT/apps/agent/skills" "$ROOT/apps/agent/profiles" "$stage/usr/share/agx/agent/"
 install -m644 "$ROOT/apps/agent/herdr.toml" "$ROOT/apps/agent/sdk-env.sh" "$ROOT/apps/agent/LICENSE.herdr" "$ROOT/apps/agent/apps.json" "$stage/usr/share/agx/agent/"
 bash "$ROOT/scripts/stage-monaco.sh" "$stage/usr/share/agx/agent/work-editor"

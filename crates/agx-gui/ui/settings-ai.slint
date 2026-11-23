@@ -1,0 +1,33 @@
+import { Theme, Heading2, Hint, Label, Divider } from "pebble/pebble.slint";
+import { ScrollView } from "std-widgets.slint";
+import { AgentVoice } from "agent-voice.slint";
+import { VoiceSetupForm } from "agent-voice-setup.slint";
+
+// Settings > AI. Speech to text mirrors the overlay the microphone opens, with the same choices.
+export component AiPage inherits Rectangle {
+    in property <bool> compact;
+    callback pointer-moved(length, length);
+    ScrollView {
+        width: root.width; height: root.height;
+        content-width: self.visible-width;
+        horizontal-scrollbar-policy: always-off;
+        VerticalLayout {
+            alignment: start;
+            padding: root.compact ? Theme.space-4 : Theme.space-6;
+            spacing: Theme.space-4;
+            Heading2 { text: "AI"; }
+            Hint { text: "Choose how Agent Angi listens and thinks."; wrap: word-wrap; }
+            Divider { }
+            Label { text: "Speech to text"; }
+            Hint {
+                text: AgentVoice.device != "" ? "Used by the microphone in the message box. " + AgentVoice.device : "Used by the microphone in the message box.";
+                wrap: word-wrap;
+            }
+            VoiceSetupForm {
+                inline: true;
+                height: 540px;
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+    }
+}

@@ -9,6 +9,8 @@ import { HoverDwell, HoverTip } from "hover-tip.slint";
 import { AgentKnowledge } from "agent-knowledge.slint";
 import { Icons } from "pebble/pebble.slint";
 import { AngiBug } from "agent-bug.slint";
+import { AgentVoice, VoiceAlert, VoiceBar } from "agent-voice.slint";
+import { VoiceSetup } from "agent-voice-setup.slint";
 
 struct AgentSuggestion { label: string, detail: string, prompt: string }
 component AgentWelcome inherits Flickable {
@@ -82,15 +84,30 @@ component AgentComposer inherits Rectangle {
     in property <bool> active;
     in property <int> focus-request;
     property <bool> chatting: AgentScope.mode == "chat";
-    // Reserve the Build button, three gaps and the composer padding at narrow widths.
-    property <length> scope-controls-width: max(0px, root.width - 83px);
+    // Reserve the Build button, the microphone, four gaps and the composer padding at narrow widths.
+    property <length> scope-controls-width: max(0px, root.width - 124px);
     property <length> control-width: min(130px, root.scope-controls-width / 2);
+    // The Swarm / Single agent button is as wide as its own label, not as wide as the longest one.
+    property <string> agent-label: AgentScope.single-agent ? (root.width < 420px ? "Single" : "Single agent") : "Swarm";
+    property <length> agent-width: min(max(33px, agent-probe.preferred-width + 34px), max(33px, root.scope-controls-width / 2));
+    agent-probe := Text {
+        text: root.agent-label; visible: false;
+        font-size: Theme.text-body-sm; font-weight: 500;
+    }
     property <bool> can-send: (root.draft != "" || AgentChat.attachments.length > 0) && AgentScope.ready && !AgentHistory.loading && (!root.chatting || !AgentChat.busy);
     callback build(string);
     callback pointer-moved(length, length);
     forward-focus: input;
     changed active => { if (root.active) { input.focus(); } }
     changed focus-request => { if (root.active) { input.focus(); } }
+    // A finished dictation joins what is already typed, ready to edit before sending.
+    property <int> voice-serial: AgentVoice.serial;
+    changed voice-serial => {
+        if (root.active && AgentVoice.transcript != "") {
+            root.draft = root.draft == "" ? AgentVoice.transcript : root.draft + " " + AgentVoice.transcript;
+            input.focus();
+        }
+    }
     init => { if (root.active) { input.focus(); } }
     border-radius: Theme.radius-md; border-width: 1px;
     border-color: input.has-focus ? Theme.accent : Theme.line-strong;
@@ -146,6 +163,8 @@ component AgentComposer inherits Rectangle {
                 }
             }
         }
+        if AgentVoice.alert != "": VoiceAlert { }
+        if AgentVoice.busy: VoiceBar { }
         HorizontalLayout {
             spacing: 8px;
             Rectangle {
@@ -167,14 +186,30 @@ component AgentComposer inherits Rectangle {
                     y: -self.height - Theme.space-2;
                 }
             }
-            if AgentScope.mode == "os": AgentText {
-                text: "ANGI system"; color: Theme.ink; font-size: Theme.text-small;
-                vertical-alignment: center;
+            Rectangle {
+                width: 33px;
+                mic-button := AgentButton {
+                    width: parent.width; minimum: 33px;
+                    label: AgentVoice.state == "listening" ? "Stop and transcribe" : "Speak your message";
+                    icon: Icons.mic; icon-only: true;
+                    highlighted: AgentVoice.state == "listening";
+                    enabled: AgentVoice.state != "transcribing" && (!root.chatting || !AgentChat.busy);
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    activated => { mic-dwell.dismiss(); AgentVoice.toggle(); }
+                }
+                mic-dwell := HoverDwell { hovered: mic-button.hovered; }
+                HoverTip {
+                    shown: mic-dwell.ready;
+                    text: mic-button.label;
+                    width: 168px;
+                    x: 0px;
+                    y: -self.height - Theme.space-2;
+                }
             }
             if AgentScope.mode != "os": AgentButton {
                 property <string> folder: root.chatting ? AgentScope.chat-folder : AgentScope.project;
                 width: root.chatting ? (folder == "" ? 130px : min(max(92px, root.width * 0.38), 285px))
-                    : folder == "" ? root.control-width : min(max(root.control-width, root.width * 0.38), 285px, root.scope-controls-width - root.control-width);
+                    : folder == "" ? root.control-width : min(max(root.control-width, root.width * 0.38), 285px, root.scope-controls-width - root.agent-width);
                 label: folder != "" ? folder : root.chatting ? "Home folder" : self.width < 120px ? "Folder…" : "Select folder…";
                 action-label: root.chatting ? "Change Chat folder" : "Choose project folder";
                 symbol: root.chatting || self.width >= 148px ? "▱" : ""; minimum: 33px;
@@ -182,9 +217,9 @@ component AgentComposer inherits Rectangle {
                 activated => { AgentScope.choose-project(); }
             }
             if !root.chatting: AgentButton {
-                width: root.control-width;
+                width: root.agent-width;
                 minimum: 33px;
-                label: AgentScope.single-agent ? (self.width >= 112px ? "Single agent" : "Single") : "Swarm";
+                label: root.agent-label;
                 action-label: AgentScope.single-agent ? "Single agent selected. Switch to Swarm."
                     : "Swarm selected. Switch to Single agent.";
                 highlighted: AgentScope.single-agent;
@@ -378,6 +413,10 @@ export component AgentWorkspace inherits Rectangle {
         replace => { AgentChat.replace-attachment(AgentChat.viewing); }
         remove => { AgentChat.remove-attachment(AgentChat.viewing); AgentChat.viewing = -1; }
         close => { AgentChat.viewing = -1; }
+    }
+    if AgentVoice.setup-open: VoiceSetup {
+        width: root.width; height: root.height;
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     if AgentChat.sent-viewing: AttachmentViewer {
         width: root.width; height: root.height;

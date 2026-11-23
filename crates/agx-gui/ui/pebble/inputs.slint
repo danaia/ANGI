@@ -100,13 +100,7 @@ export component Select inherits Rectangle {
         vertical-alignment: center; overflow: elide;
     }
     Icon { source: Icons.chevron-down; x: parent.width - 34px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; }
-    touch := TouchArea {
-        enabled: root.enabled;
-        mouse-cursor: MouseCursor.pointer;
-        clicked => { root.pointer-focus = true; keys.focus(); popup.show(); }
-        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
-        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
-    }
+    // Underneath the touch areas: a focus layer on top would take the first click and the control would need two.
     keys := FocusScope {
         enabled: root.enabled;
         key-pressed(e) => {
@@ -115,6 +109,13 @@ export component Select inherits Rectangle {
             if (e.text == Key.Return || e.text == " ") { popup.show(); return accept; }
             reject
         }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.pointer;
+        clicked => { root.pointer-focus = true; keys.focus(); popup.show(); }
+        // pointer-event covers hover motion too; `moved` alone fires only while pressed.
+        pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
     }
     FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }
     popup := PopupWindow {
@@ -362,6 +363,15 @@ export component SegmentedControl inherits Rectangle {
     border-width: Theme.stroke-hair;
     border-color: Theme.line;
     opacity: root.enabled ? 1 : 0.5;
+    // Underneath the touch areas: a focus layer on top would take the first click and the control would need two.
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == Key.LeftArrow) { root.choose(root.current-index - 1); return accept; }
+            if (e.text == Key.RightArrow) { root.choose(root.current-index + 1); return accept; }
+            reject
+        }
+    }
     HorizontalLayout {
         padding: 3px;
         spacing: Theme.space-1;
@@ -390,14 +400,6 @@ export component SegmentedControl inherits Rectangle {
                 // pointer-event covers hover motion too; `moved` alone fires only while pressed.
         pointer-event(e) => { root.pointer-moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); }
             }
-        }
-    }
-    keys := FocusScope {
-        enabled: root.enabled;
-        key-pressed(e) => {
-            if (e.text == Key.LeftArrow) { root.choose(root.current-index - 1); return accept; }
-            if (e.text == Key.RightArrow) { root.choose(root.current-index + 1); return accept; }
-            reject
         }
     }
     FocusRing { width: parent.width + 8px; height: parent.height + 8px; shown: keys.has-focus && !root.pointer-focus; radius: root.border-radius; }

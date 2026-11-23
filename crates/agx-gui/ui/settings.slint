@@ -6,6 +6,7 @@ import { AppearancePage, AppearanceSettings } from "settings-appearance.slint";
 import { NightLight } from "night-light.slint";
 import { KeyBindingsPage } from "settings-key-bindings.slint";
 import { SoundPage, SoundSettings } from "settings-sound.slint";
+import { AiPage } from "settings-ai.slint";
 
 export { BluetoothSettings, BtDevice, BtApproval, AppearanceSettings, SoundSettings }
 
@@ -18,7 +19,7 @@ export global MouseSettings {
     in-out property <string> status: "Changes apply immediately and are saved for your account";
     in-out property <bool> native: false;
     in-out property <int> focus-serial: 0;
-    // Chosen Settings page: 0 Mouse & pointer, 1 Bluetooth, 2 Appearance, 3 Sound, 4 Key bindings. Kept here because the desktop
+    // Chosen Settings page: 0 Mouse & pointer, 1 Bluetooth, 2 Appearance, 3 Sound, 4 Key bindings, 5 AI. Kept here because the desktop
     // rebuilds the panel whenever its window moves in the list (maximize, another app opening), which
     // would otherwise send the person back to the first page.
     in-out property <int> page: 0;
@@ -71,7 +72,7 @@ export component SettingsPanel inherits Rectangle {
     property <bool> sound-showing: root.active && root.page == 3;
     changed sound-showing => { SoundSettings.active = root.sound-showing; }
     function show-page(index: int) {
-        if (index == root.page || index < 0 || index > 4) { return; }
+        if (index == root.page || index < 0 || index > 5) { return; }
         root.page = index;
         root.focus-step = -1;
         if index == 4 { binding-page.focus-first(); } else { keys.focus(); }
@@ -167,6 +168,7 @@ export component SettingsPanel inherits Rectangle {
                         { label: "Appearance", icon: Theme.dark ? Icons.moon : Icons.sun },
                         { label: "Sound", icon: Icons.speaker },
                         { label: "Key bindings", icon: Icons.keyboard },
+                        { label: "AI", icon: Icons.sparkle },
                     ]: NavItem {
                         text: item.label; icon: item.icon;
                         current: root.page == index;
@@ -319,6 +321,12 @@ export component SettingsPanel inherits Rectangle {
                         compact: root.narrow;
                         pointer-moved(x, y) => { root.moved(x, y); }
                     }
+                    ai-page := AiPage {
+                        width: parent.width; height: parent.height;
+                        visible: root.page == 5;
+                        compact: root.narrow;
+                        pointer-moved(x, y) => { root.moved(x, y); }
+                    }
                     sound-page := SoundPage {
                         width: parent.width; height: parent.height;
                         visible: root.page == 3;
@@ -346,7 +354,7 @@ export component SettingsPanel inherits Rectangle {
                     height: root.width < 500px ? 36px : parent.height;
                     vertical-alignment: center;
                     text: root.page == 1 ? (BluetoothSettings.error != "" ? BluetoothSettings.error : BluetoothSettings.status)
-                        : root.page == 2 ? AppearanceSettings.status : root.page == 3 ? "" : MouseSettings.status;
+                        : root.page == 2 ? AppearanceSettings.status : (root.page == 3 || root.page == 5) ? "" : MouseSettings.status;
                     color: root.page == 1 && BluetoothSettings.error != "" ? Theme.danger : Theme.ink-muted;
                     font-size: Theme.text-body-sm;
                     wrap: word-wrap; overflow: elide;

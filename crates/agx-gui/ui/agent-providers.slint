@@ -2,6 +2,7 @@ import { Theme } from "data.slint";
 import { ScrollView } from "std-widgets.slint";
 import { TextField, Select } from "pebble/pebble.slint";
 import { AgentButton, AgentText } from "agent-controls.slint";
+import { AgentVoice } from "agent-voice.slint";
 export struct CardModels { orchestrator: string, builder: string, tester: string, os: string }
 export global AgentProviders {
     in-out property <bool> open;
@@ -150,6 +151,7 @@ export component ProviderPanel inherits FocusScope {
                     }
                 }
             }
+            AgentButton { minimum: 36px; vertical-stretch: 0; label: "Voice typing: speech to text…"; activated => { AgentVoice.open-setup(); } }
             AgentButton { minimum: 36px; vertical-stretch: 0; label: "Refresh connection"; enabled: !AgentProviders.busy; activated => { AgentProviders.action(0, ""); } }
         }
     }

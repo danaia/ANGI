@@ -1,0 +1,120 @@
+import { Theme } from "data.slint";
+import { AgentButton, AgentText } from "agent-controls.slint";
+import { Icons, Icon } from "pebble/pebble.slint";
+
+// One way to turn speech into text, as the setup overlay lists it. `detail` is ready to show.
+export struct VoiceChoice { id: string, name: string, quality: string, detail: string, action: string, installed: bool, recommended: bool, slow: bool }
+
+// The microphone beside the message box. src/agent_voice.rs records, measures the level and
+// transcribes; the composer only shows state and takes the finished text.
+export global AgentVoice {
+    // "idle", "listening" or "transcribing".
+    in-out property <string> state: "idle";
+    // Recent loudness, 0 to 1, oldest first; one entry per dot column.
+    in-out property <[float]> levels;
+    in-out property <int> seconds;
+    // Why the microphone cannot be used, shown above the message box; "" when nothing is wrong.
+    in-out property <string> alert;
+    // Each finished transcript raises the serial; the composer appends `transcript` once per serial.
+    in-out property <string> transcript;
+    in-out property <int> serial;
+    out property <bool> busy: self.state != "idle";
+    callback toggle();
+    callback cancel();
+    // The setup overlay: how speech becomes text. Opened by the first transcription and from AI providers.
+    in-out property <bool> setup-open;
+    // An engine is chosen and can run, so the microphone records at once. Otherwise a click opens setup.
+    in-out property <bool> configured;
+    // Which choice starts selected: the one in use, else the recommended one; -1 when there are none.
+    in-out property <int> default-index: -1;
+    in-out property <string> device;
+    in-out property <[VoiceChoice]> choices;
+    in-out property <bool> key-saved;
+    in-out property <bool> local-ready: true;
+    // "openai" or a model id: what is in use now, and what is being saved or downloaded.
+    in-out property <string> current;
+    in-out property <string> working;
+    in-out property <float> progress;
+    in-out property <string> setup-error;
+    // A recording is waiting for the choice, and will be transcribed once it is made.
+    in-out property <bool> pending;
+    callback open-setup();
+    callback close-setup();
+    // Use an engine: "openai" with the key typed (empty to use the saved one), or a model id.
+    callback choose(string, string);
+}
+
+export global VoiceGeometry {
+    out property <int> rows: 5;
+}
+
+// A row of dot columns. Each column lights dots outward from the middle in proportion to the level
+// of that moment, so speech shows as a moving ripple and silence as a quiet line.
+export component VoiceDots inherits Rectangle {
+    in property <[float]> levels;
+    in property <bool> live: true;
+    property <length> dot: 3px;
+    property <length> gap: 3px;
+    // As many columns as the width holds, drawn from the newest levels so the ripple fills the bar.
+    property <int> count: max(1, min(root.levels.length, floor((root.width + root.gap) / (root.dot + root.gap))));
+    min-width: 40px;
+    horizontal-stretch: 1;
+    height: VoiceGeometry.rows * (root.dot + root.gap) - root.gap;
+    for column in root.count: Rectangle {
+        property <float> level: root.live ? root.levels[root.levels.length - root.count + column] : 0;
+        x: column * (root.dot + root.gap); width: root.dot; height: root.height;
+        for row in VoiceGeometry.rows: Rectangle {
+            // Distance of this row from the middle row, in rows.
+            property <int> away: row < (VoiceGeometry.rows - 1) / 2 ? (VoiceGeometry.rows - 1) / 2 - row : row - (VoiceGeometry.rows - 1) / 2;
+            property <bool> lit: away == 0 || level * ((VoiceGeometry.rows + 1) / 2) > away;
+            y: row * (root.dot + root.gap); width: root.dot; height: root.dot;
+            border-radius: root.dot / 2;
+            background: !lit ? Theme.line : away == 0 && level < 0.08 ? Theme.ink-subtle : Theme.accent;
+            animate background { duration: 90ms; }
+        }
+    }
+}
+
+// Shown while listening or transcribing.
+export component VoiceBar inherits Rectangle {
+    height: 36px;
+    border-radius: Theme.radius-md; border-width: Theme.stroke-hair; border-color: Theme.line;
+    background: Theme.surface;
+    property <bool> listening: AgentVoice.state == "listening";
+    accessible-role: text;
+    accessible-label: root.listening ? "Listening" : "Transcribing";
+    HorizontalLayout {
+        padding-left: 12px; padding-right: 6px; spacing: 12px;
+        Rectangle {
+            width: 8px;
+            Rectangle {
+                y: (parent.height - self.height) / 2; width: 8px; height: 8px; border-radius: 4px;
+                background: root.listening ? Theme.danger : Theme.ink-subtle;
+            }
+        }
+        VoiceDots { y: (parent.height - self.height) / 2; levels: AgentVoice.levels; live: root.listening; }
+        AgentButton {
+            width: 28px; minimum: 28px; icon-only: true; symbol: "×";
+            label: root.listening ? "Discard recording" : "Cancel transcription";
+            activated => { AgentVoice.cancel(); }
+        }
+    }
+}
+
+// The notice for a microphone that cannot be used.
+export component VoiceAlert inherits Rectangle {
+    min-height: 20px;
+    border-radius: Theme.radius-md; border-width: Theme.stroke-hair; border-color: Theme.danger;
+    background: Theme.surface;
+    accessible-role: text;
+    accessible-label: AgentVoice.alert;
+    HorizontalLayout {
+        padding: 10px; spacing: 8px;
+        Icon { source: Icons.alert; color: Theme.danger; width: 18px; height: 18px; y: 1px; }
+        AgentText { text: AgentVoice.alert; font-size: Theme.text-small; wrap: word-wrap; horizontal-stretch: 1; }
+        AgentButton {
+            width: 26px; minimum: 26px; icon-only: true; symbol: "×"; label: "Dismiss";
+            activated => { AgentVoice.alert = ""; }
+        }
+    }
+}

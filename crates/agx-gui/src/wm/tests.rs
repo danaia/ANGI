@@ -171,9 +171,10 @@ fn default_desktop_opens_the_reference_layout_in_windowed_mode() {
         assert!(c.right() < m.x);
         assert_eq!(c.y, m.y);
         assert!((m.right() - (width - GAP_OUT)).abs() < 0.01);
+        // The two built-in workspaces open windowed; empty ones tile new apps.
         for i in 0..INITIAL_WORKSPACES {
             d.goto(i);
-            assert_eq!(d.mode(), Mode::Floating);
+            assert_eq!(d.mode(), if i < 2 { Mode::Floating } else { Mode::Tiled });
         }
         d.goto(0);
         d.cycle_layout();

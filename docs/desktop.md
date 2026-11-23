@@ -121,6 +121,11 @@ Weston starts a separate GPU-rendered desktop with its own application
 configuration and listens on `127.0.0.1:5900`. Connect through the
 [existing SSH tunnel](pi-ethernet.md#see-and-control-the-desktop).
 The HDMI desktop can keep running beside the remote session.
+ANGI patches Weston's VNC backend so a viewer's Super key acts as a modifier
+(desktop shortcuts work while a native app has focus) and so app windows draw
+again after a workspace switch or an overlay hides them. Both problems affected
+only VNC; the HDMI backend handles modifiers through libinput and assigns
+every window a plane on each frame.
 
 For frame pacing measurements, start a test session on an available VT with
 `AGX_WAYLAND_DEBUG=1 angi-wayland`. In its Terminal, run

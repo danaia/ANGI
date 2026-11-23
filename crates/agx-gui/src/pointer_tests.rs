@@ -167,14 +167,9 @@ fn session_button_opens_dropdown_and_mouse_selects_tui() {
         );
         assert_eq!(settings_app.borrow().desk.focused(), Some(Kind::Settings));
     }
-    click(
-        if tile.w - 12. < 500. {
-            tile.x + 98.
-        } else {
-            tile.right() - 98.
-        },
-        tile.bottom() - 34.,
-    );
+    // Refresh desktop… sits in the Overview footer, left of Clear cache… and Refresh files.
+    let overview = settings_app.borrow().desk.rect_of(Kind::Overview).unwrap();
+    click(overview.right() - 305., overview.bottom() - 29.);
     assert!(ui.get_confirm_text().contains("stay signed in"));
     assert_eq!(settings_app.borrow().pending, Some(Cmd::RefreshDesktop));
     ui.window().dispatch_event(WindowEvent::KeyPressed {

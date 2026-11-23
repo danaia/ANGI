@@ -93,8 +93,11 @@ restoring overlapping bounds. The app manages its own documents and
 session state.
 
 During a live resize, Weston moves the tile immediately and uses the last
-client buffer until the app commits a new one. Size requests are coalesced
-over 66 ms during the drag and the final size is sent immediately on release.
+client buffer until the app commits a new one. During the drag, the next
+size is sent as soon as the app commits a new size, at most once per 16 ms
+frame. A slow app, or one that keeps its own minimum size, receives the latest
+size every 66 ms. The final size is sent immediately on release. On Pi 5 this
+doubled weston-terminal's resize updates during a one-second drag (15 to 28).
 Set `AGX_WAYLAND_RESIZE_TRACE=1` in a test session to log requested and
 committed native tile sizes.
 
@@ -340,7 +343,7 @@ Choose a row in **Install** to start a background job. The launcher shows its pr
 
 The installer checks the running target before offering a package. On the Pi 5, the native GStreamer package exposes `gst-launch-1.0` and `gst-inspect-1.0` in ANGI Terminal. Blender, VS Code, and VLC require a matching native package and open in the [ANGI Wayland session](#native-wayland-session). Users with a previously installed Debian-runtime package can remove it through `angi-update app remove ID` and keep its settings and data.
 
-**Browsers.** ANGI Web uses WPE WebKit with GPU-accelerated rendering on the Pi. The appliance desktop runs directly on DRM/KMS. External graphical browsers require a display-server integration.
+**Browsers.** ANGI Web uses WPE WebKit with GPU-accelerated rendering on the Pi. Its frames reach the desktop as DMA-BUFs imported into the FemtoVG GL context on both the standalone DRM/KMS desktop and the Wayland session; the software renderer and VNC-only display use the CPU frame transport. Set `AGX_WEB_TRACE=1` to log the active bridge and its frame rate. On a Pi 5 Wayland session, scrolling a long page took about 0.5 CPU cores on the GPU bridge against 1.2 on the CPU bridge. The appliance desktop runs directly on DRM/KMS. External graphical browsers require a display-server integration.
 
 The desktop runs `angi-update app install ID [--progress]` in the background. For GitHub apps, the installer selects the matching asset from the latest stable release and verifies its published SHA-256. For native apps, it verifies the archive against the staged manifest. VS Code also downloads Microsoft's ARM64 archive and verifies its published SHA-256. Downloads use verified HTTPS and check each redirect against the publisher's allowed hosts.
 

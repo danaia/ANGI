@@ -291,6 +291,8 @@ export component AppWindow inherits Window {
         || root.session-open || root.confirm-text != "";
     out property <bool> native-overlay-open: root.key-overlay || root.menu-open || root.header-menu-open
         || (Web.popup-visible && Web.popup-kind != 0);
+    callback native-overlay-changed();
+    changed native-overlay-open => { root.native-overlay-changed(); }
     callback browser-key(string, bool, bool, bool, bool, bool) -> bool;
     callback pointer(int, int, length, length, bool, bool, bool, bool);
     callback scroll(float, float, bool, bool, bool, bool);

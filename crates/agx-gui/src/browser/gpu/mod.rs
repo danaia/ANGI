@@ -15,7 +15,12 @@ pub(super) fn available() -> bool {
 pub(super) fn install(ui: &crate::AppWindow, app: &std::rc::Rc<std::cell::RefCell<crate::App>>) {
     use crate::Web;
     use slint::{ComponentHandle, Image, RenderingState};
-    if std::env::var("SLINT_BACKEND").as_deref() != Ok("linuxkms-femtovg") {
+    // Both FemtoVG backends render through a current EGL context: KMS on the
+    // HDMI output and Winit as a native Wayland client. Software has no GL.
+    if !matches!(
+        std::env::var("SLINT_BACKEND").as_deref(),
+        Ok("linuxkms-femtovg" | "winit-femtovg")
+    ) {
         return;
     }
     let (weak, state) = (ui.as_weak(), app.clone());

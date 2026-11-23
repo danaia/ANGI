@@ -12,10 +12,12 @@ use std::{
     fmt::Write,
     io,
     os::{
+        fd::AsRawFd,
         linux::net::SocketAddrExt,
         unix::net::{SocketAddr, UnixDatagram},
     },
     rc::Rc,
+    sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel},
     time::{Duration, Instant},
 };
 
@@ -40,6 +42,8 @@ pub(crate) struct NativeTiles(RefCell<Option<Connection>>);
 
 struct Connection {
     socket: UnixDatagram,
+    packets: Receiver<String>,
+    retry_queued: bool,
     windows: BTreeMap<u32, Window>,
     sent: HashMap<u32, String>,
     focus: Option<(usize, u32)>,
@@ -52,6 +56,69 @@ struct Connection {
 }
 
 const PREFS: &str = "native-tiles.json";
+/// Periodic work only: re-registering shortcuts and saving placements.
+/// Compositor events wake the UI loop as they arrive.
+const HOUSEKEEPING: Duration = Duration::from_millis(500);
+/// Datagrams waiting for the UI thread; the compositor drops events beyond the
+/// socket buffer either way, so a stalled UI never grows this queue unbounded.
+const PACKET_QUEUE: usize = 256;
+
+thread_local! {
+    /// Drains compositor events on the UI thread; set by [`install`].
+    static DRAIN: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+}
+
+fn run_drain() {
+    if let Some(drain) = DRAIN.with(|drain| drain.borrow().clone()) {
+        drain();
+    }
+}
+
+/// Run the drain on a later turn of the UI loop, after the current borrow ends.
+fn queue_drain(delay: Duration) {
+    Timer::single_shot(delay, run_drain);
+}
+
+/// Block on the compositor socket off the UI thread and wake the UI loop only
+/// when events arrive, so shortcuts and new windows are handled immediately.
+fn spawn_reader(socket: UnixDatagram, tx: SyncSender<String>) -> io::Result<()> {
+    std::thread::Builder::new().name("agx-native-tiles".into()).spawn(move || {
+        let mut buffer = vec![0u8; 65536];
+        loop {
+            let mut fd = libc::pollfd { fd: socket.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+            if unsafe { libc::poll(&mut fd, 1, -1) } < 0 {
+                if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return;
+            }
+            let mut received = false;
+            loop {
+                match socket.recv(&mut buffer) {
+                    Ok(count) => {
+                        let Ok(message) = std::str::from_utf8(&buffer[..count]) else { continue };
+                        match tx.try_send(message.to_owned()) {
+                            Ok(()) | Err(TrySendError::Full(_)) => received = true,
+                            Err(TrySendError::Disconnected(_)) => return,
+                        }
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(_) => {
+                        // A refused or failed read must not spin; the compositor
+                        // owns the session, so wait for it to come back.
+                        std::thread::sleep(Duration::from_millis(100));
+                        break;
+                    }
+                }
+            }
+            if received && slint::invoke_from_event_loop(run_drain).is_err() {
+                return;
+            }
+        }
+    })?;
+    Ok(())
+}
 
 impl Connection {
     fn connect() -> io::Result<Self> {
@@ -60,13 +127,18 @@ impl Connection {
         let address = SocketAddr::from_abstract_name(format!("angi-tiles-{}", std::process::id()))?;
         let socket = UnixDatagram::bind_addr(&address)?;
         socket.connect(endpoint)?;
+        // Shared by the reader's duplicate: neither thread may block on a full peer.
         socket.set_nonblocking(true)?;
+        let (tx, packets) = sync_channel(PACKET_QUEUE);
+        spawn_reader(socket.try_clone()?, tx)?;
         let placements = crate::settings::config_file(PREFS)
             .and_then(|path| std::fs::read_to_string(path).ok())
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
         Ok(Self {
             socket,
+            packets,
+            retry_queued: false,
             windows: BTreeMap::new(),
             sent: HashMap::new(),
             focus: None,
@@ -167,6 +239,11 @@ impl NativeTiles {
             } else {
                 connection.layout_retry = true;
             }
+        }
+        if connection.layout_retry && !connection.retry_queued {
+            // The compositor's queue was full: resend on the next frame.
+            connection.retry_queued = true;
+            queue_drain(Duration::from_millis(16));
         }
     }
 }
@@ -297,13 +374,8 @@ fn drain(app: &mut App, ui: &AppWindow) {
         if connection.save_at.is_some_and(|when| now >= when) {
             connection.save();
         }
-        let mut buffer = [0u8; 65536];
-        for _ in 0..32 {
-            let Ok(count) = connection.socket.recv(&mut buffer) else { break };
-            if let Ok(message) = std::str::from_utf8(&buffer[..count]) {
-                packets.push(message.to_owned());
-            }
-        }
+        connection.retry_queued = false;
+        packets.extend(connection.packets.try_iter().take(PACKET_QUEUE));
         connection.layout_retry || connection.overlay != ui.get_native_overlay_open()
     };
     let mut changed = needs_layout;
@@ -348,17 +420,25 @@ fn drain(app: &mut App, ui: &AppWindow) {
 }
 
 pub(crate) fn install(ui: &AppWindow, app: &Rc<RefCell<App>>) -> Option<Timer> {
-    let connection = Connection::connect().ok()?;
+    let connection = Connection::connect()
+        .map_err(|error| eprintln!("agx-gui: native tiles: {error}"))
+        .ok()?;
     *app.borrow().native_tiles.0.borrow_mut() = Some(connection);
     let (weak, app) = (ui.as_weak(), Rc::downgrade(app));
-    let timer = Timer::default();
-    timer.start(TimerMode::Repeated, Duration::from_millis(16), move || {
-        if let (Some(ui), Some(app)) = (weak.upgrade(), app.upgrade())
-            && let Ok(mut app) = app.try_borrow_mut()
-        {
-            drain(&mut app, &ui);
-        }
+    DRAIN.with(|drain_slot| {
+        *drain_slot.borrow_mut() = Some(Rc::new(move || {
+            let (Some(ui), Some(app)) = (weak.upgrade(), app.upgrade()) else { return };
+            match app.try_borrow_mut() {
+                Ok(mut app) => drain(&mut app, &ui),
+                // Another handler holds the desktop; run once it returns.
+                Err(_) => queue_drain(Duration::from_millis(4)),
+            }
+        }));
     });
+    // Opening a Slint menu or dialog must hide native bodies on the same frame.
+    ui.on_native_overlay_changed(|| queue_drain(Duration::ZERO));
+    let timer = Timer::default();
+    timer.start(TimerMode::Repeated, HOUSEKEEPING, run_drain);
     Some(timer)
 }
 
@@ -366,6 +446,19 @@ pub(crate) fn install(ui: &AppWindow, app: &Rc<RefCell<App>>) -> Option<Timer> {
 mod tests {
     use super::*;
     use crate::wm::Placed;
+
+    #[test]
+    fn reader_forwards_compositor_datagrams_without_a_ui_poll() {
+        let (compositor, desktop) = UnixDatagram::pair().unwrap();
+        desktop.set_nonblocking(true).unwrap();
+        let (tx, rx) = sync_channel(PACKET_QUEUE);
+        spawn_reader(desktop, tx).unwrap();
+        compositor.send(b"K q 8").unwrap();
+        compositor.send(b"V 0\n").unwrap();
+        let wait = Duration::from_secs(2);
+        assert_eq!(rx.recv_timeout(wait).unwrap(), "K q 8");
+        assert_eq!(rx.recv_timeout(wait).unwrap(), "V 0\n");
+    }
 
     #[test]
     fn native_body_runs_edge_to_edge_below_header_and_clips_higher_frames() {

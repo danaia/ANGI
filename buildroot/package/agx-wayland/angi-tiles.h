@@ -13,6 +13,10 @@ struct angi_tile {
 	struct wl_event_source *resize_timer;
 	bool resize_pending;
 	int applied_width, applied_height;
+	int committed_width, committed_height;
+	int configured_from_width, configured_from_height;
+	int64_t configured_ms;
+	bool awaiting_commit;
 	int x, y, width, height;
 	bool fullscreen, positioned;
 	pixman_region32_t clip;

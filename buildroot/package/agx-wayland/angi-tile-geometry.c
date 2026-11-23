@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include <libweston/desktop.h>
 #include "shared/helpers.h"
@@ -12,7 +13,21 @@
 #include "angi-tiles.h"
 
 #define MAX_TILE_COORD 32768
-#define CLIENT_RESIZE_INTERVAL_MS 66
+/* Interactive resizes follow the client: the next size is sent as soon as it
+ * commits the previous one, but no more than once per display frame. A client
+ * that is slow, or enforces its own minimum size, still gets the latest size
+ * at the fallback rate while Weston scales its last buffer into the slot. */
+#define CLIENT_RESIZE_MIN_MS 16
+#define CLIENT_RESIZE_FALLBACK_MS 66
+
+static int64_t
+monotonic_ms(void)
+{
+	struct timespec now;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
 
 static int
 configure_size(void *data)
@@ -24,10 +39,42 @@ configure_size(void *data)
 		weston_desktop_surface_set_size(tile->surface->desktop_surface, tile->width, tile->height);
 		tile->applied_width = tile->width;
 		tile->applied_height = tile->height;
+		tile->configured_ms = monotonic_ms();
+		tile->awaiting_commit = true;
+		tile->configured_from_width = tile->committed_width;
+		tile->configured_from_height = tile->committed_height;
 		if (getenv("AGX_WAYLAND_RESIZE_TRACE"))
 			weston_log("ANGI tile configure %u %dx%d\n", tile->id, tile->width, tile->height);
 	}
 	return 0;
+}
+
+static bool
+client_caught_up(const struct angi_tile *tile)
+{
+	return !tile->awaiting_commit;
+}
+
+/* Send the pending size now, or arm the timer for the earliest allowed time. */
+static void
+pace_size(struct angi_tile *tile)
+{
+	int64_t wait = (client_caught_up(tile) ? CLIENT_RESIZE_MIN_MS : CLIENT_RESIZE_FALLBACK_MS) -
+	               (monotonic_ms() - tile->configured_ms);
+
+	if (wait > 0 && !tile->resize_timer) {
+		struct wl_display *display = tile->surface->shell->compositor->wl_display;
+		tile->resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(display),
+		                                          configure_size, tile);
+	}
+	if (wait > 0 && tile->resize_timer &&
+	    wl_event_source_timer_update(tile->resize_timer, (int)MIN(wait, CLIENT_RESIZE_FALLBACK_MS)) == 0) {
+		tile->resize_pending = true;
+		return;
+	}
+	if (tile->resize_pending && tile->resize_timer)
+		wl_event_source_timer_update(tile->resize_timer, 0);
+	configure_size(tile);
 }
 
 static void
@@ -42,17 +89,7 @@ schedule_size(struct angi_tile *tile, bool interactive)
 	if (tile->resize_pending ||
 	    (tile->applied_width == tile->width && tile->applied_height == tile->height))
 		return;
-	if (!tile->resize_timer) {
-		struct wl_display *display = tile->surface->shell->compositor->wl_display;
-		tile->resize_timer = wl_event_loop_add_timer(wl_display_get_event_loop(display),
-		                                          configure_size, tile);
-	}
-	if (tile->resize_timer &&
-	    wl_event_source_timer_update(tile->resize_timer, CLIENT_RESIZE_INTERVAL_MS) == 0) {
-		tile->resize_pending = true;
-		return;
-	}
-	configure_size(tile);
+	pace_size(tile);
 }
 
 static void
@@ -121,6 +158,18 @@ angi_tile_committed(struct shell_surface *surface)
 	if (!tile)
 		return false;
 	geometry = weston_desktop_surface_get_geometry(surface->desktop_surface);
+	tile->committed_width = geometry.width;
+	tile->committed_height = geometry.height;
+	/* Terminals snap to whole cells, so any new size answers the configure. */
+	if (tile->awaiting_commit &&
+	    ((geometry.width == tile->applied_width && geometry.height == tile->applied_height) ||
+	     geometry.width != tile->configured_from_width ||
+	     geometry.height != tile->configured_from_height))
+		tile->awaiting_commit = false;
+	/* The client caught up: send the size it is waiting behind without
+	 * waiting for the fallback interval. */
+	if (tile->resize_pending && client_caught_up(tile))
+		pace_size(tile);
 	if (geometry.x != tile->applied_geometry.x || geometry.y != tile->applied_geometry.y ||
 	    geometry.width != tile->applied_geometry.width || geometry.height != tile->applied_geometry.height) {
 		if (getenv("AGX_WAYLAND_RESIZE_TRACE"))

@@ -57,7 +57,10 @@ toplevels, maps window IDs to the shared scene, and saves app placement in
 split tree and restores their floating bounds or tile size. The compositor's
 `angi-tiles.c` tracks native window lifetime, focus, and shortcuts.
 `angi-tile-geometry.c` applies slot geometry and clip regions to the live views,
-including an interim scale while a client draws its resized buffer.
+including an interim scale while a client draws its resized buffer. A reader thread blocks on the
+compositor socket and wakes the UI loop only when events arrive; window
+snapshots and native-app shortcuts are no longer delayed by a polling timer.
+A 500 ms timer handles shortcut registration and saving placements.
 
 `ui/fullscreen-actions.slint` renders the top-edge controls for both ANGI panels and native Wayland windows. Weston's `buildroot/package/agx-wayland/angi-fullscreen.c` decides when to show the native control surface and positions it on the fullscreen window's output. The session socket carries control actions back to Weston.
 

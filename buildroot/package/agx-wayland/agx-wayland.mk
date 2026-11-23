@@ -54,7 +54,7 @@ endef
 AGX_WAYLAND_POST_EXTRACT_HOOKS += AGX_WAYLAND_EXTRACT_CURSORS
 
 define AGX_WAYLAND_COPY_SHELL_SOURCES
-	cp $(addprefix $(AGX_WAYLAND_PKGDIR)/,angi-workspaces.c angi-fullscreen.c angi-panels.c angi-tiles.c angi-tile-geometry.c angi-tiles.h) $(@D)/desktop-shell/
+	cp $(addprefix $(AGX_WAYLAND_PKGDIR)/,angi-workspaces.c angi-fullscreen.c angi-panels.c angi-tiles.c angi-tile-geometry.c angi-volume.c angi-tiles.h) $(@D)/desktop-shell/
 	cp $(AGX_WAYLAND_PKGDIR)/angi-mouse.c $(@D)/libweston/
 endef
 AGX_WAYLAND_POST_PATCH_HOOKS += AGX_WAYLAND_COPY_SHELL_SOURCES

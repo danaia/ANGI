@@ -55,8 +55,8 @@ struct angi_tiles {
 	uint16_t shortcut_mask[ARRAY_LENGTH(shortcut)];
 };
 
-static bool
-send_message(struct desktop_shell *shell, const char *message, size_t length)
+bool
+angi_tiles_send(struct desktop_shell *shell, const char *message, size_t length)
 {
 	struct angi_tiles *tiles = shell->angi_tiles;
 
@@ -104,7 +104,7 @@ publish_windows(struct desktop_shell *shell)
 		cursor = hex_field(cursor, weston_desktop_surface_get_title(surface->desktop_surface));
 		*cursor++ = '\n';
 	}
-	send_message(shell, message, cursor - message);
+	angi_tiles_send(shell, message, cursor - message);
 }
 
 static struct shell_surface *
@@ -253,7 +253,8 @@ angi_tile_desktop_view(struct desktop_shell *shell)
 
 	wl_list_for_each(surface, &shell->shsurf_list, link) {
 		if (surface->desktop_surface && angi_is_desktop(surface) &&
-		    surface != shell->angi_controls && weston_view_is_mapped(surface->view))
+		    surface != shell->angi_controls && surface != shell->angi_volume &&
+		    weston_view_is_mapped(surface->view))
 			return surface->view;
 	}
 	return NULL;
@@ -284,7 +285,7 @@ shortcut_pressed(struct weston_keyboard *keyboard, const struct timespec *time,
 	for (i = 0; i < ARRAY_LENGTH(shortcut); ++i) {
 		if (shortcut[i].code == key) {
 			int n = snprintf(buffer, sizeof buffer, "K %s %u", shortcut[i].name, mods);
-			send_message(shell, buffer, n);
+			angi_tiles_send(shell, buffer, n);
 			return;
 		}
 	}
@@ -373,7 +374,7 @@ angi_tile_request(struct shell_surface *surface, const char *request)
 	if (!surface || !surface->angi_tile)
 		return false;
 	count = snprintf(message, sizeof message, "X %u %s", surface->angi_tile->id, request);
-	send_message(surface->shell, message, count);
+	angi_tiles_send(surface->shell, message, count);
 	return true;
 }
 
@@ -382,7 +383,7 @@ angi_tile_fullscreen_action(struct shell_surface *surface, unsigned action)
 {
 	char message[8];
 	int count = snprintf(message, sizeof message, "F %u", action);
-	send_message(surface->shell, message, count);
+	angi_tiles_send(surface->shell, message, count);
 }
 
 void
@@ -402,6 +403,8 @@ angi_tiles_message(struct desktop_shell *shell, const char *message,
 	    peer_len <= sizeof tiles->peer && peer->sun_family == AF_UNIX) {
 		tiles->peer = *peer;
 		tiles->peer_len = peer_len;
+		if (shell->angi_volume_bindings[0])
+			angi_tiles_send(shell, "M ready", sizeof "M ready" - 1);
 		configure_shortcuts(shell, message + 1);
 		wl_list_for_each(surface, &shell->shsurf_list, link) {
 			if (surface->desktop_surface && weston_view_is_mapped(surface->view) &&
@@ -449,6 +452,7 @@ angi_tiles_init(struct desktop_shell *shell)
 	shell->angi_tiles = tiles;
 	weston_layer_init(&tiles->layer, shell->compositor);
 	weston_layer_set_position(&tiles->layer, WESTON_LAYER_POSITION_NORMAL + 1);
+	angi_volume_init(shell);
 }
 
 void
@@ -457,6 +461,7 @@ angi_tiles_fini(struct desktop_shell *shell)
 	struct angi_tiles *tiles = shell->angi_tiles;
 	if (!tiles)
 		return;
+	angi_volume_fini(shell);
 	set_shortcuts(shell, false);
 	weston_layer_fini(&tiles->layer);
 	free(tiles);

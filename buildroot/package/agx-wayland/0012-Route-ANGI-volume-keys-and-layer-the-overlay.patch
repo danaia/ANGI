@@ -1,0 +1,76 @@
+Subject: [PATCH] desktop-shell: Route volume keys and layer the ANGI volume overlay
+
+--- a/desktop-shell/meson.build
++++ b/desktop-shell/meson.build
+@@ -5,6 +5,7 @@
+ 		'shell.c',
+ 		'angi-workspaces.c',
+ 		'angi-fullscreen.c',
++		'angi-volume.c',
+ 		'angi-panels.c',
+ 		'angi-tiles.c',
+ 		'angi-tile-geometry.c',
+--- a/desktop-shell/shell.h
++++ b/desktop-shell/shell.h
+@@ -300,6 +300,9 @@
+ 	struct weston_layer angi_hidden;
+ 	struct weston_layer angi_controls_layer;
+ 	struct shell_surface *angi_controls;
++	struct shell_surface *angi_volume;
++	struct wl_listener angi_volume_input;
++	struct weston_binding *angi_volume_bindings[3];
+ 	struct shell_surface *angi_fullscreen_target;
+ 	unsigned angi_workspace;
+ 	struct wl_event_source *angi_workspace_source;
+@@ -343,6 +346,11 @@
+ 
+ 	struct timespec startup_time;
+ };
++
++bool angi_volume_commit(struct shell_surface *surface);
++void angi_volume_remove(struct shell_surface *surface);
++void angi_volume_init(struct desktop_shell *shell);
++void angi_volume_fini(struct desktop_shell *shell);
+ 
+ bool
+ angi_fullscreen_register(struct shell_surface *surface);
+--- a/desktop-shell/shell.c
++++ b/desktop-shell/shell.c
+@@ -2012,6 +2012,7 @@
+ 		return;
+ 
+ 	angi_tile_remove(shsurf);
++	angi_volume_remove(shsurf);
+ 	if (shsurf->shell->angi_controls == shsurf) {
+ 		shsurf->shell->angi_controls = NULL;
+ 		angi_fullscreen_hide(shsurf->shell);
+@@ -2212,6 +2213,9 @@
+ 	if (surface->width == 0) {
+ 		return;
+ 	}
++
++	if (angi_volume_commit(shsurf))
++		return;
+ 
+ 	was_fullscreen = shsurf->state.fullscreen;
+ 	was_maximized = shsurf->state.maximized;
+@@ -3570,6 +3574,8 @@
+ 	shsurf = get_shell_surface(main_surface);
+ 	assert(shsurf);
+ 
++	if (shell->angi_volume == shsurf)
++		return;
+ 	if (shell->angi_controls == shsurf) {
+ 		struct weston_keyboard *keyboard = weston_seat_get_keyboard(seat);
+ 		if (keyboard && shell->angi_fullscreen_target)
+--- a/libweston/backend-vnc/vnc.c
++++ b/libweston/backend-vnc/vnc.c
+@@ -170,5 +170,8 @@
+ 	{XKB_KEY_Print, 	0x63,	false	},
+ 	{XKB_KEY_Pause, 	0x77,	false	},
++	{XKB_KEY_XF86AudioMute,        0x71, false },
++	{XKB_KEY_XF86AudioLowerVolume, 0x72, false },
++	{XKB_KEY_XF86AudioRaiseVolume, 0x73, false },
+ 	{XKB_KEY_Caps_Lock, 	0x3a,	false	},
+ 	{XKB_KEY_Scroll_Lock, 	0x46,	false	},
+ 	{XKB_KEY_A,		0x1e,	true	},

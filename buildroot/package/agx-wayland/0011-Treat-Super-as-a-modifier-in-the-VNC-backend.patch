@@ -1,0 +1,25 @@
+Treat Super as a modifier in the VNC backend
+
+The VNC backend updates xkb state only for Ctrl and Alt, so a Super key from a viewer never
+sets MODIFIER_SUPER and compositor Super bindings never match. Track both Super keys like Alt.
+
+--- a/libweston/backend-vnc/vnc.c
++++ b/libweston/backend-vnc/vnc.c
+@@ -166,6 +166,7 @@
+ 	{XKB_KEY_Meta_L,	0x38,	false	},
+ 	{XKB_KEY_Meta_R,	0x64,	false	},
+ 	{XKB_KEY_Super_L,	0x7d,	false	},
++	{XKB_KEY_Super_R,	0x7e,	false	},
+ 	{XKB_KEY_Print, 	0x63,	false	},
+ 	{XKB_KEY_Pause, 	0x77,	false	},
+ 	{XKB_KEY_Caps_Lock, 	0x3a,	false	},
+@@ -317,7 +318,8 @@
+ 
+ 	/* Allow selected modifiers */
+ 	if (keysym == XKB_KEY_Control_L || keysym == XKB_KEY_Control_R ||
+-	    keysym == XKB_KEY_Alt_L || keysym == XKB_KEY_Alt_R)
++	    keysym == XKB_KEY_Alt_L || keysym == XKB_KEY_Alt_R ||
++	    keysym == XKB_KEY_Super_L || keysym == XKB_KEY_Super_R)
+ 		state_update = STATE_UPDATE_AUTOMATIC;
+ 	else
+ 		state_update = STATE_UPDATE_NONE;

@@ -2,6 +2,7 @@ import { Theme, Icons, Icon, Label, Progress } from "pebble/pebble.slint";
 
 // Shown for a moment when the keyboard's volume keys are used; driven by src/sound.rs.
 export global VolumeHud {
+    in property <bool> native-available;
     in property <bool> shown;
     in property <int> percent;
     in property <bool> muted;
@@ -10,7 +11,8 @@ export global VolumeHud {
 // A pill that slides down from the top edge, over the desktop, and slides back up when idle.
 // It never takes the pointer or the keyboard.
 export component VolumeHudOverlay inherits Rectangle {
-    private property <length> pill-width: min(300px, root.width - 2 * Theme.space-4);
+    in property <length> side-inset: Theme.space-4;
+    private property <length> pill-width: max(0px, min(300px, root.width - 2 * root.side-inset));
     private property <length> rest: Theme.header + Theme.space-3;
     background: transparent;
     Rectangle {
@@ -33,7 +35,7 @@ export component VolumeHudOverlay inherits Rectangle {
                 alignment: center;
                 Icon {
                     source: VolumeHud.muted || VolumeHud.percent == 0 ? Icons.speaker-off : Icons.speaker;
-                    color: VolumeHud.muted ? Theme.ink-subtle : Theme.ink;
+                    color: VolumeHud.muted ? Theme.ink-muted : Theme.ink;
                     width: 22px; height: 22px;
                 }
             }
@@ -42,12 +44,24 @@ export component VolumeHudOverlay inherits Rectangle {
                 Progress { progress: VolumeHud.muted ? 0 : VolumeHud.percent / 100.0; }
             }
             Label {
-                width: 44px;
+                width: Theme.space-12 + Theme.space-2;
                 text: VolumeHud.muted ? "Muted" : VolumeHud.percent + "%";
+                wrap: no-wrap;
                 horizontal-alignment: right;
                 vertical-alignment: center;
-                color: VolumeHud.muted ? Theme.ink-subtle : Theme.ink;
+                color: VolumeHud.muted ? Theme.ink-muted : Theme.ink;
             }
         }
     }
+}
+
+export component VolumeHudWindow inherits Window {
+    title: "ANGI Volume";
+    no-frame: true;
+    background: transparent;
+    default-font-family: "Poppins";
+    width: 300px;
+    height: Theme.header + Theme.space-3 + 52px;
+
+    VolumeHudOverlay { width: parent.width; height: parent.height; side-inset: 0px; clip: true; }
 }

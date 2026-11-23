@@ -1,19 +1,17 @@
 //! Sound device discovery and changes run outside the Slint event loop.
+mod hud;
 mod meter;
 mod pulse;
 mod tone;
 
-use crate::{AppWindow, SoundSettings, VolumeHud};
+use crate::{AppWindow, SoundSettings};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 use std::{
     cell::RefCell,
     rc::Rc,
     sync::mpsc,
-    time::{Duration, Instant},
+    time::Duration,
 };
-
-/// How long the volume indicator stays down after the last key press.
-const HUD_HOLD: Duration = Duration::from_millis(1600);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Choice {
@@ -221,28 +219,21 @@ pub(super) fn install(ui: &AppWindow) -> Timer {
 
     let weak = ui.as_weak();
     let timer = Timer::default();
-    let poll = RefCell::new((false, 0usize, meter::Meter::new(), None::<Instant>));
+    let poll = RefCell::new((false, 0usize, meter::Meter::new(), hud::Hud::default()));
     timer.start(TimerMode::Repeated, Duration::from_millis(120), move || {
         let Some(ui) = weak.upgrade() else { return };
         let global = ui.global::<SoundSettings>();
         let mut poll = poll.borrow_mut();
-        let (pending, ticks, meter, hud_until) = &mut *poll;
+        let (pending, ticks, meter, hud) = &mut *poll;
+        hud.update(&ui);
         while let Ok((action, volume, keys, result)) = updates.try_recv() {
             if action.is_none() {
                 *pending = false;
             } else if !volume {
                 global.set_changing(false);
             }
-            if keys {
-                if let Ok(state) = &result {
-                    if let Some(level) = state.volume {
-                        let hud = ui.global::<VolumeHud>();
-                        hud.set_percent(level.percent.clamp(0, 100));
-                        hud.set_muted(level.muted);
-                        hud.set_shown(true);
-                        *hud_until = Some(Instant::now() + HUD_HOLD);
-                    }
-                }
+            if keys && let Ok(state) = &result && let Some(level) = state.volume {
+                hud.show(&ui, level);
             }
             if volume && !global.get_active() {
                 continue;
@@ -263,10 +254,6 @@ pub(super) fn install(ui: &AppWindow) -> Timer {
                 state.show(&global, choices_changed);
                 *last = state;
             }
-        }
-        if hud_until.is_some_and(|until| Instant::now() >= until) {
-            ui.global::<VolumeHud>().set_shown(false);
-            *hud_until = None;
         }
         let current = snapshot.borrow();
         // The panel can be destroyed before Slint clears its active property.

@@ -54,7 +54,7 @@ apply_workspace(struct desktop_shell *shell, unsigned workspace,
 		}
 
 		if (!shsurf->desktop_surface || !weston_view_is_mapped(shsurf->view) ||
-		    shell->angi_controls == shsurf)
+		    shell->angi_controls == shsurf || shell->angi_volume == shsurf)
 			continue;
 
 		if (shsurf->view->layer_link.layer == &shell->minimized_layer)

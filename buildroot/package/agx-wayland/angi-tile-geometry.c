@@ -223,6 +223,9 @@ angi_tile_position(struct desktop_shell *shell, const char *message)
 	    !valid_box(x, y, width, height) || workspace > 9 || full > 1 || radius < 0 || radius > 256)
 		return;
 	surface = angi_tile_find(shell, id);
+	if (getenv("AGX_WAYLAND_RESIZE_TRACE"))
+		weston_log("ANGI tile place %u ws%u %d,%d %dx%d full=%u covers:%s%s\n", id, workspace, x, y,
+		           width, height, full, message + offset, surface ? "" : " (unknown)");
 	if (!surface)
 		return;
 	tile = surface->angi_tile;

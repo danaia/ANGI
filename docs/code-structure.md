@@ -231,7 +231,11 @@ The Overview drive picker in `ui/drive-mount.slint` owns NVMe selection and eras
 The Sound page lives in `agx-gui/ui/settings-sound.slint`. `src/sound.rs` owns the
 desktop worker and choice models, `sound/pulse.rs` queries and changes PulseAudio
 routes and output volume, `sound/meter.rs` samples the selected microphone while
-Sound is active, and `sound/tone.rs` generates the confirmation tone. The supervised
+Sound is active, and `sound/tone.rs` generates the confirmation tone.
+`sound/hud.rs` owns the volume overlay's hold timer and its Wayland window.
+`ui/volume-hud.slint` shares the slide animation with the standalone desktop.
+Weston's `angi-volume.c` forwards media keys through the desktop session socket
+and positions the input-transparent overlay above native windows. The supervised
 `apps/sound/run.sh` starts PulseAudio, reconciles wired ALSA endpoints and
 registers Bluetooth audio profiles when the system bus is available.
 `apps/sound/cliamp.sh` selects the Radio provider and starts the bundled

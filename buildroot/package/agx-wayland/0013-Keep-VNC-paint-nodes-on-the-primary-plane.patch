@@ -1,0 +1,28 @@
+Keep VNC paint nodes on the primary plane
+
+The VNC backend replaces the core assign_planes but only places the cursor. A paint node
+that leaves the z-order (ANGI hides tiles in a hidden layer on workspace switches and
+overlays) comes back with no plane, so the window is never drawn again. Restore the default.
+
+--- a/libweston/backend-vnc/vnc.c
++++ b/libweston/backend-vnc/vnc.c
+@@ -1084,9 +1084,19 @@
+ vnc_output_assign_planes(struct weston_output *base)
+ {
+ 	struct vnc_output *output = to_vnc_output(base);
++	struct weston_paint_node *pnode;
+ 
+ 	assert(output);
+ 
++	/* Replacing the core's default assign_planes also replaces its move of
++	 * every paint node to the primary plane. A view that left the z-order
++	 * (a hidden layer, an unmapped parent) returns with no plane and would
++	 * never be drawn again, so restore the default for all but the cursor. */
++	wl_list_for_each(pnode, &output->base.paint_node_z_order_list, z_order_link) {
++		if (pnode->plane != &output->cursor_plane)
++			weston_paint_node_move_to_plane(pnode, &output->base.primary_plane);
++	}
++
+ 	if (output->base.disable_planes)
+ 		return;
+ 

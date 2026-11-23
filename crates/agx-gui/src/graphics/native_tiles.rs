@@ -17,7 +17,11 @@ use std::{
         unix::net::{SocketAddr, UnixDatagram},
     },
     rc::Rc,
-    sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{Receiver, SyncSender, TrySendError, sync_channel},
+    },
     time::{Duration, Instant},
 };
 
@@ -43,6 +47,8 @@ pub(crate) struct NativeTiles(RefCell<Option<Connection>>);
 struct Connection {
     socket: UnixDatagram,
     packets: Receiver<String>,
+    /// Events the reader discarded because the UI thread fell behind.
+    dropped: Arc<AtomicUsize>,
     retry_queued: bool,
     windows: BTreeMap<u32, Window>,
     sent: HashMap<u32, String>,
@@ -81,7 +87,8 @@ fn queue_drain(delay: Duration) {
 
 /// Block on the compositor socket off the UI thread and wake the UI loop only
 /// when events arrive, so shortcuts and new windows are handled immediately.
-fn spawn_reader(socket: UnixDatagram, tx: SyncSender<String>) -> io::Result<()> {
+/// A full queue drops the event and counts it, so the UI thread can resynchronise.
+fn spawn_reader(socket: UnixDatagram, tx: SyncSender<String>, dropped: Arc<AtomicUsize>) -> io::Result<()> {
     std::thread::Builder::new().name("agx-native-tiles".into()).spawn(move || {
         let mut buffer = vec![0u8; 65536];
         loop {
@@ -98,7 +105,11 @@ fn spawn_reader(socket: UnixDatagram, tx: SyncSender<String>) -> io::Result<()> 
                     Ok(count) => {
                         let Ok(message) = std::str::from_utf8(&buffer[..count]) else { continue };
                         match tx.try_send(message.to_owned()) {
-                            Ok(()) | Err(TrySendError::Full(_)) => received = true,
+                            Ok(()) => received = true,
+                            Err(TrySendError::Full(_)) => {
+                                dropped.fetch_add(1, Ordering::Relaxed);
+                                received = true;
+                            }
                             Err(TrySendError::Disconnected(_)) => return,
                         }
                     }
@@ -130,7 +141,8 @@ impl Connection {
         // Shared by the reader's duplicate: neither thread may block on a full peer.
         socket.set_nonblocking(true)?;
         let (tx, packets) = sync_channel(PACKET_QUEUE);
-        spawn_reader(socket.try_clone()?, tx)?;
+        let dropped = Arc::new(AtomicUsize::new(0));
+        spawn_reader(socket.try_clone()?, tx, dropped.clone())?;
         let placements = crate::settings::config_file(PREFS)
             .and_then(|path| std::fs::read_to_string(path).ok())
             .and_then(|text| serde_json::from_str(&text).ok())
@@ -138,6 +150,7 @@ impl Connection {
         Ok(Self {
             socket,
             packets,
+            dropped,
             retry_queued: false,
             windows: BTreeMap::new(),
             sent: HashMap::new(),
@@ -363,6 +376,13 @@ fn drain(app: &mut App, ui: &AppWindow) {
         let mut state = app.native_tiles.0.borrow_mut();
         let Some(connection) = state.as_mut() else { return };
         let now = Instant::now();
+        let dropped = connection.dropped.swap(0, Ordering::Relaxed);
+        if dropped > 0 {
+            // A lost snapshot or focus change would leave the desktop out of
+            // step; the query makes the compositor publish its full state now.
+            eprintln!("agx-gui: native tiles: {dropped} compositor events dropped; resynchronising");
+            connection.next_query = now;
+        }
         if now >= connection.next_query {
             let mut query = String::from("Q");
             for (key, bits) in app.bindings.native_keyboard_bindings(app.modk) {
@@ -393,6 +413,15 @@ fn drain(app: &mut App, ui: &AppWindow) {
             app.key(ui, name, Mods::from_bits(bits));
         } else if let Some(action) = message.strip_prefix("F ").and_then(|value| value.parse().ok()) {
             app.fullscreen_action(ui, action);
+        } else if let Some(volume) = message.strip_prefix("M ") {
+            use crate::sound::{VolumeAction, media_key};
+            match volume {
+                "ready" => ui.global::<crate::VolumeHud>().set_native_available(true),
+                "up" => { media_key(VolumeAction::Step(5), true); }
+                "down" => { media_key(VolumeAction::Step(-5), true); }
+                "mute" => { media_key(VolumeAction::Mute, true); }
+                _ => {}
+            }
         } else if let Some((id, request)) = message.strip_prefix("X ").and_then(|value| value.split_once(' '))
             && let Ok(id) = id.parse()
             && app.desk.workspace_of(Kind::Native(id)) == Some(app.desk.current())
@@ -452,12 +481,33 @@ mod tests {
         let (compositor, desktop) = UnixDatagram::pair().unwrap();
         desktop.set_nonblocking(true).unwrap();
         let (tx, rx) = sync_channel(PACKET_QUEUE);
-        spawn_reader(desktop, tx).unwrap();
+        let dropped = Arc::new(AtomicUsize::new(0));
+        spawn_reader(desktop, tx, dropped.clone()).unwrap();
         compositor.send(b"K q 8").unwrap();
         compositor.send(b"V 0\n").unwrap();
         let wait = Duration::from_secs(2);
         assert_eq!(rx.recv_timeout(wait).unwrap(), "K q 8");
         assert_eq!(rx.recv_timeout(wait).unwrap(), "V 0\n");
+        assert_eq!(dropped.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn reader_counts_events_dropped_while_the_ui_is_behind() {
+        let (compositor, desktop) = UnixDatagram::pair().unwrap();
+        desktop.set_nonblocking(true).unwrap();
+        // One slot and nothing reading it: every later event overflows.
+        let (tx, rx) = sync_channel(1);
+        let dropped = Arc::new(AtomicUsize::new(0));
+        spawn_reader(desktop, tx, dropped.clone()).unwrap();
+        for event in ["V 1\n", "K q 8", "X 1 full"] {
+            compositor.send(event.as_bytes()).unwrap();
+        }
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while dropped.load(Ordering::Relaxed) < 2 && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(dropped.load(Ordering::Relaxed), 2);
+        assert_eq!(rx.try_recv().unwrap(), "V 1\n");
     }
 
     #[test]

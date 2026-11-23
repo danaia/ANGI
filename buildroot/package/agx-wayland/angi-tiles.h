@@ -23,6 +23,7 @@ struct angi_tile {
 };
 
 struct weston_view *angi_tile_desktop_view(struct desktop_shell *shell);
+bool angi_tiles_send(struct desktop_shell *shell, const char *message, size_t length);
 struct shell_surface *angi_tile_find(struct desktop_shell *shell, unsigned id);
 struct shell_surface *angi_tile_owner(struct shell_surface *surface);
 void angi_tile_position(struct desktop_shell *shell, const char *message);

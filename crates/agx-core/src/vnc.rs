@@ -96,7 +96,7 @@ fn gui_rss(proc_root: &Path) -> Option<u64> {
     total
 }
 
-pub(super) fn collect() -> VncStatus {
+pub fn collect() -> VncStatus {
     // The GUI passes this setting into authenticated sessions. Root can also
     // inspect gui.env; an SSH TUI without access to it observes the default port.
     let setting = std::env::var("AGX_GUI_VNC").ok().or_else(|| {

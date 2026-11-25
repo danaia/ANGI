@@ -16,6 +16,7 @@ define AGX_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/target/$(RUSTC_TARGET_NAME)/$(if $(BR2_ENABLE_DEBUG),debug,release)/agx-netd $(TARGET_DIR)/usr/sbin/agx-netd
 	$(INSTALL) -D -m 0755 $(@D)/target/$(RUSTC_TARGET_NAME)/$(if $(BR2_ENABLE_DEBUG),debug,release)/agx-dhcp $(TARGET_DIR)/usr/sbin/agx-dhcp
 	$(INSTALL) -D -m 0755 $(@D)/target/$(RUSTC_TARGET_NAME)/$(if $(BR2_ENABLE_DEBUG),debug,release)/agx-bluetoothd $(TARGET_DIR)/usr/sbin/agx-bluetoothd
+	$(INSTALL) -D -m 0755 $(@D)/target/$(RUSTC_TARGET_NAME)/$(if $(BR2_ENABLE_DEBUG),debug,release)/agx-securityd $(TARGET_DIR)/usr/sbin/agx-securityd
 endef
 
 $(eval $(cargo-package))

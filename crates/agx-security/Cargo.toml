@@ -1,0 +1,22 @@
+[package]
+name = "agx-security"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "ANGI network security: per-link SSH access, the device's public key and peer pinning"
+
+[dependencies]
+agx-core.workspace = true
+agx-profile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+libc.workspace = true
+zeroize.workspace = true
+sha2 = "0.10"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "agx-securityd"
+path = "src/main.rs"

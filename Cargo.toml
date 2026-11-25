@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/agx-core", "crates/agx-tui", "crates/agx-cli", "crates/agx-net", "crates/agx-profile", "crates/agx-init", "crates/agx-bluetooth", "crates/agx-bluetoothd"]
+members = ["crates/agx-core", "crates/agx-tui", "crates/agx-cli", "crates/agx-net", "crates/agx-profile", "crates/agx-init", "crates/agx-bluetooth", "crates/agx-bluetoothd", "crates/agx-security"]
 resolver = "2"
 
 [workspace.package]
@@ -13,6 +13,7 @@ agx-profile = { path = "crates/agx-profile" }
 agx-core = { path = "crates/agx-core" }
 agx-net = { path = "crates/agx-net" }
 agx-bluetooth = { path = "crates/agx-bluetooth" }
+agx-security = { path = "crates/agx-security" }
 zeroize = { version = "1", features = ["serde"] }
 pbkdf2 = "0.12"
 sha1 = "0.10"

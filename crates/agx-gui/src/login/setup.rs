@@ -93,9 +93,16 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
     });
 
     let weak = ui.as_weak();
+    page.on_finish(move |username| {
+        if let Some(ui) = weak.upgrade() {
+            ui.invoke_show_login(username);
+        }
+    });
+
+    let weak = ui.as_weak();
     page.on_create_account(move |name, hostname, username, password| {
         let Some(ui) = weak.upgrade() else { return };
-        if start(&ui, 3, "Creating your administrator account…") {
+        if start(&ui, 2, "Creating your administrator account…") {
             let save = Save {
                 name: name.to_string(),
                 hostname: hostname.to_string(),
@@ -112,7 +119,12 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
                     page.set_busy(false);
                     page.set_status("".into());
                     match outcome {
-                        Ok(_) => ui.invoke_show_login(username.into()),
+                        // Security is the last step (3); the account exists, so the greeter stays
+                        // on it instead of jumping to sign-in.
+                        Ok(_) => {
+                            page.set_created_user(username.into());
+                            page.set_step(3);
+                        }
                         Err(error) => page.set_error(error.to_string().into()),
                     }
                 });
@@ -126,7 +138,8 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
     timer.start(TimerMode::Repeated, Duration::from_secs(1), move || {
         let Some(ui) = weak.upgrade() else { return };
         let page = ui.global::<GreeterSetup>();
-        if page.get_step() == 0 || page.get_busy() {
+        // Step 3 (Security) follows the account; the sign-in screen waits for Finish.
+        if page.get_step() == 0 || page.get_step() == 3 || page.get_busy() {
             return;
         }
         if service::setup_claimed().unwrap_or(false) && page.get_step() < 0 {

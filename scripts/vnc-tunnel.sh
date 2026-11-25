@@ -2,9 +2,12 @@
 # SSH tunnel to the Pi's desktop VNC server, run with OpenSSH instead of Remmina's
 # built-in libssh tunnel (which has crashed Remmina while closing a tunnel).
 #
-#   scripts/vnc-tunnel.sh run|up|down|status ethernet|wifi
+#   scripts/vnc-tunnel.sh run|up|down|status ethernet|wifi|beelink
 #
-# The tunnel listens on 127.0.0.1 only: 5941 for Ethernet, 5942 for Wi-Fi. Point the
+# The tunnel listens on 127.0.0.1 only: 5941 for Ethernet, 5942 for Wi-Fi, 5944 for the Beelink
+# Mini S (the Intel machine on the Ethernet cable). The Beelink checks its host key against the
+# private install directory's known_hosts (AGX_SSH_KNOWN_HOSTS, else the newest
+# ~/angi-install/private/angi-beelink-mini-s-install-*/known_hosts), never the Pi's old entry. Point the
 # VNC viewer at that local port with its own tunnel turned off.
 #   run     stay in the foreground holding the tunnel (for the systemd user service in
 #           scripts/systemd/, which restarts it after a Pi reboot or a dropped link)
@@ -22,7 +25,8 @@ REMOTE_PORT=${AGX_VNC_REMOTE_PORT:-5900}
 case "$LINK" in
     ethernet) HOST=${AGX_ETHERNET_HOST:-10.78.0.2}; PORT=${AGX_ETHERNET_PORT:-5941} ;;
     wifi) HOST=${AGX_WIFI_HOST:-192.168.1.184}; PORT=${AGX_WIFI_PORT:-5942} ;;
-    *) echo "usage: ${0##*/} run|up|down|status ethernet|wifi" >&2; exit 2 ;;
+    beelink) HOST=${AGX_BEELINK_HOST:-10.78.0.2}; PORT=${AGX_BEELINK_PORT:-5944} ;;
+    *) echo "usage: ${0##*/} run|up|down|status ethernet|wifi|beelink" >&2; exit 2 ;;
 esac
 FORWARD="$PORT:127.0.0.1:$REMOTE_PORT"
 
@@ -36,8 +40,15 @@ SSH_OPTIONS=(
     -i "$KEY" -o BatchMode=yes -o ConnectTimeout=8
     -o GatewayPorts=no
     -o ExitOnForwardFailure=yes -o ServerAliveInterval=5 -o ServerAliveCountMax=3
-    -o "HostKeyAlias=$HOST_KEY_ALIAS" -o StrictHostKeyChecking=yes
+    -o StrictHostKeyChecking=yes
 )
+if [[ $LINK == beelink ]]; then
+    KNOWN=${AGX_SSH_KNOWN_HOSTS:-$(ls -t "$HOME"/angi-install/private/angi-beelink-mini-s-install-*/known_hosts 2>/dev/null | head -n 1)}
+    [[ -n $KNOWN && -f $KNOWN ]] || { echo "No install known_hosts found; set AGX_SSH_KNOWN_HOSTS." >&2; exit 1; }
+    SSH_OPTIONS+=(-o IdentitiesOnly=yes -o "UserKnownHostsFile=$KNOWN")
+else
+    SSH_OPTIONS+=(-o "HostKeyAlias=$HOST_KEY_ALIAS")
+fi
 
 # Once installed, systemd owns the lifecycle. In particular, stopping only its
 # ssh process would cause Restart=always to bring the tunnel straight back.
@@ -77,5 +88,5 @@ case "$ACTION" in
             echo "$LINK tunnel down"; exit 1
         fi
         ;;
-    *) echo "usage: ${0##*/} run|up|down|status ethernet|wifi" >&2; exit 2 ;;
+    *) echo "usage: ${0##*/} run|up|down|status ethernet|wifi|beelink" >&2; exit 2 ;;
 esac

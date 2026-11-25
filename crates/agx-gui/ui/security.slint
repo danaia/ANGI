@@ -1,0 +1,413 @@
+// Security: this computer's public key, who may reach it over Ethernet or a USB cable, and
+// the computer at the other end of the cable. Shared by Settings and first-boot setup.
+import { Theme, Heading2, Hint, Label, Mono, Button, ButtonVariant, Divider, Badge, Tone, Well, TextField, Alert, Icons } from "pebble/pebble.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export global SecuritySettings {
+    // The page is on screen, so the desktop polls the service.
+    in-out property <bool> active;
+    in-out property <bool> available;
+    in-out property <bool> busy;
+    in-out property <string> public-key;
+    in-out property <string> key-fingerprint;
+    in-out property <string> host-fingerprint;
+    in-out property <bool> ethernet-open;
+    in-out property <bool> usb-open;
+    in-out property <bool> ethernet-connected;
+    in-out property <bool> usb-connected;
+    // The computer on the other end of the Ethernet cable, when it is known.
+    in-out property <string> peer-address;
+    in-out property <string> peer-fingerprint;
+    in-out property <bool> peer-pinned;
+    // Opening a link takes the administrator's password once an account exists.
+    in-out property <bool> password-required;
+    // Remote desktop: on in the configuration (starts with the next desktop session), serving now,
+    // and how many viewers are connected.
+    in-out property <bool> vnc-enabled;
+    in-out property <bool> vnc-listening;
+    in-out property <int> vnc-viewers;
+    // Plain sentences and commands for what is connected and open right now.
+    in-out property <[string]> suggestions;
+    // The administrator account to prefill, and a counter that ticks each time a change succeeds
+    // so open forms close only when the daemon accepted them.
+    in-out property <string> account;
+    in-out property <int> ok-serial;
+    in-out property <string> message;
+    in-out property <string> error;
+    // link: 1 Ethernet, 2 USB cable.
+    callback set-link(int, bool, string, string);
+    callback set-vnc(bool, string, string);
+    callback close-all();
+    callback check-peer();
+    callback trust-peer();
+}
+
+// One wired link: its state, and the manual step that opens it.
+component LinkRow inherits VerticalLayout {
+    in property <string> title;
+    in property <string> detail;
+    in property <string> open-text: "SSH open";
+    in property <string> closed-text: "SSH closed";
+    in property <string> allow-text: "Allow access…";
+    in property <bool> open;
+    in property <bool> connected;
+    in property <int> link;
+    in property <bool> compact;
+    // The administrator's password is asked for, rather than trusting the person at the console.
+    in property <bool> needs-password;
+    callback pointer-moved(length, length);
+    // Which link the form below is asking about; shared across both rows through the panel.
+    in-out property <int> asking;
+    property <bool> asking-me: root.asking == root.link;
+    property <string> username: SecuritySettings.account;
+    property <string> secret;
+    property <int> accepted: SecuritySettings.ok-serial;
+    changed accepted => { root.asking = 0; root.secret = ""; }
+    // Link 3 is the remote desktop; the others are wired SSH links.
+    function act(open: bool, user: string, pass: string) {
+        if (root.link == 3) { SecuritySettings.set-vnc(open, user, pass); }
+        else { SecuritySettings.set-link(root.link, open, user, pass); }
+    }
+    padding-top: Theme.space-4;
+    spacing: Theme.space-3;
+        HorizontalLayout {
+            spacing: Theme.space-4;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 2px;
+                if !root.compact: HorizontalLayout {
+                    spacing: Theme.space-3;
+                    alignment: start;
+                    Label { text: root.title; vertical-alignment: center; }
+                    Badge {
+                        text: root.open ? root.open-text : root.closed-text;
+                        tone: root.open ? Tone.success : Tone.warning;
+                        dot: true;
+                    }
+                }
+                if root.compact: VerticalLayout {
+                    spacing: Theme.space-2;
+                    Label { text: root.title; wrap: word-wrap; }
+                    HorizontalLayout {
+                        alignment: start;
+                        Badge {
+                            text: root.open ? root.open-text : root.closed-text;
+                            tone: root.open ? Tone.success : Tone.warning;
+                            dot: true;
+                        }
+                    }
+                }
+                Hint { text: root.detail; wrap: word-wrap; }
+            }
+            if !root.compact: Button {
+                text: root.open ? "Close" : root.allow-text;
+                variant: root.open ? ButtonVariant.secondary : ButtonVariant.primary;
+                enabled: !SecuritySettings.busy && SecuritySettings.available;
+                clicked => {
+                    if (root.open) { root.act(false, "", ""); root.asking = 0; }
+                    else { root.asking = root.asking-me ? 0 : root.link; }
+                }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+        if root.compact: Button {
+            text: root.open ? "Close" : root.allow-text;
+            variant: root.open ? ButtonVariant.secondary : ButtonVariant.primary;
+            enabled: !SecuritySettings.busy && SecuritySettings.available;
+            clicked => {
+                if (root.open) { root.act(false, "", ""); root.asking = 0; }
+                else { root.asking = root.asking-me ? 0 : root.link; }
+            }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+        if root.asking-me && !root.open: Well {
+            preferred-height: form.preferred-height;
+            form := VerticalLayout {
+                padding: Theme.space-4;
+                spacing: Theme.space-3;
+                Hint {
+                    text: root.needs-password
+                        ? "Opening this connection lets a computer on the other end sign in with its key. Enter your administrator account to allow it."
+                        : "Opening this connection lets a computer on the other end sign in with its key. You are at this computer, so you can allow it.";
+                    wrap: word-wrap;
+                }
+                if root.needs-password: TextField {
+                    text <=> root.username;
+                    placeholder-text: "Username";
+                    accessible-label: "Administrator username";
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                if root.needs-password: TextField {
+                    text <=> root.secret;
+                    placeholder-text: "Password";
+                    accessible-label: "Administrator password";
+                    input-type: InputType.password;
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                go := Button {
+                    text: root.link == 3 ? "Turn on remote desktop" : "Open " + root.title;
+                    variant: ButtonVariant.primary;
+                    enabled: !SecuritySettings.busy;
+                    clicked => {
+                        root.act(true,
+                            root.needs-password ? root.username : "",
+                            root.needs-password ? root.secret : "");
+                    }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+        }
+    Divider { }
+}
+
+export component SecurityBody inherits VerticalLayout {
+    in property <bool> compact;
+    in property <bool> setup;
+    callback pointer-moved(length, length);
+    property <int> asking: 0;
+    property <bool> copied;
+    property <bool> confirm-close;
+    spacing: Theme.space-3;
+    Hint {
+        text: root.setup
+            ? "Other computers reach this one with an SSH key. Wired access starts closed. Open Ethernet or a USB cable only for computers you trust."
+            : "Control which wired connections let other computers sign in, and share this computer's key.";
+        wrap: word-wrap;
+    }
+    if !SecuritySettings.available: Alert {
+        title: "Security service unavailable";
+        text: SecuritySettings.message != "" ? SecuritySettings.message : "Waiting for the ANGI security service.";
+        tone: Tone.warning;
+        icon: Icons.info;
+    }
+    if SecuritySettings.error != "": Text { text: SecuritySettings.error; color: Theme.danger; wrap: word-wrap; font-size: Theme.text-body-sm; }
+    if SecuritySettings.error == "" && SecuritySettings.message != "" && SecuritySettings.available: Text {
+        text: SecuritySettings.message; color: Theme.ink-muted; wrap: word-wrap; font-size: Theme.text-body-sm;
+    }
+    Label { text: "This computer's key"; }
+    Hint { text: "Add this public key to the other computer's authorized keys to let this one sign in there. It is safe to share."; wrap: word-wrap; }
+    Well {
+        preferred-height: keytext.preferred-height + 2 * Theme.space-4;
+        keytext := TextInput {
+            x: Theme.space-4; y: Theme.space-4;
+            width: parent.width - 2 * Theme.space-4;
+            text: SecuritySettings.public-key != "" ? SecuritySettings.public-key : "Creating this computer's key…";
+            read-only: true;
+            wrap: char-wrap;
+            color: Theme.ink;
+            font-family: Theme.font-mono;
+            font-size: Theme.text-body-sm;
+            selection-background-color: Theme.selection;
+            selection-foreground-color: Theme.ink;
+            accessible-label: "Public key";
+        }
+    }
+    HorizontalLayout {
+        spacing: Theme.space-4;
+        alignment: start;
+        Button {
+            text: root.copied ? "Copied" : "Copy key";
+            enabled: SecuritySettings.public-key != "";
+            clicked => { keytext.select-all(); keytext.copy(); keytext.clear-selection(); root.copied = true; reset.running = true; }
+            pointer-moved(x, y) => { root.pointer-moved(x, y); }
+        }
+        if SecuritySettings.key-fingerprint != "": Mono {
+            text: SecuritySettings.key-fingerprint;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+    reset := Timer { interval: 2s; running: false; triggered => { self.running = false; root.copied = false; } }
+    Divider { }
+    Label { text: "Wired access"; }
+    LinkRow {
+        title: "Ethernet";
+        link: 1;
+        compact: root.compact;
+        needs-password: SecuritySettings.password-required && !root.setup;
+        open: SecuritySettings.ethernet-open;
+        connected: SecuritySettings.ethernet-connected;
+        asking <=> root.asking;
+        detail: SecuritySettings.ethernet-connected
+            ? (SecuritySettings.peer-address != "" ? "Cable connected to " + SecuritySettings.peer-address + "." : "Cable connected.")
+            : "No cable connected.";
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+    }
+    LinkRow {
+        title: "USB cable";
+        link: 2;
+        compact: root.compact;
+        needs-password: SecuritySettings.password-required && !root.setup;
+        open: SecuritySettings.usb-open;
+        connected: SecuritySettings.usb-connected;
+        asking <=> root.asking;
+        detail: SecuritySettings.usb-connected ? "Cable connected." : "No cable connected.";
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+    }
+    LinkRow {
+        title: "Remote desktop (VNC)";
+        link: 3;
+        compact: root.compact;
+        open: SecuritySettings.vnc-enabled;
+        needs-password: SecuritySettings.password-required && !root.setup;
+        asking <=> root.asking;
+        open-text: "VNC on";
+        closed-text: "VNC off";
+        allow-text: "Turn on…";
+        detail: !SecuritySettings.vnc-enabled
+            ? (SecuritySettings.vnc-listening ? "Off from the next sign-in. Still serving until then." : "Off. Shares this screen only through an SSH tunnel, never on the network.")
+            : (SecuritySettings.vnc-listening
+                ? (SecuritySettings.vnc-viewers == 1 ? "Serving now, 1 viewer connected. Reached only through an SSH tunnel."
+                    : "Serving now, " + SecuritySettings.vnc-viewers + " viewers connected. Reached only through an SSH tunnel.")
+                : "On. Starts at your next sign-in: sign out and back in.");
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+    }
+    if SecuritySettings.ethernet-connected && SecuritySettings.peer-address != "": VerticalLayout {
+        spacing: Theme.space-3;
+        Label { text: "Connected computer"; }
+        Hint {
+            text: "Check that the computer on the Ethernet cable is the one you expect, and trust its identity so this computer can tell it apart from an impostor.";
+            wrap: word-wrap;
+        }
+        if SecuritySettings.peer-fingerprint != "": Well {
+            preferred-height: peer-lines.preferred-height;
+            peer-lines := VerticalLayout {
+                padding: Theme.space-4;
+                spacing: Theme.space-2;
+                if !root.compact: HorizontalLayout {
+                    spacing: Theme.space-3;
+                    alignment: start;
+                    Label { text: SecuritySettings.peer-address; vertical-alignment: center; }
+                    Badge {
+                        text: SecuritySettings.peer-pinned ? "Trusted" : "Not yet trusted";
+                        tone: SecuritySettings.peer-pinned ? Tone.success : Tone.warning;
+                        dot: true;
+                    }
+                }
+                if root.compact: VerticalLayout {
+                    spacing: Theme.space-2;
+                    Label { text: SecuritySettings.peer-address; }
+                    HorizontalLayout {
+                        alignment: start;
+                        Badge {
+                            text: SecuritySettings.peer-pinned ? "Trusted" : "Not yet trusted";
+                            tone: SecuritySettings.peer-pinned ? Tone.success : Tone.warning;
+                            dot: true;
+                        }
+                    }
+                }
+                Mono { text: SecuritySettings.peer-fingerprint; wrap: char-wrap; }
+            }
+        }
+        if root.compact: VerticalLayout {
+            spacing: Theme.space-3;
+            Button {
+                text: SecuritySettings.peer-fingerprint == "" ? "Check connected computer" : "Check again";
+                enabled: !SecuritySettings.busy && SecuritySettings.available;
+                clicked => { SecuritySettings.check-peer(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            if SecuritySettings.peer-fingerprint != "" && !SecuritySettings.peer-pinned: Button {
+                text: "Trust this computer";
+                variant: ButtonVariant.primary;
+                enabled: !SecuritySettings.busy;
+                clicked => { SecuritySettings.trust-peer(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+        if !root.compact: HorizontalLayout {
+            spacing: Theme.space-4;
+            alignment: start;
+            Button {
+                text: SecuritySettings.peer-fingerprint == "" ? "Check connected computer" : "Check again";
+                enabled: !SecuritySettings.busy && SecuritySettings.available;
+                clicked => { SecuritySettings.check-peer(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+            if SecuritySettings.peer-fingerprint != "" && !SecuritySettings.peer-pinned: Button {
+                text: "Trust this computer";
+                variant: ButtonVariant.primary;
+                enabled: !SecuritySettings.busy;
+                clicked => { SecuritySettings.trust-peer(); }
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+    }
+    Divider { }
+    Label { text: "How to connect"; }
+    for line in SecuritySettings.suggestions: Hint { text: line; wrap: word-wrap; }
+    if SecuritySettings.suggestions.length == 0: Hint { text: "Nothing to suggest yet."; }
+    Divider { }
+    if !root.confirm-close: Button {
+        text: "Close all remote access…";
+        variant: ButtonVariant.danger;
+        horizontal-stretch: 0;
+        enabled: !SecuritySettings.busy && SecuritySettings.available;
+        clicked => { root.confirm-close = true; }
+        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+    }
+    if root.confirm-close: Well {
+        preferred-height: confirm-lines.preferred-height;
+        confirm-lines := VerticalLayout {
+            padding: Theme.space-4;
+            spacing: Theme.space-3;
+            Hint {
+                text: "This closes Ethernet and USB access, ends their open sessions and turns remote desktop off. If you are connected over a cable, you will be disconnected. Wi-Fi is not changed.";
+                wrap: word-wrap;
+            }
+            if root.compact: VerticalLayout {
+                spacing: Theme.space-3;
+                Button {
+                    text: "Close everything";
+                    variant: ButtonVariant.danger;
+                    enabled: !SecuritySettings.busy;
+                    clicked => { SecuritySettings.close-all(); root.confirm-close = false; root.asking = 0; }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                Button {
+                    text: "Cancel";
+                    clicked => { root.confirm-close = false; }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+            if !root.compact: HorizontalLayout {
+                spacing: Theme.space-4;
+                alignment: start;
+                Button {
+                    text: "Close everything";
+                    variant: ButtonVariant.danger;
+                    enabled: !SecuritySettings.busy;
+                    clicked => { SecuritySettings.close-all(); root.confirm-close = false; root.asking = 0; }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+                Button {
+                    text: "Cancel";
+                    clicked => { root.confirm-close = false; }
+                    pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                }
+            }
+        }
+    }
+}
+
+// Settings > Security.
+export component SecurityPage inherits Rectangle {
+    in property <bool> compact;
+    callback pointer-moved(length, length);
+    ScrollView {
+        width: root.width; height: root.height;
+        content-width: self.visible-width;
+        horizontal-scrollbar-policy: always-off;
+        VerticalLayout {
+            alignment: start;
+            padding: root.compact ? Theme.space-4 : Theme.space-6;
+            spacing: Theme.space-4;
+            Heading2 { text: "Security"; }
+            SecurityBody {
+                compact: root.compact;
+                pointer-moved(x, y) => { root.pointer-moved(x, y); }
+            }
+        }
+    }
+}

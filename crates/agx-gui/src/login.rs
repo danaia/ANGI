@@ -17,7 +17,7 @@ pub fn run(preview: bool) -> Result<(), Box<dyn std::error::Error>> {
     graphics::attach_input(&ui);
     ui.set_draw_cursor(graphics::draw_cursor());
     let _setup = (!preview).then(|| setup::install(&ui));
-    let _bluetooth = (!preview).then(|| crate::bluetooth::watch(&ui, || true));
+    let _security = (!preview).then(|| crate::security::watch(&ui, || true));
     let remote = remote::start(&ui).map(Rc::new);
     let availability = Timer::default();
     update_modes(&ui, remote.as_deref());

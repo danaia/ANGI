@@ -19,6 +19,7 @@ mod open_request;
 mod web_preview;
 mod remote;
 mod scene_model;
+mod security;
 mod terminal;
 mod wm;
 mod work_editor;

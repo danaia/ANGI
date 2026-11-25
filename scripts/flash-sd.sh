@@ -5,6 +5,12 @@
 #   scripts/flash-sd.sh --board rpi5 --device /dev/sdX         # asks you to type the path
 #   scripts/flash-sd.sh --board rpi5 --device /dev/sdX --confirm-erase /dev/sdX
 #   scripts/flash-sd.sh --board rpi5 --device /dev/sdX --image PRIVATE_DIR/sdcard.img --personalized
+#   INSTALL_DIR/flash.sh --device /dev/sdX                     # any hardware: this build's own copy
+#   scripts/flash-sd.sh --install-dir INSTALL_DIR --device /dev/sdX --check
+#
+# An install directory from provision-sd.py carries its own flash.sh, a copy of this script. It
+# takes the board, image and trust record from the directory's receipt, so it needs no registry
+# entry and works for any hardware. --check runs every verification and stops before the erase.
 #
 # --confirm-erase is for a coding agent acting AFTER the person has seen the card's
 # identity and approved erasing it. It must repeat the --device path exactly.
@@ -21,6 +27,8 @@ CONFIRM=""
 LIST=0
 PERSONALIZED=0
 INSPECT=0
+CHECK=0
+INSTALL_DIR=""
 EXPECTED_IDENTITY=""
 
 die() { echo "flash-sd: $*" >&2; exit 1; }
@@ -32,6 +40,8 @@ while (( $# )); do
         --inspect) INSPECT=1 ;;
         --expect-identity) EXPECTED_IDENTITY=${2:?--expect-identity needs the inspected identity}; shift ;;
         --personalized) PERSONALIZED=1 ;;
+        --check) CHECK=1 ;;
+        --install-dir) INSTALL_DIR=$(cd -- "${2:?--install-dir needs a directory}" && pwd) || die "no such install directory"; shift ;;
         --device) DEVICE=${2:?--device needs a path}; shift ;;
         --confirm-erase) CONFIRM=${2:?--confirm-erase needs the device path}; shift ;;
         --board) BOARD=${2:?--board needs a target id (see scripts/detect-board.py --list)}; shift ;;
@@ -194,7 +204,56 @@ if (( INSPECT )); then
     echo "Identity: $BEFORE"
     exit 0
 fi
-[[ -n $BOARD ]] || die "say which board this card is for with --board (scripts/detect-board.py --list)"
+# A flash.sh sitting in an install directory flashes that build, with no other arguments.
+SELF_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+if [[ -z $INSTALL_DIR && -z $BOARD && -z $IMAGE && -f $SELF_DIR/install.json && -f $SELF_DIR/board.txt ]]; then
+    INSTALL_DIR=$SELF_DIR
+fi
+
+# Check an install directory from its own receipt alone: no board registry, so any hardware works.
+verify_install_dir() {
+    python3 -I - "$1" "$2" <<'PY'
+import hashlib, hmac, json, re, subprocess, sys
+from pathlib import Path
+directory, board = Path(sys.argv[1]), sys.argv[2]
+def sha(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+images = [p for p in (directory / "disk.img", directory / "sdcard.img") if p.is_file()]
+if len(images) != 1:
+    sys.exit("expected exactly one disk.img or sdcard.img")
+image = images[0]
+trust = directory / "known_hosts"
+pins = trust.read_bytes().splitlines()
+if len(pins) != 1 or b" ssh-ed25519 " not in pins[0]:
+    sys.exit("the install bundle is missing its single Ed25519 SSH trust entry")
+subprocess.run(["ssh-keygen", "-lf", str(trust)], stdout=subprocess.DEVNULL, check=True)
+checksum = (directory / f"{image.name}.sha256").read_text()
+if not re.fullmatch(rf"[a-f0-9]{{64}}  {re.escape(image.name)}\n", checksum):
+    sys.exit("invalid install artifact checksum file")
+digest = sha(image)
+if not hmac.compare_digest(digest, checksum[:64]):
+    sys.exit("the image failed its SHA-256 check")
+expected = {"board": board, "image_sha256": digest, "known_hosts_sha256": sha(trust)}
+if json.loads((directory / "install.json").read_text()) != expected:
+    sys.exit("the image and SSH trust record do not match the install receipt")
+print(image)
+PY
+}
+
+if [[ -n $INSTALL_DIR ]]; then
+    [[ -z $BOARD && -z $IMAGE ]] || die "--install-dir already names the board and the image"
+    [[ -f $INSTALL_DIR/install.json && -f $INSTALL_DIR/board.txt ]] || die "$INSTALL_DIR is not an install directory (no install.json or board.txt)"
+    BOARD=$(<"$INSTALL_DIR/board.txt")
+    [[ $BOARD =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "the install directory names an invalid board"
+    PERSONALIZED=1
+    IMAGE=$(verify_install_dir "$INSTALL_DIR" "$BOARD") || die "the install directory failed verification; refusing to write it"
+    IMAGE_DIR=$INSTALL_DIR
+else
+[[ -n $BOARD ]] || die "say which board this card is for with --board (scripts/detect-board.py --list), or use the install directory's own flash.sh"
 IMAGE_NAME=$(python3 -I "$ROOT/scripts/detect-board.py" --field "$BOARD" image) || die "unknown build target"
 [[ -n $IMAGE ]] || IMAGE="$ROOT/$(python3 -I "$ROOT/scripts/detect-board.py" --field "$BOARD" output)/images/$IMAGE_NAME"
 [[ -f $IMAGE ]] || die "image not found: $IMAGE (run make build first)"
@@ -209,6 +268,7 @@ if [[ $IMAGE == *.iso ]]; then
 else
     STAMP="$IMAGE_DIR/board.txt"
     [[ -f $STAMP && $(<"$STAMP") == "$BOARD" ]] || die "the image was not built for $BOARD (${STAMP##*/} says: $(cat "$STAMP" 2>/dev/null || echo none)); rebuild for the right board"
+fi
 fi
 
 # Safety checks.
@@ -227,7 +287,9 @@ IMG_BYTES=$(stat -c %s "$IMAGE")
 (( BYTES >= IMG_BYTES )) || die "card is smaller than the image ($(human "$BYTES") < $(human "$IMG_BYTES"))"
 (( BYTES <= MAX_GIB * 1024 * 1024 * 1024 )) \
     || die "$DEVICE is $(human "$BYTES"), larger than ${MAX_GIB} GiB. That is unusual for a microSD card; pass --max-gib to override"
-if (( PERSONALIZED )); then
+if [[ -n $INSTALL_DIR ]]; then
+    : # verified above from the directory's own receipt
+elif (( PERSONALIZED )); then
     python3 "$ROOT/scripts/provision-sd.py" --verify "$IMAGE_DIR" --board "$BOARD" \
         || die "the private SD image failed verification; refusing to write it"
 elif [[ $IMAGE == *.iso ]]; then
@@ -241,6 +303,10 @@ else
     fi
 fi
 require_same_card
+if (( CHECK )); then
+    echo "Checks passed for $BOARD: $IMAGE ($(human "$IMG_BYTES")) can be written to $DEVICE. Nothing was changed."
+    exit 0
+fi
 
 echo "ANGI will ERASE this entire card and write a fresh image to it:"
 echo

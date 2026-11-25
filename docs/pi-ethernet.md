@@ -58,6 +58,9 @@ pi_scp() { scp -O "${PI_SSH_OPTIONS[@]}" "$@"; }
 pi_ssh 'hostname; uname -m; ip -4 addr show dev eth0; mountpoint /var/lib/agx-data'
 ```
 
+Ethernet SSH is controlled by Settings → Security (see [security.md](security.md)). A device whose
+Ethernet link is closed refuses the connection; open it from the local console first.
+
 Expect hostname `agx`, architecture `aarch64`, `eth0` at `10.78.0.2/24` and a
 mounted data volume. On a host-key mismatch, pause remote work and verify the
 replacement key before resuming. If batch authentication fails after host

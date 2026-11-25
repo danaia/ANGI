@@ -40,6 +40,20 @@ pub const BLUETOOTH: &str = "/usr/libexec/agx-bluetooth/run";
 fn bluetooth() -> Definition {
     Definition::new("bluetooth", "/bin/sh", &[BLUETOOTH], true)
 }
+/// Per-link SSH access. Where it is installed, it owns port 22 and Dropbear listens only on
+/// loopback behind it; see crates/agx-security.
+pub const SECURITY: &str = "/usr/sbin/agx-securityd";
+/// Dropbear's loopback address behind the gate (agx-securityd's default backend).
+const GATED_SSH: &str = "127.0.0.1:2022";
+fn ssh(gated: bool) -> Definition {
+    let listen = if gated { GATED_SSH } else { "22" };
+    Definition::new(
+        "ssh",
+        "/usr/sbin/dropbear",
+        &["-F", "-E", "-g", "-p", listen, "-R"],
+        false,
+    )
+}
 const SOUND: &str = "/usr/libexec/agx-sound/run";
 fn console_definition(gui: bool) -> Definition {
     if gui {
@@ -113,6 +127,10 @@ fn configured_serial_console(cmdline: &str) -> Option<&'static str> {
 pub fn definitions(pid1: bool) -> Vec<Definition> {
     let mut services = Vec::new();
     if pid1 {
+        let gated = std::path::Path::new(SECURITY).is_file();
+        if gated {
+            services.push(Definition::new("security", SECURITY, &[], false));
+        }
         services.extend([
             Definition::new(
                 "syslog",
@@ -121,12 +139,7 @@ pub fn definitions(pid1: bool) -> Vec<Definition> {
                 false,
             ),
             Definition::new("kernel-log", "/sbin/klogd", &["-n"], false),
-            Definition::new(
-                "ssh",
-                "/usr/sbin/dropbear",
-                &["-F", "-E", "-g", "-p", "22", "-R"],
-                false,
-            ),
+            ssh(gated),
             console_definition(std::path::Path::new("/usr/bin/agx-gui").is_file()),
         ]);
         // Follow the firmware command line when a board exposes multiple UARTs.
@@ -602,6 +615,18 @@ mod tests {
         // Defined only where the image installed the script, never by default.
         let present = definitions(true).iter().any(|service| service.name == "bluetooth");
         assert_eq!(present, std::path::Path::new(BLUETOOTH).is_file());
+    }
+    #[test]
+    fn ssh_moves_behind_the_gate_only_where_the_gate_is_installed() {
+        let open = ssh(false);
+        assert_eq!(open.args, ["-F", "-E", "-g", "-p", "22", "-R"]);
+        let gated = ssh(true);
+        assert_eq!(gated.args, ["-F", "-E", "-g", "-p", "127.0.0.1:2022", "-R"]);
+        let names: Vec<_> = definitions(true).into_iter().map(|service| service.name).collect();
+        assert_eq!(
+            names.contains(&"security"),
+            std::path::Path::new(SECURITY).is_file()
+        );
     }
     #[test]
     fn desktop_console_enters_greeter_and_headless_keeps_getty() {

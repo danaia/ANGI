@@ -38,6 +38,10 @@ Use the Agent Angi OS and Project tooltip pattern throughout the ANGI desktop. R
 
 The user grants Codex standing administrator authorization on the established ANGI development Pi 5. For requested changes, use the documented root SSH connection to install live component and operating-system updates, refresh the authenticated desktop or reboot when needed, and verify the running version and requested behavior. Carry deployment through verification without asking again for permission to perform those steps. Preserve user data and the previous release for rollback. An erase or reflash requires separate explicit authorization.
 
+## Hot updates (iterate live, build once)
+
+While developing, send changed binaries to the running device over Ethernet and refresh the desktop instead of building and flashing an image. Read the shared [ANGI hot update skill](.agents/skills/angi-hot-update/SKILL.md) and use `scripts/hot-update.sh`. Build and flash an image only once the person likes the result. A reboot, erase, reflash or boot-configuration change still needs explicit approval, and the device on `10.78.0.2` must be identified (hostname, architecture, pinned host key) before anything is sent.
+
 ## ANGI installation media
 
 Read the shared [ANGI installation media skill](.agents/skills/angi-install-media/SKILL.md) before selecting a hardware target, preparing an SD card or USB drive, or choosing a development SDK for an ANGI device.

@@ -48,6 +48,7 @@ dependencies = [
  "agx-core",
  "agx-net",
  "agx-profile",
+ "agx-security",
  "alacritty_terminal",
  "chrono",
  "chrono-tz",
@@ -103,6 +104,19 @@ dependencies = [
  "libc",
  "serde",
  "serde_json",
+ "zeroize",
+]
+
+[[package]]
+name = "agx-security"
+version = "0.4.0"
+dependencies = [
+ "agx-core",
+ "agx-profile",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
  "zeroize",
 ]
 

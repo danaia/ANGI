@@ -1,7 +1,7 @@
 import { Theme } from "data.slint";
-import { BluetoothPage, BluetoothSettings } from "bluetooth.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Button, Select, TextField } from "pebble/pebble.slint";
+import { Button, ButtonVariant, Select, TextField } from "pebble/pebble.slint";
+import { SecurityBody, SecuritySettings } from "security.slint";
 
 export struct WifiChoice { id: string, security: int }
 
@@ -17,6 +17,9 @@ export global GreeterSetup {
     callback scan(string);
     callback connect(string, int, string, int, string, bool);
     callback create-account(string, string, string, string);
+    // The account created in step 2; Finish signs in to it.
+    in-out property <string> created-user;
+    callback finish(string);
 }
 
 component WifiStep inherits VerticalLayout {
@@ -113,7 +116,7 @@ component AccountStep inherits VerticalLayout {
 }
 
 export component FirstBootPanel inherits Rectangle {
-    changed step => { BluetoothSettings.active = self.step == 2; }
+    changed step => { SecuritySettings.active = self.step == 3; }
     property <int> step: GreeterSetup.step;
     Rectangle {
         width: min(660px, parent.width - 32px);
@@ -130,8 +133,8 @@ export component FirstBootPanel inherits Rectangle {
             HorizontalLayout {
                 alignment: space-between;
                 Text {
-                    text: GreeterSetup.step == 1 ? "Connect to Wi-Fi" : GreeterSetup.step == 2 ? "Pair Bluetooth devices"
-                        : GreeterSetup.step == 3 ? "Create your administrator account" : "Checking this installation";
+                    text: GreeterSetup.step == 1 ? "Connect to Wi-Fi" : GreeterSetup.step == 2 ? "Create your administrator account"
+                        : GreeterSetup.step == 3 ? "Secure this computer" : "Checking this installation";
                     color: Theme.ink;
                     font-size: Theme.text-heading-2;
                     font-weight: 500;
@@ -145,19 +148,15 @@ export component FirstBootPanel inherits Rectangle {
                     accessible-label: "ANGI";
                 }
             }
-            if GreeterSetup.step == 2: BluetoothPage {
-                compact: true;
-                vertical-stretch: 1;
-                init => { self.focus-power(); }
-            }
-            if GreeterSetup.step != 2: ScrollView {
+            ScrollView {
                 vertical-stretch: 1;
                 content-width: self.width;
                 VerticalLayout {
                     alignment: start;
                     spacing: 8px;
                     if GreeterSetup.step == 1: WifiStep {}
-                    if GreeterSetup.step == 3: AccountStep {}
+                    if GreeterSetup.step == 2: AccountStep {}
+                    if GreeterSetup.step == 3: SecurityBody { setup: true; compact: true; }
                     if GreeterSetup.status != "": Text {
                         text: GreeterSetup.status; color: Theme.ink; wrap: word-wrap;
                     }
@@ -169,19 +168,25 @@ export component FirstBootPanel inherits Rectangle {
             if GreeterSetup.step >= 1: HorizontalLayout {
                 alignment: end;
                 spacing: 8px;
-                if GreeterSetup.step > 1: Button {
+                // The account exists once step 3 begins, so there is nothing to go back to.
+                if GreeterSetup.step == 2: Button {
                     text: "Back";
-                    enabled: !GreeterSetup.busy && BluetoothSettings.prompt-kind == 0;
+                    enabled: !GreeterSetup.busy;
                     clicked => { GreeterSetup.error = ""; GreeterSetup.step -= 1; }
                 }
-                if GreeterSetup.step == 1 || GreeterSetup.step == 2: Button {
+                if GreeterSetup.step == 1: Button {
                     text: GreeterSetup.step == 1 && !GreeterSetup.ready ? "Set up Wi-Fi later" : "Continue";
-                    enabled: !GreeterSetup.busy && BluetoothSettings.prompt-kind == 0;
+                    enabled: !GreeterSetup.busy;
                     clicked => {
-                        if (BluetoothSettings.scanning) { BluetoothSettings.search(false); }
                         GreeterSetup.error = "";
                         GreeterSetup.step += 1;
                     }
+                }
+                if GreeterSetup.step == 3: Button {
+                    text: "Finish";
+                    variant: ButtonVariant.primary;
+                    enabled: !SecuritySettings.busy;
+                    clicked => { GreeterSetup.finish(GreeterSetup.created-user); }
                 }
             }
         }

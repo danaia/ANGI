@@ -36,6 +36,7 @@ agx-core = { path = "../agx-core" }
 agx-profile = { path = "../agx-profile" }
 agx-net = { path = "../agx-net" }
 agx-bluetooth = { path = "../agx-bluetooth" }
+agx-security = { path = "../agx-security" }
 zeroize = "1"
 libc = "0.2"
 chrono = { version = "0.4", default-features = false, features = ["std"] }

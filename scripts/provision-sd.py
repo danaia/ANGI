@@ -171,6 +171,12 @@ def provision(images, output_parent, public_key, dropbearkey):
         for artifact in artifacts:
             (staging / artifact).replace(install / artifact)
 
+        # This build's own flasher. It reads the board, image and trust record from this
+        # directory's receipt, so it works for any hardware, with or without a registry entry.
+        flasher = install / "flash.sh"
+        shutil.copyfile(ROOT / "scripts/flash-sd.sh", flasher)
+        flasher.chmod(0o700)
+
     print(f"Install directory: {install}", flush=True)
     subprocess.run(["ssh-keygen", "-lf", str(install / "known_hosts")], check=True)
 

@@ -10,6 +10,10 @@ import tempfile
 
 LOGIN_KEY = "/root/.ssh/authorized_keys"
 HOST_KEY = "/etc/dropbear/dropbear_ed25519_host_key"
+# A card prepared with the person's own workstation key and a pinned host key has already been
+# authorized for wired SSH; an unprovisioned image starts with Ethernet and USB closed.
+SECURITY_POLICY = "/etc/agx/security.conf"
+PROVISIONED_POLICY = b"ethernet=open\nusb=open\n"
 
 
 def checked_public_key(path):
@@ -80,26 +84,30 @@ def personalize_rootfs(work, public_key, dropbearkey):
     if key_line is None:
         raise ValueError("Dropbear did not report the generated public host key")
     host_public_key = b" ".join(key_line.split()[:2]) + b"\n"
-    commands = [f"rm {LOGIN_KEY}"]
-    for source, destination in ((login_key, LOGIN_KEY), (host_key, HOST_KEY)):
+    policy = work / "security.conf"
+    policy.write_bytes(PROVISIONED_POLICY)
+    commands = [f"rm {LOGIN_KEY}", "mkdir /etc/agx", f"rm {SECURITY_POLICY}"]
+    for source, destination, mode in ((login_key, LOGIN_KEY, "0100600"), (host_key, HOST_KEY, "0100600"),
+                                      (policy, SECURITY_POLICY, "0100644")):
         commands.extend([
             f"write {source.name} {destination}",
             f"set_inode_field {destination} uid 0",
             f"set_inode_field {destination} gid 0",
-            f"set_inode_field {destination} mode 0100600",
+            f"set_inode_field {destination} mode {mode}",
         ])
     rootfs = work / "rootfs"
     subprocess.run(["debugfs", "-w", "-f", "/dev/stdin", str(rootfs)], cwd=work,
                    input="\n".join(commands) + "\n", text=True, capture_output=True, check=True)
 
     # debugfs may print file-level errors without returning a failing status.
-    for source, destination in ((login_key, LOGIN_KEY), (host_key, HOST_KEY)):
+    for source, destination, mode in ((login_key, LOGIN_KEY, "0600"), (host_key, HOST_KEY, "0600"),
+                                      (policy, SECURITY_POLICY, "0644")):
         content = subprocess.check_output(["debugfs", "-R", f"cat {destination}", str(rootfs)],
                                           stderr=subprocess.DEVNULL)
         metadata = subprocess.check_output(["debugfs", "-R", f"stat {destination}", str(rootfs)],
                                            stderr=subprocess.DEVNULL, text=True)
         if (content != source.read_bytes() or "Type: regular" not in metadata
-                or not re.search(r"\bMode:\s+0600\b", metadata)
+                or not re.search(rf"\bMode:\s+{mode}\b", metadata)
                 or not re.search(r"User:\s+0\s+Group:\s+0\b", metadata)):
             raise ValueError(f"Could not verify the installed SSH key at {destination}")
     return host_public_key

@@ -11,3 +11,5 @@ For any UI work (new apps, screens, dialogs, restyles), follow the shared [ANGI 
 For desktop tooltips, follow the shared [ANGI desktop tooltips skill](.claude/skills/angi-desktop-tooltips/SKILL.md). Agent Angi's OS and Project toggle is the reference.
 
 For any Pi access or control, read [.claude/skills/angi-pi-ethernet/SKILL.md](.claude/skills/angi-pi-ethernet/SKILL.md) and follow [docs/pi-ethernet.md](docs/pi-ethernet.md). This is the same skill and procedure used by Codex. Connect over direct Ethernet to `root@10.78.0.2`; `10.77.0.2` is only the recorded host-key alias for that connection. Apply the deployment authorization and access rules in `AGENTS.md`.
+
+For trying a change on real hardware, use hot updates (`scripts/hot-update.sh`, [.claude/skills/angi-hot-update/SKILL.md](.claude/skills/angi-hot-update/SKILL.md)): send changed binaries over Ethernet and refresh the desktop. Build and flash an image only once the person likes the result.

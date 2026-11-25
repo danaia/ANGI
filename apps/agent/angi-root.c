@@ -5,6 +5,7 @@
 #include <grp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -26,6 +27,15 @@ int main(int argc, char **argv)
         fputs("Usage: angi-root COMMAND [ARGUMENT ...]\n", stderr);
         return 2;
     }
+#ifdef ANGI_DATA_VOLUME_ONLY
+    if (argc < 4 || strcmp(argv[1], "/usr/bin/python3") ||
+        strcmp(argv[2], "/usr/libexec/agx-agent/data_volume.py") ||
+        !((argc == 4 && (!strcmp(argv[3], "list") || !strcmp(argv[3], "list-picker"))) ||
+          (argc == 5 && (!strcmp(argv[3], "mount") || !strcmp(argv[3], "format"))))) {
+        fputs("This ANGI administrator helper only manages the data drive.\n", stderr);
+        return 2;
+    }
+#endif
     /* No caller-controlled loader, interpreter, shell-startup or credential
      * environment crosses the privilege boundary. cwd and explicit argv do. */
     if (clearenv() || setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin", 1) ||
@@ -39,7 +49,12 @@ int main(int argc, char **argv)
     openlog("angi-root", LOG_PID, LOG_AUTH);
     syslog(LOG_NOTICE, "administrator uid=%lu command=%s", (unsigned long)caller, argv[1]);
     closelog();
+#ifdef ANGI_DATA_VOLUME_ONLY
+    char *const command[] = { argv[1], "-I", argv[2], argv[3], argv[4], NULL };
+    execv(command[0], command);
+#else
     execvp(argv[1], argv + 1);
+#endif
     int error = errno;
     perror("angi-root exec");
     return error == ENOENT ? 127 : 126;

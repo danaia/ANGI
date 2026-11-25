@@ -111,7 +111,7 @@ export component StorageMap inherits Rectangle {
                 width: min(200px, parent.width);
                 height: parent.height;
                 accessible-role: button;
-                accessible-label: "Mount External Drive";
+                accessible-label: "Mount Data Drive";
                 accessible-action-default => { DriveMount.show-picker(); }
                 key-pressed(event) => {
                     if (event.text == Key.Return || event.text == " ") {
@@ -125,7 +125,7 @@ export component StorageMap inherits Rectangle {
                     border-width: link.has-focus ? Theme.stroke-focus : 0px;
                     border-color: Theme.focus;
                     Text {
-                        text: "Mount External Drive";
+                        text: "Mount Data Drive";
                         color: Theme.ink;
                         horizontal-alignment: center;
                         vertical-alignment: center;

@@ -33,6 +33,17 @@ class DataVolumeTests(unittest.TestCase):
         (self.partition / "holders" / "dm-0").mkdir()
         self.assertFalse(data_volume.disk_available(self.disk, set()))
 
+    def test_only_internal_sata_or_nvme_partitions_are_mount_candidates(self):
+        self.assertTrue(data_volume.data_partition(self.partition))
+        for bus in ("ata1", "usb2"):
+            disk = self.root / bus / "block" / "sda"
+            partition = disk / "sda1"
+            partition.mkdir(parents=True)
+            (disk / "removable").write_text("0\n")
+            self.assertEqual(data_volume.data_partition(partition), bus == "ata1")
+            (disk / "removable").write_text("1\n")
+            self.assertFalse(data_volume.data_partition(partition))
+
     def test_mount_point_accepts_empty_packaged_directory_and_protects_files(self):
         data = self.root / "agx-data"
         fallback = data / "agx-opencode-users"

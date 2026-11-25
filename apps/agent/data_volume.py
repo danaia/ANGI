@@ -1,4 +1,4 @@
-"""Manage the NVMe filesystem used for ANGI data storage."""
+"""Manage the filesystem used for ANGI data storage."""
 from contextlib import contextmanager
 import fcntl
 import json
@@ -15,6 +15,7 @@ import uuid as filesystem_uuid
 DATA = Path("/var/lib/agx-data")
 CONFIG = Path("/etc/agx/data-volume.uuid")
 PARTITION = re.compile(r"nvme[0-9]+n[0-9]+p[0-9]+\Z")
+SATA_PARTITION = re.compile(r"sd[a-z]+[0-9]+\Z")
 DISK = re.compile(r"nvme[0-9]+n[0-9]+\Z")
 UUID = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\Z")
 BLOCK = Path("/sys/class/block")
@@ -34,15 +35,24 @@ def mounted_devices():
     return {line.split()[2] for line in Path("/proc/self/mountinfo").read_text().splitlines()}
 
 
+def data_partition(partition):
+    if PARTITION.fullmatch(partition.name):
+        return True
+    if not SATA_PARTITION.fullmatch(partition.name):
+        return False
+    disk = partition.resolve(strict=True).parent
+    return ((disk / "removable").read_text().strip() == "0"
+            and any(re.fullmatch(r"ata[0-9]+", component) for component in disk.parts))
+
+
 def volumes():
     mounted = mounted_devices()
     found = []
-    for partition in sorted(BLOCK.glob("nvme*n*p*")):
-        if not PARTITION.fullmatch(partition.name):
-            continue
+    for partition in sorted(BLOCK.iterdir()):
         path = DEV / partition.name
         try:
-            if (partition / "dev").read_text().strip() in mounted or not path.is_block_device():
+            if (not data_partition(partition) or (partition / "dev").read_text().strip() in mounted
+                    or not path.is_block_device()):
                 continue
             output = command("/sbin/blkid", str(path)).partition(":")[2]
             fields = dict(field.split("=", 1) for field in shlex.split(output) if "=" in field)
@@ -154,7 +164,7 @@ def mount_and_remember(path, uuid, **options):
     try:
         info = DATA.stat()
         if info.st_uid != 0 or info.st_mode & 0o022:
-            raise RuntimeError("The NVMe filesystem root must be root-owned and protected from group or other writes.")
+            raise RuntimeError("The data filesystem root must be root-owned and protected from group or other writes.")
         command("/etc/init.d/S12agx-data", "prepare")
         gui = Path("/usr/bin/agx-gui")
         if gui.is_file() and not gui.is_symlink():
@@ -167,7 +177,7 @@ def mount_and_remember(path, uuid, **options):
 
 def mount(uuid):
     if not UUID.fullmatch(uuid):
-        raise ValueError("Choose an existing ext4 NVMe partition.")
+        raise ValueError("Choose an existing ext4 partition.")
     with mount_target():
         matches = [entry for entry in volumes() if entry["uuid"] == uuid]
         if len(matches) != 1:
@@ -231,6 +241,6 @@ if __name__ == "__main__":
     try:
         main(sys.argv[1:])
     except subprocess.CalledProcessError as error:
-        sys.exit(error.stderr.strip() or "The system could not open the selected NVMe partition.")
+        sys.exit(error.stderr.strip() or "The system could not open the selected partition.")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         sys.exit(str(error))

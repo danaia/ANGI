@@ -1,6 +1,6 @@
 config BR2_PACKAGE_AGX_OPENCODE
-	bool "OpenCode ARM64 CLI for ANGI"
-	depends on BR2_aarch64
+	bool "OpenCode CLI for ANGI"
+	depends on BR2_aarch64 || BR2_x86_64
 	depends on BR2_USE_MMU
 	depends on BR2_TOOLCHAIN_USES_GLIBC
 	depends on BR2_PACKAGE_HOST_RUSTC_TARGET_ARCH_SUPPORTS
@@ -10,4 +10,5 @@ config BR2_PACKAGE_AGX_OPENCODE
 	select BR2_PACKAGE_CA_CERTIFICATES
 	help
 	  Pinned official OpenCode terminal coding agent, with Git and ripgrep.
-	  User data and caches are stored privately on mounted NVMe.
+	  User data and caches are stored privately on the ANGI data volume,
+	  or in the account's home directory on x86-64 without a data volume.

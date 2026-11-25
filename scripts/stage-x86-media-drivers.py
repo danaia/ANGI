@@ -7,16 +7,13 @@ from pathlib import Path
 import shutil
 import tempfile
 
+import x86_media_firmware
+
 
 MODULES = (
     ("usb-audio", "sound/usb", "snd-usb-audio.ko"),
     ("hda-audio", "sound/pci/hda", "snd-hda-intel.ko"),
     ("usb-bluetooth", "drivers/bluetooth", "btusb.ko"),
-)
-FIRMWARE = (
-    "rtl_bt/*", "intel/ibt-*", "mediatek/**/BT_RAM_CODE*.bin",
-    "mediatek/mt76*pr*h.bin", "qca/nvm_usb_*", "qca/rampatch_usb_*",
-    "brcm/BCM*.hcd", "ar3k/*",
 )
 
 
@@ -24,8 +21,7 @@ def stage(args):
     output = args.output.resolve()
     if output.exists():
         raise ValueError(f"Bundle output already exists: {output}")
-    if not (args.firmware / "WHENCE").is_file():
-        raise ValueError("Use the unpacked linux-firmware source tree")
+    firmware = x86_media_firmware.matching(args.firmware)
     manifest = []
     with tempfile.TemporaryDirectory(prefix=".media-drivers-", dir=output.parent) as work:
         build = Path(work) / "bundles"
@@ -39,12 +35,10 @@ def stage(args):
                 shutil.copyfile(module, modules / module.name)
             manifest.append({"payload": name, "alias_modules": [primary]})
         firmware_target = build / "usb-bluetooth" / "firmware"
-        for pattern in FIRMWARE:
-            for source in sorted(args.firmware.glob(pattern)):
-                if source.is_file():
-                    destination = firmware_target / source.relative_to(args.firmware)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(source, destination)
+        for relative in firmware:
+            destination = firmware_target / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(args.firmware / relative, destination)
         (build / "manifest.json").write_text(json.dumps({"bundles": manifest}, indent=2) + "\n")
         build.rename(output)
     print(output / "manifest.json")

@@ -602,28 +602,38 @@ depend on the selected provider.
 
 The shared `x86-desktop` image targets Intel and AMD x86-64 UEFI PCs.
 Setup matches each installed component independently of the CPU model.
-The same image can select Intel, Radeon or NVIDIA graphics and Wi-Fi, sound
-and Bluetooth adapters from different vendors. Actual device coverage
-depends on the bundles available for the image’s kernel.
-It includes common Wi-Fi and wired network drivers and a framebuffer for
-the setup screen. UEFI boot requests 1920 × 1080 and uses the firmware’s
-current mode if 1080p is unavailable. The installer fetches the
-matching accelerated graphics stack, audio drivers and Bluetooth drivers
-after the network is available.
+The image ships the open-source Intel and AMD graphics stack: the `i915`,
+`xe`, `amdgpu` and `radeon` kernel drivers, their firmware and Mesa. It also
+ships HD and USB audio, USB Bluetooth and their firmware, with common Wi-Fi and
+wired network drivers. Graphics, sound and Bluetooth need no download. NVIDIA
+cards have no included accelerated driver and stay on the software desktop.
+Newer laptops whose audio needs Sound Open Firmware are not yet covered. UEFI
+boot requests 1920 × 1080 and uses the firmware’s current mode if 1080p is
+unavailable. After the network is available, setup checks the signed driver
+feed for optional extras.
 Wired setup tries DHCP on the discovered Ethernet adapters. With a direct
 cable and no DHCP server, one connected adapter gets the maintenance address
 `10.78.0.2/24` without a default route. Use `10.78.0.1/24` on the workstation.
 Open Ethernet in Security when you want to allow inbound SSH over that cable.
+Remote Desktop is on by default in the native x86 session. Its VNC listener
+binds to loopback and is reached through an authenticated SSH tunnel.
 Private test media can carry the workstation's SSH public key and its own
 pre-pinned host key. Security shows the address once the cable has an IP and
 shows when SSH is listening.
 If the installed GPU driver prevents the desktop from starting, select
 **ANGI (graphics recovery)** in the generic x86-64 boot menu.
-The x86 Web panel uses sandboxed WPE WebKit. It uses the provisioned graphics
-libraries when available and has a private Mesa software runtime for opening
-websites before the GPU bundle is installed.
+The x86 Web panel uses sandboxed WPE WebKit with the image's Mesa libraries.
+The `x86-amd` configuration still downloads its graphics bundle during setup
+(`BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y`) and keeps a private Mesa software
+runtime for Web; the universal `x86-desktop` image covers its AMD graphics.
 
 #### Configure the release driver feed
+
+The `x86-desktop` image needs no bundles for the hardware it ships drivers
+for, so its feed may list none: use the manifest `{"bundles": []}`. Publish the
+signed empty catalog so setup's check succeeds and extras can be added later.
+The bundle staging steps below apply to optional extras and to images that
+download their graphics.
 
 Stage each driver bundle in a directory with `modules/`, `firmware/`, or
 `graphics/` files. Describe the devices that need each bundle in a manifest.
@@ -635,6 +645,21 @@ one signed bundle support matching devices across vendors. Use a new feed URL
 when introducing alias selectors so older images keep their existing catalog.
 `scripts/stage-x86-media-drivers.py` prepares those three bundles and a manifest
 from the exact x86 kernel build directory and unpacked linux-firmware source.
+For Radeon Renoir and Lucienne, `python3 scripts/stage-amd-graphics.py` adds
+the GPU modules and firmware to that manifest. Supply a RadeonSI Mesa payload
+built for the same ANGI userspace. Sign the dedicated AMD image's feed from
+its own kernel build directory.
+
+Raspberry Pi uses the same signed feed after the network connects. Keep the
+onboard Wi-Fi, boot graphics and onboard Bluetooth support on the image so
+setup can run offline. `python3 scripts/stage-pi-drivers.py` stages the optional
+RTL8761BU USB Bluetooth firmware. Sign the Pi feed with `--arch aarch64`,
+`--kernel-build` pointing to the board's `build/linux-custom`, and `--objcopy`
+pointing to that output's `host/bin/aarch64-linux-objcopy`. Use a distinct feed
+for each kernel fingerprint, including when two boards report the same release.
+For Pi 4 / 400 and Pi 5 first-boot images, configure with `AGX_GENERIC_ISO=1`
+and a separate `AGX_BUILD_OUTPUT` as for x86. Pass the signed feed's
+`image-config` directory as `AGX_DRIVER_FEED_DIR` when packaging.
 
 ```json
 {
@@ -647,7 +672,23 @@ from the exact x86 kernel build directory and unpacked linux-firmware source.
 }
 ```
 
-Prepare the signed feed from the same kernel build the image will boot.
+Both x86 configurations include
+`buildroot/board/agx/uefi/x86-hardware.fragment`. It builds in storage
+controllers such as Intel VMD and adds laptop touchpad, wired network, Wi-Fi
+and HD audio codec drivers for computers beyond the tested ones. The
+configurations also ship the matching network firmware, because setup must
+reach the network before it can download anything. Changing the fragment
+changes the kernel fingerprint, so prepare and sign a new feed for it.
+
+Prepare the signed feed from the same kernel build the image will boot. On a
+fresh output directory, configure Buildroot and build the driver prerequisites
+before packaging the image.
+
+```sh
+BOARD=x86-desktop AGX_GENERIC_ISO=1 AGX_BUILD_OUTPUT=/path/to/x86-output \
+  scripts/build.sh configure
+make -C /path/to/x86-output linux linux-firmware mesa3d
+```
 
 ```sh
 scripts/build-driver-feed.py --kernel-build /path/to/build/linux-6.12.47 \
@@ -657,7 +698,9 @@ scripts/build-driver-feed.py --kernel-build /path/to/build/linux-6.12.47 \
 
 Publish `driver-release/feed/` at that HTTPS directory. Pass the absolute
 path to `driver-release/image-config/` as `AGX_DRIVER_FEED_DIR` when packaging
-the image. The build copies the two configuration files to `/etc/agx/`.
+the image. Every setup image build, x86 or Pi, requires this directory and
+checks that the catalog targets the newly built kernel before copying the two configuration
+files to `/etc/agx/`.
 Setup looks up the detected hardware after Wi-Fi connects or the user chooses
 Ethernet. It verifies the feed before saving the selected files on the writable
 boot filesystem.
@@ -703,7 +746,7 @@ for firmware or drivers specific to a board variant. Each file entry contains `p
   Mesa DRI modules under `graphics/dri/`, and NVIDIA vendor libraries and
   loader registrations. Supply the complete userspace dependency set for
   the image, including the runtime library names expected by the loader.
-- Build the kernel modules against the exact release kernel. The x86 build
+- Build the kernel modules against the exact release kernel. The `x86-amd` build
   retains the compiled graphics, Bluetooth and audio modules in the kernel
   build directory for bundle assembly. It omits those driver modules from
   the published bootstrap filesystem. Include any module dependencies
@@ -711,5 +754,5 @@ for firmware or drivers specific to a board variant. Each file entry contains `p
 
 Publish bundles tested with the specific release kernel and userspace.
 Verify cold boot, the reported OpenGL renderer and frame pacing on a physical
-display. NVIDIA requires a bundle produced for ANGI. A build with no feed
-configuration checks its built-in drivers and reports missing hardware support.
+display. NVIDIA requires a bundle produced for ANGI. Every setup image carries
+a feed configuration, including images that ship their own drivers.

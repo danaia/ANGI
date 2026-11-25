@@ -194,6 +194,11 @@ def check(images, expected_board=None):
         ("etc/dropbear", 0o700), ("root/.ssh", 0o700),
         ("etc/agx", 0o700), ("etc/agx/network.json", 0o600), ("etc/agx/wpa_supplicant.conf", 0o600),
     ]
+    driver_config = ("etc/agx/driver-catalog.json", "etc/agx/driver-signers")
+    driver_files = [name for name in driver_config if (target / name).is_file() or read_packed(name)]
+    require(len(driver_files) in (0, 2), "The ANGI driver feed needs both configuration files")
+    require(not generic or driver_files, "The ANGI setup image needs a signed driver feed for first boot")
+    paths_and_modes.extend((name, 0o600) for name in driver_files)
     if generic:
         paths_and_modes.append(("etc/agx/setup-enabled", 0o600))
     else:
@@ -221,6 +226,7 @@ def check(images, expected_board=None):
         require(re.search(rb"^root:!:", shadow, re.MULTILINE), "Generic image must lock the root password")
     packed_files = ["etc/inittab", "etc/network/interfaces", "etc/default/dropbear", "etc/issue",
                     "etc/profile.d/agx-welcome.sh", "etc/init.d/S12agx-data", "usr/share/agx/logo.ascii"]
+    packed_files.extend(driver_files)
     generic_defaults = set()
     if generic:
         generic_defaults = {"etc/agx/network.json", "etc/agx/wpa_supplicant.conf",

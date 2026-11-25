@@ -128,7 +128,7 @@ export component OverviewPanel inherits Rectangle {
                 pointer-moved(x, y) => { root.pointer-moved(x, y); }
             }
             nvme-map := StorageMap {
-                label: "NVMe"; drive: 1;
+                label: "Data drive"; drive: 1;
                 summary: StorageView.nvme-summary;
                 status: StorageView.nvme-status;
                 cells: StorageView.nvme-cells;

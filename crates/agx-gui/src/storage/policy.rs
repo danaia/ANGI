@@ -52,6 +52,7 @@ impl Policy {
                                 ".gnupg",
                                 ".config",
                                 ".codex",
+                                ".angi-agent",
                                 ".cache",
                                 "cache",
                                 "caches",
@@ -120,6 +121,7 @@ mod tests {
         };
         for path in [
             ".cache/browser/blob",
+            ".angi-agent/data/opencode/auth.json",
             "Downloads/project/target/release/app",
             "Documents/project/node_modules/bundle.js",
             ".local/share/app/database",

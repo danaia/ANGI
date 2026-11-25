@@ -9,22 +9,12 @@ import re
 import shutil
 import subprocess
 import tempfile
-from urllib.parse import urlsplit
+
+from driver_release import kernel_identity, validate_feed_url
 
 
 def run(*args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
-
-
-def kernel_identity(build, objcopy, work):
-    release = (build / "include/config/kernel.release").read_text().strip()
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*", release):
-        raise ValueError("Invalid kernel release")
-    notes = work / "kernel.notes"
-    run(objcopy, "--dump-section", f".notes={notes}", build / "vmlinux", work / "vmlinux-copy")
-    if not notes.stat().st_size:
-        raise ValueError("The release kernel has no ELF notes")
-    return release, hashlib.sha256(notes.read_bytes()).hexdigest()
 
 
 def payload_files(directory, blobs, prefix):
@@ -115,14 +105,13 @@ def bundle_devices(bundle, directory):
 
 
 def prepare(args):
-    url = urlsplit(args.url)
-    if (url.scheme != "https" or not url.hostname or url.username is not None
-            or any(char.isspace() or char in "?#%@" for char in args.url)):
-        raise ValueError("Use an HTTPS catalog URL without credentials, query or fragment")
+    validate_feed_url(args.url)
     manifest = args.manifest.resolve()
     spec = json.loads(manifest.read_text())
-    if not spec.get("bundles"):
-        raise ValueError("The manifest must describe at least one driver bundle")
+    # An empty list is a valid feed for an image that ships all of its drivers.
+    # Extras can be added to the same release channel later.
+    if not isinstance(spec.get("bundles"), list):
+        raise ValueError("The manifest must list its driver bundles")
 
     output = args.output.resolve()
     if output.exists():
@@ -130,7 +119,7 @@ def prepare(args):
 
     with tempfile.TemporaryDirectory(prefix=".driver-feed-", dir=output.parent) as temp:
         work = Path(temp)
-        release, build_hash = kernel_identity(args.kernel_build, args.objcopy, work)
+        release, build_hash = kernel_identity(args.kernel_build, args.objcopy)
         stage = work / "out"
         network = stage / "feed"
         config = stage / "image-config"

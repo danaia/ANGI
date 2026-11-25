@@ -1,4 +1,4 @@
-//! List NVMe storage and run the administrator helper off the UI thread.
+//! List data storage and run the administrator helper off the UI thread.
 use crate::{AppWindow, DriveMount};
 use serde_json::Value;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -59,7 +59,7 @@ pub(super) fn install(ui: &AppWindow, worker: super::worker::Worker) {
         page.set_drives(ModelRc::default());
         page.set_partition_ids(ModelRc::default());
         page.set_drive_ids(ModelRc::default());
-        page.set_message("Looking for NVMe storage…".into());
+        page.set_message("Looking for storage…".into());
         let weak = ui.as_weak();
         std::thread::spawn(move || {
             let outcome = run(&["list-picker"]).and_then(|data| {
@@ -87,7 +87,7 @@ pub(super) fn install(ui: &AppWindow, worker: super::worker::Worker) {
                         } else if !format_ready {
                             "No ext4 partition is available. Quick format requires the ANGI disk-formatting tools."
                         } else {
-                            "No available NVMe drive was found."
+                            "No mountable ext4 partition was found on an internal drive."
                         };
                         page.set_message(message.into());
                         page.set_partition_ids(partition_ids);

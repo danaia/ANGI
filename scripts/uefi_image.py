@@ -88,9 +88,20 @@ def check_uefi(images, board):
     files = ["usr/sbin/agx-init", "usr/bin/agx", "usr/sbin/agx-netd"]
     if generic:
         files.extend(("usr/bin/agx-gui", "etc/init.d/S10agx-hardware"))
-        check_public_setup(read_root, config)
         build_config = images.parent / ".config"
         options = build_config.read_text().splitlines() if build_config.is_file() else []
+        provisioned = "BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y" in options
+        check_public_setup(read_root, config, provisioned_graphics=provisioned)
+        if "BR2_PACKAGE_AGX_AGENT=y" not in options:
+            raise ValueError("The x86 setup image must enable the ANGI agent runtime")
+        for path in ("usr/bin/agent", "usr/bin/opencode", "usr/bin/python3",
+                     "usr/libexec/agx-agent/providers.py"):
+            if b"Inode:" not in read_root(path, "stat"):
+                raise ValueError(f"The x86 image is missing the ANGI provider runtime: /{path}")
+        files.extend(("usr/libexec/opencode/opencode", "usr/bin/herdr"))
+        if board["id"] == "x86-desktop" and not provisioned:
+            check_included_graphics(target, read_root)
+            check_included_bluetooth(read_root)
         if board["id"] == "x86-desktop" and "BR2_PACKAGE_AGX_WEB=y" not in options:
             raise ValueError("The x86 desktop image must include ANGI Web")
         if "BR2_PACKAGE_AGX_WEB=y" in options:
@@ -100,7 +111,7 @@ def check_uefi(images, board):
             if b"Inode:" not in read_root(webkit, "stat"):
                 raise ValueError("The x86 Web panel needs the packaged WPE WebKit library")
             files.append(library.relative_to(target.resolve()).as_posix())
-            if b"Inode:" not in read_root("usr/lib/agx-web-mesa/libEGL.so.1", "stat"):
+            if provisioned and b"Inode:" not in read_root("usr/lib/agx-web-mesa/libEGL.so.1", "stat"):
                 raise ValueError("The x86 Web panel needs its isolated Mesa fallback")
     else:
         files.append("root/.ssh/authorized_keys")
@@ -115,10 +126,36 @@ def check_uefi(images, board):
     print(f"PASS: {board['id']} EFI loader, kernel, root filesystem and ANGI executables")
 
 
-def check_public_setup(read_root, grub_config):
+def check_included_graphics(target, read_root):
+    """The universal x86 image drives Intel and AMD graphics without a download."""
+    for name in ("usr/lib/libEGL.so.1", "usr/lib/libGLESv2.so.2", "usr/lib/libgbm.so.1",
+                 "usr/lib/gbm/dri_gbm.so"):
+        if b"Inode:" not in read_root(name, "stat"):
+            raise ValueError(f"The x86 desktop image is missing its graphics runtime: /{name}")
+    for module in ("i915.ko", "xe.ko", "amdgpu.ko", "radeon.ko"):
+        found = list((target / "lib/modules").glob(f"*/kernel/drivers/gpu/drm/**/{module}"))
+        if not found or b"Inode:" not in read_root(found[0].relative_to(target).as_posix(), "stat"):
+            raise ValueError(f"The x86 desktop image is missing the {module} graphics driver")
+    for family in ("i915", "xe", "amdgpu", "radeon"):
+        entries = read_root(f"lib/firmware/{family}", "ls -p").splitlines()
+        if len(entries) <= 2:
+            raise ValueError(f"The x86 desktop image is missing {family} graphics firmware")
+
+
+def check_included_bluetooth(read_root):
+    """USB Bluetooth needs its vendor firmware on the universal x86 image."""
+    for directory, prefix in (("intel", "ibt-"), ("rtl_bt", "rtl"),
+                              ("qca", "rampatch_usb_"), ("ar3k", "AthrBT_")):
+        if f"/{prefix}".encode() not in read_root(f"lib/firmware/{directory}", "ls -p"):
+            raise ValueError(f"The x86 desktop image is missing {directory} Bluetooth firmware")
+
+
+def check_public_setup(read_root, grub_config, *, provisioned_graphics=True):
     marker = read_root("etc/agx/setup-enabled", "stat")
     if b"Type: regular" not in marker or not re.search(rb"\bMode:\s+0600\b", marker):
         raise ValueError("The public image must start in first-boot setup")
+    if not re.search(rb"^\s*AGX_GUI_VNC\s*=", read_root("etc/agx/gui.env"), re.MULTILINE):
+        raise ValueError("The x86 setup image must ship a remote desktop setting")
     if b"Inode:" in read_root("etc/agx/wired-ssh-only", "stat"):
         raise ValueError("The public image contains private SSH provisioning state")
     for directory in ("root/.ssh", "etc/dropbear"):
@@ -141,9 +178,11 @@ def check_public_setup(read_root, grub_config):
         if not read_root(f"usr/share/X11/xkb/{path}"):
             raise ValueError(f"The public setup image is missing keyboard data: {path}")
     for path in ("usr/lib/libEGL.so.1", "usr/lib/libgbm.so.1", "usr/lib/dri"):
-        if b"Inode:" in read_root(path, "stat"):
+        if provisioned_graphics and b"Inode:" in read_root(path, "stat"):
             raise ValueError(f"The public bootstrap image contains a graphics runtime at /{path}")
     feed = b"Inode:" in read_root("etc/agx/driver-catalog.json", "stat")
     signers = b"Inode:" in read_root("etc/agx/driver-signers", "stat")
     if feed != signers:
         raise ValueError("The online driver feed needs its catalog configuration and release public key")
+    if not feed:
+        raise ValueError("The ANGI setup image needs a signed driver feed for first boot")

@@ -1,3 +1,4 @@
 # Official immutable release asset digest, verified against GitHub release metadata.
 sha256  5b68c1f4c5e75b4134e664cc8f36d634d64208d4fcfe5bcf3b48bab699c2dbac  opencode-linux-arm64.tar.gz
+sha256  8443113b3f3dfebf8b0fa91c4377e5519a62b9231732d9344a5df001e4a852b3  opencode-linux-x64-baseline.tar.gz
 sha256  625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b  LICENSE

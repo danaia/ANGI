@@ -1,8 +1,12 @@
 ################################################################################
-# Official standalone ARM64 CLI. Keep its embedded runtime intact; do not strip.
+# Official standalone CLI. Keep its embedded runtime intact; do not strip.
 ################################################################################
 AGX_OPENCODE_VERSION = 1.19.6
+ifeq ($(BR2_x86_64),y)
+AGX_OPENCODE_SOURCE = opencode-linux-x64-baseline.tar.gz
+else
 AGX_OPENCODE_SOURCE = opencode-linux-arm64.tar.gz
+endif
 AGX_OPENCODE_SITE = https://github.com/anomalyco/opencode/releases/download/v$(AGX_OPENCODE_VERSION)
 AGX_OPENCODE_STRIP_COMPONENTS = 0
 AGX_OPENCODE_LICENSE = MIT

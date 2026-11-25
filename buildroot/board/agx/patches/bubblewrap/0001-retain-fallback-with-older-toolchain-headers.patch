@@ -1,19 +1,24 @@
 From: ANGI build integration
 Subject: [PATCH] Retain safe open fallback when toolchain headers lack openat2
 
-The appliance kernel is new enough for openat2, but its external toolchain
-uses older syscall headers. In that case syscall_openat2 always returns
-ENOSYS, so retain bubblewrap's existing safe fallback even when the assumed
-kernel version is recent. Sandbox restrictions remain enabled.
+The appliance kernel is new enough for openat2, but some external toolchains
+use older syscall headers. On x86-64 use the Linux syscall table's openat2
+number when the headers lack it. Retain bubblewrap's safe fallback for other
+targets with older headers. Sandbox restrictions remain enabled.
 
 Upstream-Status: Pending
 --- a/safe_openat.c
 +++ b/safe_openat.c
-@@ -32,7 +32,7 @@
+@@ -32,7 +32,12 @@
  
  bool opt_force_openat_fallback = false;
  
 -#if ASSUMED_KERNEL < BWRAP_KERNEL_VERSION (5, 6, 0)
++/* arch/x86/entry/syscalls/syscall_64.tbl */
++#if !defined(__NR_openat2) && defined(__x86_64__) && !defined(__ILP32__)
++#  define __NR_openat2 437
++#endif
++
 +#if ASSUMED_KERNEL < BWRAP_KERNEL_VERSION (5, 6, 0) || !defined(__NR_openat2)
  #  define USE_OPENAT_FALLBACK 1
  #else

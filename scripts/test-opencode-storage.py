@@ -43,6 +43,21 @@ with tempfile.TemporaryDirectory(prefix="angi-opencode-") as temporary:
     assert not list(victim.iterdir())
     assert victim.stat().st_mode & 0o777 == 0o755
     mountpoint.write_text("#!/bin/sh\nexit 1\n")
+    uname = tools / "uname"
+    uname.write_text("#!/bin/sh\nprintf 'aarch64\\n'\n")
+    uname.chmod(0o755)
     result = subprocess.run([str(launcher)], cwd=work, env=env, capture_output=True, text=True)
     assert result.returncode != 0 and "NVMe" in result.stderr
-print("OpenCode launcher checks passed: private storage, symlink refusal, NVMe requirement, cwd and arguments.")
+    uname.write_text("#!/bin/sh\nprintf 'x86_64\\n'\n")
+    home = base / "home"
+    home.mkdir()
+    result = subprocess.run([str(launcher), "--version"], cwd=work, env={**env, "HOME": str(home)},
+                            capture_output=True, text=True, check=True)
+    store = home / ".angi-agent"
+    assert result.stdout.splitlines() == [str(work), str(store / "data"), str(store / "config"), "true", "--version"]
+    assert store.stat().st_mode & 0o777 == 0o700
+    mountpoint.write_text("#!/bin/sh\nexit 0\n")
+    mounted = subprocess.run([str(launcher), "--version"], cwd=work, env={**env, "HOME": str(home)},
+                             capture_output=True, text=True, check=True)
+    assert mounted.stdout == result.stdout
+print("OpenCode launcher checks passed: private storage, symlink refusal, architecture fallback, cwd and arguments.")

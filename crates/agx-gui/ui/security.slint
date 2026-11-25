@@ -172,7 +172,7 @@ export component SecurityBody inherits VerticalLayout {
     spacing: Theme.space-3;
     Hint {
         text: root.setup
-            ? "Other computers reach this one with an SSH key. Wired access starts closed. Open Ethernet or a USB cable only for computers you trust."
+            ? "Wired access starts closed. Open Ethernet or a USB cable to let another computer sign in with your ANGI account."
             : "Control which wired connections let other computers sign in, and share this computer's key.";
         wrap: word-wrap;
     }
@@ -341,6 +341,14 @@ export component SecurityBody inherits VerticalLayout {
     Divider { }
     Label { text: "How to connect"; }
     for line in SecuritySettings.suggestions: Hint { text: line; wrap: word-wrap; }
+    if SecuritySettings.ethernet-listening: Hint {
+        text: "Use your ANGI username and password. The connecting computer can sign in without an SSH key.";
+    }
+    if SecuritySettings.host-fingerprint != "": VerticalLayout {
+        spacing: Theme.space-1;
+        Hint { text: "Match this fingerprint when SSH asks you to trust this computer."; }
+        Mono { text: SecuritySettings.host-fingerprint; wrap: char-wrap; }
+    }
     if SecuritySettings.suggestions.length == 0: Hint { text: "Nothing to suggest yet."; }
     Divider { }
     if !root.confirm-close: Button {

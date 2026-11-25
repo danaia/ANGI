@@ -1,5 +1,10 @@
 AGX_AGENT_VERSION = 0.9.5
+ifeq ($(BR2_x86_64),y)
+AGX_AGENT_SOURCE = herdr-linux-x86_64
+AGX_AGENT_ROOT_FLAGS = -DANGI_DATA_VOLUME_ONLY
+else
 AGX_AGENT_SOURCE = herdr-linux-aarch64
+endif
 AGX_AGENT_SITE = https://github.com/herdrdev/herdr/releases/download/v$(AGX_AGENT_VERSION)
 AGX_AGENT_EXTRA_DOWNLOADS = https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.52.2.tgz
 AGX_AGENT_LICENSE = Apache-2.0, MIT
@@ -14,7 +19,7 @@ endef
 
 define AGX_AGENT_BUILD_CMDS
 	bash $(AGX_AGENT_ASSETS)/../../scripts/stage-monaco.sh $(@D)/monaco $(AGX_AGENT_DL_DIR)/monaco-editor-0.52.2.tgz
-	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) -Os -Wall -Wextra -Werror $(AGX_AGENT_ASSETS)/angi-root.c -o $(@D)/angi-root
+	$(TARGET_CC) $(TARGET_CFLAGS) $(TARGET_LDFLAGS) $(AGX_AGENT_ROOT_FLAGS) -Os -Wall -Wextra -Werror $(AGX_AGENT_ASSETS)/angi-root.c -o $(@D)/angi-root
 endef
 
 define AGX_AGENT_INSTALL_TARGET_CMDS

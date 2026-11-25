@@ -4,6 +4,9 @@
 #   BOARD=<registry id> ~/angi-build/remote-build.sh
 set -euo pipefail
 BOARD=${BOARD:?set BOARD to a registry id from scripts/boards.json}
+# The public image cannot be packaged without its feed, so stop before the long build.
+: "${AGX_DRIVER_FEED_DIR:?set AGX_DRIVER_FEED_DIR to the image-config directory for this kernel (docs/desktop.md)}"
+export AGX_DRIVER_FEED_DIR
 SRC=${SRC:-$HOME/angi-build/src}
 cd "$SRC"
 export AGX_BUILD_OUTPUT=$SRC/output-$BOARD

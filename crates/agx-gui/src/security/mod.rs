@@ -105,8 +105,8 @@ fn show(page: SecuritySettings<'_>, outcome: Outcome) {
         page.set_peer_pinned(false);
     }
     if reply.ok {
-        page.set_error("".into());
         if !reply.message.is_empty() {
+            page.set_error("".into());
             page.set_message(reply.message.as_str().into());
             // A message comes only with a change the daemon accepted; open forms close on it.
             page.set_ok_serial(page.get_ok_serial().wrapping_add(1));

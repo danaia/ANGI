@@ -1,13 +1,18 @@
 #!/bin/bash
-# Run the pinned CLI as the caller, with private data and caches on NVMe.
+# Run the pinned CLI as the caller, with private data and caches.
 set -euo pipefail
-if ! mountpoint -q /var/lib/agx-data; then
+opencode_workdir=$PWD
+opencode_machine=$(uname -m)
+if [[ $opencode_machine == x86_64 && ${HOME:-} == /* && -d ${HOME%/}/.angi-agent ]]; then
+    opencode_store=${HOME%/}/.angi-agent
+elif mountpoint -q /var/lib/agx-data; then
+    opencode_store=/var/lib/agx-data/agx-opencode-users/$(id -u)
+elif [[ $opencode_machine == x86_64 && ${HOME:-} == /* ]]; then
+    opencode_store=${HOME%/}/.angi-agent
+else
     printf 'OpenCode needs the ANGI NVMe data volume to be mounted.\n' >&2
     exit 1
 fi
-opencode_workdir=$PWD
-opencode_uid=$(id -u)
-opencode_store=/var/lib/agx-data/agx-opencode-users/$opencode_uid
 umask 077
 mkdir -m 700 -- "$opencode_store" 2>/dev/null || true
 # Pin the actual directory as cwd before checking it: an untrusted user can

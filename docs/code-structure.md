@@ -40,9 +40,20 @@ The generic x86 image uses `buildroot/board/agx/uefi/wired-network` for
 Ethernet DHCP discovery. `direct-ethernet` is its DHCP event hook for a direct
 cable with no lease. `scripts/stage-x86-media-drivers.py` stages the standard
 audio and USB Bluetooth driver bundles. The feed builder derives their
-selectors from the compiled kernel modules.
+selectors from the compiled kernel modules. `scripts/x86_media_firmware.py`
+lists the USB Bluetooth firmware those bundles carry; the Buildroot post-build
+hook uses the same list for x86 images that include their drivers. `scripts/driver_release.py`
+shares kernel identity calculation between the feed publisher and the
+Buildroot post-build hook, which checks the image's feed configuration.
+`scripts/stage-amd-graphics.py` stages the Renoir and Lucienne graphics
+bundle. `scripts/stage-pi-drivers.py` stages optional USB Bluetooth firmware
+for Raspberry Pi feeds without removing first-boot modules from the image.
+`buildroot/board/agx/uefi/x86-hardware.fragment` holds the broad Intel and AMD
+hardware coverage; `x86.fragment` keeps the desktop and graphics options.
 
-On provisioned-graphics builds, `post-build.sh` puts the WebKit software
+The `x86-desktop` image includes its graphics, sound and Bluetooth drivers;
+`uefi_image.py` checks that they are packed. On provisioned-graphics builds
+(`x86-amd`), `post-build.sh` puts the WebKit software
 Mesa libraries in a private browser directory. `browser/engine.rs` selects
 that directory for the Web subprocess until the system GPU runtime is present.
 
@@ -262,7 +273,7 @@ The Terminal prepends the account's apps `bin/` to `PATH` through
 progress overlay for desktop and app updates, and `Services.operation-component`
 names the item being updated.
 
-The Overview drive picker in `ui/drive-mount.slint` owns NVMe selection and erase confirmation. `storage/mount.rs` calls `apps/agent/data_volume.py` with administrator access off the UI thread. The helper lists existing ext4 partitions and idle NVMe drives, rechecks the selected drive before creating a GPT and ext4 filesystem, and remembers the mounted filesystem UUID for `S12agx-data`.
+The Overview drive picker in `ui/drive-mount.slint` owns data volume selection and NVMe erase confirmation. `storage/mount.rs` calls `apps/agent/data_volume.py` with administrator access off the UI thread. The helper lists existing ext4 partitions on internal SATA and NVMe drives, rechecks idle NVMe drives before formatting, and remembers the mounted filesystem UUID for `S12agx-data`.
 
 
 The Sound page lives in `agx-gui/ui/settings-sound.slint`. `src/sound.rs` owns the

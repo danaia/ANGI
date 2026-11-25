@@ -39,7 +39,7 @@ export component DriveMountDialog inherits Rectangle {
             spacing: 12px;
             Text {
                 text: root.confirming ? "Erase and Mount NVMe Drive" :
-                      root.formatting ? "Quick Format NVMe Drive" : "Mount External Drive";
+                      root.formatting ? "Quick Format NVMe Drive" : "Mount Data Drive";
                 font-size: Theme.text-title;
                 font-weight: 500;
                 color: Theme.ink;
@@ -49,13 +49,13 @@ export component DriveMountDialog inherits Rectangle {
                     "All partitions and files on " + root.confirmed-drive + " will be lost. ANGI will create a new ext4 partition and mount it now and at startup." :
                     root.formatting ?
                     "Choose the NVMe drive to erase and prepare for ANGI storage." :
-                    "Choose an existing ext4 NVMe partition. ANGI will also mount it at startup.";
+                    "Choose an existing ext4 partition on an internal NVMe or SATA drive. ANGI will also mount it at startup.";
                 wrap: word-wrap;
                 color: Theme.ink;
             }
             selection := Select {
                 visible: !root.confirming;
-                accessible-label: root.formatting ? "NVMe drive" : "NVMe partition";
+                accessible-label: root.formatting ? "NVMe drive" : "Data partition";
                 model: root.formatting ? DriveMount.drives : DriveMount.partitions;
                 enabled: !DriveMount.busy && self.model.length > 0;
                 init => { self.focus(); }

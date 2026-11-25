@@ -1,9 +1,18 @@
 #!/bin/bash
 # Global ANGI swarm command; agents and credentials stay under the caller's UID.
 set -euo pipefail
-mountpoint -q /var/lib/agx-data || { echo 'ANGI agents need the NVMe data volume.' >&2; exit 1; }
 agent_workdir=$PWD
-agent_store=/var/lib/agx-data/agx-opencode-users/$(id -u)
+agent_machine=$(uname -m)
+if [[ $agent_machine == x86_64 && ${HOME:-} == /* && -d ${HOME%/}/.angi-agent ]]; then
+    agent_store=${HOME%/}/.angi-agent
+elif mountpoint -q /var/lib/agx-data; then
+    agent_store=/var/lib/agx-data/agx-opencode-users/$(id -u)
+elif [[ $agent_machine == x86_64 && ${HOME:-} == /* ]]; then
+    agent_store=${HOME%/}/.angi-agent
+else
+    echo 'ANGI agents need the NVMe data volume.' >&2
+    exit 1
+fi
 umask 077
 mkdir -m 700 -- "$agent_store" 2>/dev/null || true
 cd -P -- "$agent_store"

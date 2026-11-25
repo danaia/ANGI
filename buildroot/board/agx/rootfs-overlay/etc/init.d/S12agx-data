@@ -17,7 +17,20 @@ case "$1" in
         case "$uuid" in ''|*[!0-9a-fA-F-]*) echo 'Invalid AGX data UUID' >&2; exit 1 ;; esac
         mkdir -p /var/lib/agx-data
         if mountpoint -q /var/lib/agx-data; then prepare_apps; exit $?; fi
-        for device in /dev/nvme*n*p*; do
+        for node in /sys/class/block/*/partition; do
+            test -f "$node" || continue
+            part=${node%/partition}
+            name=${part##*/}
+            case "$name" in
+                nvme*n*p*) ;;
+                sd*)
+                    disk=$(dirname "$(readlink -f "$part")")
+                    case "$disk" in */ata[0-9]*/*) ;; *) continue ;; esac
+                    test "$(cat "$disk/removable" 2>/dev/null)" = 0 || continue
+                    ;;
+                *) continue ;;
+            esac
+            device=/dev/$name
             test -b "$device" || continue
             if blkid "$device" | grep -Fq "UUID=\"$uuid\""; then
                 mount -t ext4 -o noatime,nosuid,nodev "$device" /var/lib/agx-data || exit $?

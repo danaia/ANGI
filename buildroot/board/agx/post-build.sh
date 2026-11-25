@@ -42,10 +42,57 @@ else
     fi
 fi
 
-# The kernel build retains these modules for the matching release bundles.
-# Keep the generic firmware framebuffer and shared DRM helpers on the media.
+# Match the Pi desktop default. The VNC listener remains bound to loopback.
+if [ -n "${BASE_DIR:-}" ] && grep -qx 'BR2_x86_64=y' "$BASE_DIR/.config" &&
+    grep -qx 'BR2_PACKAGE_AGX_GUI=y' "$BASE_DIR/.config"; then
+    gui_env="$TARGET_DIR/etc/agx/gui.env"
+    if ! grep -Eq '^[[:space:]]*AGX_GUI_VNC[[:space:]]*=' "$gui_env" 2>/dev/null; then
+        (umask 077; printf '\nAGX_GUI_VNC=on\n' >> "$gui_env")
+    fi
+fi
+
+# Install release metadata before removing the modules that setup downloads.
+driver_feed=${AGX_DRIVER_FEED_DIR:-}
+if [ -n "${BASE_DIR:-}" ] && [ -f "$BASE_DIR/.generic-iso" ] && [ -z "$driver_feed" ]; then
+    echo 'The ANGI setup image needs AGX_DRIVER_FEED_DIR. See docs/desktop.md.' >&2
+    exit 1
+fi
+provision_graphics=false
 if [ -n "${BASE_DIR:-}" ] &&
     grep -qx 'BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y' "$BASE_DIR/.config"; then
+    provision_graphics=true
+fi
+if [ -n "$driver_feed" ]; then
+    kernel_version=$(sed -n 's/^BR2_LINUX_KERNEL_VERSION="\(.*\)"$/\1/p' "$BASE_DIR/.config")
+    arch=$(sed -n 's/^BR2_ARCH="\(.*\)"$/\1/p' "$BASE_DIR/.config")
+    objcopy=objcopy
+    for tool in "$HOST_DIR/bin/$arch"*-objcopy; do
+        if [ -x "$tool" ]; then
+            objcopy=$tool
+            break
+        fi
+    done
+    python3 "$BR2_EXTERNAL_AGX_PATH/../scripts/driver_release.py" \
+        "$driver_feed" "$BUILD_DIR/linux-$kernel_version" --objcopy "$objcopy"
+    install -m 0600 "$driver_feed/driver-catalog.json" "$TARGET_DIR/etc/agx/driver-catalog.json"
+    install -m 0600 "$driver_feed/driver-signers" "$TARGET_DIR/etc/agx/driver-signers"
+else
+    rm -f "$TARGET_DIR/etc/agx/driver-catalog.json" "$TARGET_DIR/etc/agx/driver-signers"
+fi
+
+# An x86 image that keeps its drivers also needs the USB Bluetooth firmware
+# that Buildroot's linux-firmware options leave out.
+if ! "$provision_graphics" && [ -n "${BASE_DIR:-}" ] &&
+    grep -qx 'BR2_PACKAGE_LINUX_FIRMWARE_IBT=y' "$BASE_DIR/.config"; then
+    for firmware_source in "$BUILD_DIR"/linux-firmware-*; do
+        python3 "$BR2_EXTERNAL_AGX_PATH/../scripts/x86_media_firmware.py" \
+            "$firmware_source" "$TARGET_DIR"
+    done
+fi
+
+# The kernel build retains these modules for the matching release bundles.
+# Keep the generic firmware framebuffer and shared DRM helpers on the media.
+if "$provision_graphics"; then
     # Web's CPU fallback lives outside the paths used by provisioned GPU drivers.
     lib="$TARGET_DIR/usr/lib"
     mesa="$lib/agx-web-mesa"
@@ -63,14 +110,6 @@ if [ -n "${BASE_DIR:-}" ] &&
             "$drivers/bluetooth" "$sound/pci/hda" "$sound/usb"
         "$HOST_DIR/sbin/depmod" -a -b "$TARGET_DIR" "${module_tree##*/}"
     done
-fi
-
-# Release assembly provides the feed address and public signing key.
-if [ -n "${AGX_DRIVER_FEED_DIR:-}" ]; then
-    install -m 0600 "$AGX_DRIVER_FEED_DIR/driver-catalog.json" "$TARGET_DIR/etc/agx/driver-catalog.json"
-    install -m 0600 "$AGX_DRIVER_FEED_DIR/driver-signers" "$TARGET_DIR/etc/agx/driver-signers"
-else
-    rm -f "$TARGET_DIR/etc/agx/driver-catalog.json" "$TARGET_DIR/etc/agx/driver-signers"
 fi
 
 install -D -m 0644 "$BR2_EXTERNAL_AGX_PATH/../brand/logo-ascii.md" "$TARGET_DIR/usr/share/agx/logo.ascii"

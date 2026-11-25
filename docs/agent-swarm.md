@@ -254,9 +254,11 @@ when changing the desktop's runtime, startup binaries, or boot configuration.
 
 The target also selects the x86-64 toolchain for `BOARD=x86-desktop` (AMD or
 Intel). That path requires an existing desktop-enabled board build and a
-provisioned device with the agent runtime. The checked-in x86 desktop image
-configuration does not yet enable the desktop, and the Buildroot agent
-package currently targets ARM64.
+provisioned device with the agent runtime. The x86 desktop images include the
+runtime. OpenCode and the provider bridge can create `~/.angi-agent` on x86
+without a data volume. They continue using that directory after a drive is
+mounted, so the saved sign-in stays available. The native OS build tools use the
+explicitly provisioned SDK and checkout on the data volume.
 
 ## Provider setup on workspace 2
 

@@ -118,7 +118,7 @@ silent hang means it is waiting, so ask the user to approve the link it prints, 
 ```bash
 rsync -a --exclude target --exclude 'output-*' --exclude .git --exclude .cache --exclude dl ./ "$BUILD_HOST":angi-build/src/
 scp .agents/skills/angi-build-and-flash-usb/scripts/remote-build.sh "$BUILD_HOST":angi-build/
-ssh -f "$BUILD_HOST" 'cd ~/angi-build && BOARD=<board-id> nohup bash remote-build.sh > build.log 2>&1 < /dev/null &'
+ssh -f "$BUILD_HOST" 'cd ~/angi-build && BOARD=<board-id> AGX_DRIVER_FEED_DIR=<image-config-dir> nohup bash remote-build.sh > build.log 2>&1 < /dev/null &'
 ```
 
 - Detach it (`ssh -f`, `nohup`, redirected stdio) or the local call hangs for the whole build.

@@ -23,7 +23,7 @@ printf 'set timeout=%s\nmenuentry "ANGI" {\n  search --no-floppy --file --set=ro
 if [ "$timeout" -gt 0 ]; then
     printf 'menuentry "ANGI (graphics recovery)" {
   search --no-floppy --file --set=root /%s
-  linux /%s root=PARTUUID=%s rootwait console=tty1 init=/usr/sbin/agx-init agx.driver_recovery=1 module_blacklist=amdgpu,i915,xe,nvidia,nvidia_modeset,nvidia_drm,nvidia_uvm
+  linux /%s root=PARTUUID=%s rootwait console=tty1 init=/usr/sbin/agx-init agx.driver_recovery=1 module_blacklist=amdgpu,radeon,i915,xe,nvidia,nvidia_modeset,nvidia_drm,nvidia_uvm
 }
 ' "$kernel" "$kernel" "$root_uuid" >> "$images/efi-part/EFI/BOOT/grub.cfg"
 fi

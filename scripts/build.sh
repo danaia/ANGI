@@ -33,14 +33,15 @@ fi
 [[ "$ACTION" == prepare ]] && exit 0
 build_options=()
 if [[ ${AGX_GENERIC_ISO:-0} == 1 || -f "$OUTPUT/.generic-iso" ]]; then
-    [[ ( $BOARD == rpi4 || $BOARD == x86-desktop || $BOARD == x86-amd ) && -n ${AGX_BUILD_OUTPUT:-} ]] || {
-        echo "Set AGX_BUILD_OUTPUT to a separate Pi 4 / 400 or x86-64 build directory for the generic ISO." >&2
+    [[ ( $BOARD == rpi5 || $BOARD == rpi4 ||
+         $BOARD == x86-desktop || $BOARD == x86-amd ) && -n ${AGX_BUILD_OUTPUT:-} ]] || {
+        echo "Set AGX_BUILD_OUTPUT to a separate Pi 4 / 400, Pi 5 or x86-64 build directory for the generic ANGI image." >&2
         exit 1
     }
     mkdir -p -- "$OUTPUT"
     touch -- "$OUTPUT/.generic-iso"
     overlays="$ROOT/buildroot/board/agx/rootfs-overlay"
-    if [[ -d $FIRMWARE_DIR/rootfs-overlay ]]; then
+    if [[ $FIRMWARE_DIR/rootfs-overlay != "$overlays" && -d $FIRMWARE_DIR/rootfs-overlay ]]; then
         overlays+=" $FIRMWARE_DIR/rootfs-overlay"
     fi
     build_options+=("BR2_ROOTFS_OVERLAY=$overlays")
@@ -91,6 +92,18 @@ case "$ACTION" in
     configure) ;;
     dependencies) brmake dependencies ;;
     build)
+        if [[ -n ${AGX_DRIVER_FEED_DIR:-} ]]; then
+            AGX_DRIVER_FEED_DIR=$(realpath -e -- "$AGX_DRIVER_FEED_DIR")
+            export AGX_DRIVER_FEED_DIR
+        fi
+        if [[ -f "$OUTPUT/.generic-iso" ]]; then
+            if [[ -z ${AGX_DRIVER_FEED_DIR:-} ||
+                ! -s ${AGX_DRIVER_FEED_DIR:-}/driver-catalog.json ||
+                ! -s ${AGX_DRIVER_FEED_DIR:-}/driver-signers ]]; then
+                echo 'The ANGI setup image needs AGX_DRIVER_FEED_DIR. See docs/desktop.md.' >&2
+                exit 1
+            fi
+        fi
         if grep -q '^BR2_PACKAGE_AGX=y$' "$OUTPUT/.config"; then
             # Supply Cargo for vendoring even on hosts without a Rust installation.
             brmake "BR2_JLEVEL=${JOBS:-8}" host-rustc

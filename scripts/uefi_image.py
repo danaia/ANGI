@@ -90,8 +90,16 @@ def check_uefi(images, board):
         files.extend(("usr/bin/agx-gui", "etc/init.d/S10agx-hardware"))
         check_public_setup(read_root, config)
         build_config = images.parent / ".config"
-        if build_config.is_file() and "BR2_PACKAGE_AGX_WEB=y" in build_config.read_text().splitlines():
+        options = build_config.read_text().splitlines() if build_config.is_file() else []
+        if board["id"] == "x86-desktop" and "BR2_PACKAGE_AGX_WEB=y" not in options:
+            raise ValueError("The x86 desktop image must include ANGI Web")
+        if "BR2_PACKAGE_AGX_WEB=y" in options:
             files.extend(("usr/libexec/agx-web", "usr/libexec/wpe-webkit-2.0/WPEWebProcess", "usr/bin/bwrap"))
+            webkit = "usr/lib/libWPEWebKit-2.0.so.1"
+            library = (target / webkit).resolve(strict=True)
+            if b"Inode:" not in read_root(webkit, "stat"):
+                raise ValueError("The x86 Web panel needs the packaged WPE WebKit library")
+            files.append(library.relative_to(target.resolve()).as_posix())
             if b"Inode:" not in read_root("usr/lib/agx-web-mesa/libEGL.so.1", "stat"):
                 raise ValueError("The x86 Web panel needs its isolated Mesa fallback")
     else:

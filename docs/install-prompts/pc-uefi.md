@@ -11,6 +11,12 @@ creating the administrator account. Choose **Restart and check drivers**
 when setup installs a bundle. If a display driver prevents the desktop from
 starting, select **ANGI (graphics recovery)** in the boot menu.
 
+To connect from another computer over Ethernet, create the administrator
+account in setup and choose **Allow access…** for Ethernet in **Security**.
+Run the SSH command shown there and use the ANGI account password. Compare the
+host fingerprint on the first connection. Each client can sign in without
+installing a client SSH key.
+
 For private workstation-assisted media, follow the direct SSH procedure
 below. After moving the prepared media, connect the target's Ethernet port to a
 dedicated workstation Ethernet interface and ask the customer to say

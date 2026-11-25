@@ -175,7 +175,28 @@ image: a board the workstation checkout does not list is refused, and the regist
 which build the directory came from. For a directory made before `flash.sh` existed, copy
 `scripts/flash-sd.sh` into it as `flash.sh` and `chmod 700` it.
 
-## 5. Write the USB stick (the user runs this; it needs sudo)
+## 5. Write a USB stick or SD card (the user runs this; it needs sudo)
+
+For a generic ANGI image, use the repository flasher with the board ID and
+absolute image path. Verify the checksum for the uncompressed image. Identify
+the whole removable device with `scripts/flash-sd.sh --list`, inspect it with
+`--device DEVICE --inspect`, and show its path, size, model, serial, contents
+and identity. Run the command below with `--check` in place of
+`--confirm-erase DEVICE` to verify the image and the target without writing.
+Re-inspect immediately before handing over the write command. If the device
+or identity changes, repeat the checks with the new identity.
+
+When the user asks for the complete command, give it as one copyable line
+with every argument filled in, including the quoted identity. Warn that
+running it erases the whole device. Give the command for the user to run.
+Agent execution requires separate explicit erase approval for the inspected
+device.
+
+```bash
+/absolute/path/to/ANGI/scripts/flash-sd.sh --board BOARD --image '/absolute/path/to/disk.img' --device /dev/sdX --expect-identity 'Identity value from --inspect' --confirm-erase /dev/sdX
+```
+
+For a personalized install directory, use its own flasher as described below.
 
 1. `lsblk -o NAME,SIZE,MODEL,SERIAL,TRAN,FSTYPE,LABEL`: find the stick. If it is missing it is
    probably still in the target machine; ask the user to plug it in.

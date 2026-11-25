@@ -5,7 +5,7 @@ import json
 import re
 import subprocess
 
-from detect_board_registry import BOARDS, ROOT
+from detect_board_registry import ROOT, published_boards
 
 DOCS = ROOT / "docs/install-prompts"
 PIN = ROOT / "website/source-commit.txt"
@@ -78,6 +78,11 @@ def image_desktop(board, source):
         ["git", "show", f"{source}:{path}"], cwd=ROOT, text=True).splitlines())
     if "BR2_PACKAGE_AGX_GUI=y" not in config:
         return "This image includes the ANGI terminal dashboard and a text console.", TERMINAL_SETUP, TERMINAL_BOOT
+    if "BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y" in config:
+        setup = ("Use the local setup. Connect to Wi-Fi or Ethernet, then choose Prepare drivers. "
+                 "If setup installs a driver bundle, restart and let setup check the drivers again "
+                 "before creating the administrator account.")
+        return "This image includes the Native Slint desktop.", setup, NATIVE_BOOT
     if "BR2_PACKAGE_AGX_GUI_HEADLESS=y" in config:
         return "This image includes the Native Slint desktop over VNC.", PEBBLE_SETUP, HEADLESS_BOOT
     if "BR2_PACKAGE_AGX_WAYLAND=y" in config:
@@ -92,7 +97,7 @@ def image_desktop(board, source):
 
 def profiles(source):
     result = {}
-    for board in BOARDS:
+    for board in published_boards(source):
         install = board["install"]
         desktop_summary, setup, desktop_checks = image_desktop(board, source)
         for choice in install["choices"]:
@@ -109,7 +114,7 @@ def profiles(source):
                         board=board["id"], image=board["image"]),
                 }
             identity = "Read /proc/device-tree/model and run agx status --json."
-            if board["id"].endswith("-desktop"):
+            if board["id"].endswith("-desktop") or board["id"] == "x86-amd":
                 identity = f"Check uname -m equals {board['arch']}, confirm the model and UEFI boot, and run agx status --json."
                 if "cpu_vendor" in choice:
                     identity += f" Check /proc/cpuinfo vendor_id equals {choice['cpu_vendor']}."
@@ -143,7 +148,7 @@ def outputs(source):
         "};\n"
     )
     pi_template = (DOCS / "2-connect-pi.tmpl").read_text()
-    for board in BOARDS:
+    for board in published_boards(source):
         if not board["id"].startswith("rpi"):
             continue
         zero = board["id"] == "rpizero2w"

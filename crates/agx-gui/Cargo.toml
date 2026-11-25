@@ -24,6 +24,9 @@ headless = ["slint/renderer-software", "dep:i-slint-core"]
 # Appliance mode: draw straight to DRM/KMS with libinput. No display server.
 kms = ["dep:glow", "dep:libloading", "dep:input", "dep:i-slint-backend-linuxkms", "slint/unstable-libinput-09", "slint/backend-linuxkms-noseat", "slint/renderer-femtovg", "slint/renderer-software"]
 
+# Start local software rendering with no preinstalled graphics userspace.
+kms-provision-graphics = ["kms", "i-slint-backend-linuxkms/dlopen"]
+
 [dependencies]
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
@@ -33,6 +36,7 @@ glow = { version = "=0.18.0", optional = true }
 libloading = { version = "=0.8.9", optional = true }
 input = { version = "=0.10.0", optional = true, default-features = false, features = ["libinput_1_19"] }
 agx-core = { path = "../agx-core" }
+agx-init = { path = "../agx-init" }
 agx-profile = { path = "../agx-profile" }
 agx-net = { path = "../agx-net" }
 agx-bluetooth = { path = "../agx-bluetooth" }

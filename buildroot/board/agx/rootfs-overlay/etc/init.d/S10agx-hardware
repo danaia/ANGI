@@ -1,0 +1,22 @@
+#!/bin/sh
+# Seed the network and display before their services open any devices. kmod
+# resolves sysfs modaliases against the installed kernel's dependency index.
+[ "${1:-}" = start ] || exit 0
+case "$(uname -m)" in
+    x86_64) ;;
+    *) [ -d "/lib/modules/$(uname -r)/updates/angi" ] || exit 0 ;;
+esac
+[ -x /usr/bin/kmod ] || [ -x /bin/kmod ] || [ -x /sbin/kmod ] || exit 0
+for entry in /sys/bus/pci/devices/* /sys/bus/usb/devices/* /sys/bus/sdio/devices/* \
+    /sys/bus/platform/devices/* /sys/bus/serial/devices/* /sys/bus/serdev/devices/*; do
+    [ -r "$entry/modalias" ] && [ ! -L "$entry/driver" ] || continue
+    IFS= read -r alias < "$entry/modalias" || continue
+    modprobe -q -b "$alias" 2>/dev/null || :
+done
+# The PCI function binds to nvidia. Its DRM module registers KMS separately.
+for entry in /sys/bus/pci/drivers/nvidia/*:*; do
+    [ -L "$entry" ] || continue
+    modprobe -q -b nvidia_drm modeset=1 2>/dev/null || :
+    break
+done
+exit 0

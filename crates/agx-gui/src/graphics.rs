@@ -9,15 +9,20 @@ mod detection;
 mod kms_input;
 #[cfg(feature = "wayland")]
 pub(crate) mod native_tiles;
+#[cfg(any(feature = "kms", test))]
+mod pacing;
+#[cfg(feature = "kms-provision-graphics")]
+pub(crate) mod provisioned;
 mod virtual_display;
 #[cfg(feature = "wayland")]
 pub(crate) mod wayland_workspaces;
 
-pub const ENVIRONMENT: [&str; 5] = [
+pub const ENVIRONMENT: [&str; 6] = [
     "SLINT_BACKEND",
     "SLINT_DRM_MODE",
     "SLINT_DRM_OUTPUT",
     "SLINT_DEBUG_PERFORMANCE",
+    "AGX_GPU_PACING",
     crate::remote::ENV,
 ];
 static SOFTWARE_CURSOR: AtomicBool = AtomicBool::new(false);
@@ -58,9 +63,26 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(feature = "kms")]
         {
             let output = detection::at_startup()?;
-            let selected = if let Some(output) = output {
+            let recovery = std::fs::read_to_string("/proc/cmdline").is_ok_and(|line| {
+                line.split_whitespace()
+                    .any(|option| option == "agx.driver_recovery=1")
+            });
+            let setup_framebuffer = cfg!(target_arch = "x86_64")
+                && unsafe { libc::geteuid() } == 0
+                && (cfg!(feature = "kms-provision-graphics")
+                    || std::path::Path::new("/etc/agx/setup-enabled").is_file())
+                && std::path::Path::new("/dev/fb0").exists();
+            #[cfg(feature = "kms-provision-graphics")]
+            let needs_runtime = !provisioned::runtime_available();
+            #[cfg(not(feature = "kms-provision-graphics"))]
+            let needs_runtime = false;
+            let selected = if (recovery || needs_runtime) && (output.is_some() || setup_framebuffer)
+            {
+                eprintln!("agx-gui: using the local software renderer");
+                "linuxkms-software"
+            } else if let Some(output) = output {
                 eprintln!(
-                    "agx-gui: auto display: {output} connected; using HDMI with VNC mirroring when enabled"
+                    "agx-gui: auto display: {output} connected; using GPU desktop with VNC mirroring when enabled"
                 );
                 // Resolve once before threads start. The login exec inherits the
                 // concrete backend/output so signing in cannot change display modes.
@@ -68,8 +90,11 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
                     std::env::set_var("SLINT_DRM_OUTPUT", output);
                 }
                 "linuxkms-femtovg"
+            } else if setup_framebuffer {
+                eprintln!("agx-gui: using the setup framebuffer until a GPU display is available");
+                "linuxkms-software"
             } else {
-                eprintln!("agx-gui: auto display: no connected HDMI monitor; using resizable VNC");
+                eprintln!("agx-gui: auto display: no connected local display; using resizable VNC");
                 "vnc-software"
             };
             selected.to_owned()
@@ -111,6 +136,19 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "kms")]
     let selector = selector.with_libinput_event_hook(kms_input::filter);
     selector.select()?;
+    #[cfg(feature = "kms")]
+    if backend == "linuxkms-femtovg"
+        && unsafe { libc::geteuid() } == 0
+        && std::env::args().nth(1).as_deref() == Some("--login")
+        && std::env::var("AGX_GPU_PACING").as_deref() != Ok("off")
+    {
+        let output = std::env::var("SLINT_DRM_OUTPUT").ok();
+        match pacing::apply_beelink_floor(std::path::Path::new("/sys"), output.as_deref()) {
+            Ok(true) => eprintln!("agx-gui: Beelink Mini S GPU floor set to 400 MHz"),
+            Ok(false) => {}
+            Err(error) => eprintln!("agx-gui: GPU floor could not be applied: {error}"),
+        }
+    }
     SOFTWARE_CURSOR.store(backend == "linuxkms-software", Ordering::Relaxed);
     eprintln!("agx-gui: backend={backend}");
     Ok(())

@@ -97,11 +97,29 @@ pub(super) fn connect(
                         .iter()
                         .any(|row| row.current && row.ssid_hex == ssid_hex))
         },
-        "The Pi did not obtain a Wi-Fi address. Check the network settings and try again.",
+        "This computer did not obtain a Wi-Fi address. Check the network settings and try again.",
     )?;
     if let Some(error) = status.error {
         Err(error)
     } else {
         Ok(status.ssid.unwrap_or_else(|| "Wi-Fi".into()))
+    }
+}
+
+pub(super) fn reconnect() -> Option<String> {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Ok(reply) = call(&Request::Status) {
+            if reply.status.phase == "Connected" {
+                return reply.status.ssid;
+            }
+            if reply.status.saved.is_empty() {
+                return None;
+            }
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        thread::sleep(Duration::from_millis(350));
     }
 }

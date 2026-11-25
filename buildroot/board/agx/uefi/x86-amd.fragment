@@ -1,0 +1,6 @@
+# AMD CPU power management is available from the first boot.
+CONFIG_X86_AMD_PSTATE=y
+# Radeon uses the release's detachable AMDGPU module. NVIDIA has its own bundle.
+# CONFIG_DRM_I915 is not set
+# CONFIG_DRM_XE is not set
+CONFIG_LOCALVERSION="-angi-amd"

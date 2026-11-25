@@ -215,6 +215,7 @@ pub(super) fn run() -> Result<(), Box<dyn std::error::Error>> {
     let _project_watch = crate::agent_project::install(&ui);
     let _bluetooth_watch = crate::bluetooth::install(&ui, &app);
     let _security_watch = crate::security::install(&ui, &app);
+    crate::drivers::install(&ui);
     let _library_watch = crate::library::install(&ui, &app);
     crate::agent_swarm::install(&ui, &app);
     let _open_watch = crate::open_request::install(&ui, &app);

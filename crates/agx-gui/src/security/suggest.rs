@@ -16,7 +16,8 @@ fn reachable(status: &Status) -> Option<&Link> {
         .into_iter()
         .filter(|(_, open)| *open)
         .filter_map(|(kind, _)| wired(status, kind))
-        .chain(wired(status, Kind::Wifi))
+        .filter(|link| link.open)
+        .chain(wired(status, Kind::Wifi).filter(|link| link.open))
         .find(|link| !link.address.is_empty())
 }
 
@@ -33,6 +34,8 @@ pub(super) fn suggestions(status: &Status, user: &str) -> Vec<String> {
             ));
         } else if link.address.is_empty() {
             lines.push(format!("{label} is open but has no address yet. Give it a moment to come up."));
+        } else if !link.open {
+            lines.push(format!("{label} has an address. Waiting for SSH to start."));
         } else {
             lines.push(format!("From the computer on the {label} cable: ssh {user}@{}", link.address));
         }
@@ -40,7 +43,7 @@ pub(super) fn suggestions(status: &Status, user: &str) -> Vec<String> {
     if !any_wired {
         lines.push("To connect another computer directly, plug in an Ethernet or USB cable.".into());
     }
-    if let Some(wifi) = wired(status, Kind::Wifi).filter(|link| !link.address.is_empty()) {
+    if let Some(wifi) = wired(status, Kind::Wifi).filter(|link| link.open && !link.address.is_empty()) {
         lines.push(format!(
             "Over Wi-Fi: ssh {user}@{}. Wi-Fi access is not controlled on this page.",
             wifi.address

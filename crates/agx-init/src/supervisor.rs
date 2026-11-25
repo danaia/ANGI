@@ -45,12 +45,15 @@ fn bluetooth() -> Definition {
 pub const SECURITY: &str = "/usr/sbin/agx-securityd";
 /// Dropbear's loopback address behind the gate (agx-securityd's default backend).
 const GATED_SSH: &str = "127.0.0.1:2022";
+pub fn ssh_listen_address(gated: bool) -> &'static str {
+    if gated { GATED_SSH } else { "22" }
+}
+
 fn ssh(gated: bool) -> Definition {
-    let listen = if gated { GATED_SSH } else { "22" };
     Definition::new(
         "ssh",
         "/usr/sbin/dropbear",
-        &["-F", "-E", "-g", "-p", listen, "-R"],
+        &["-F", "-E", "-g", "-p", ssh_listen_address(gated), "-R"],
         false,
     )
 }
@@ -323,6 +326,10 @@ impl Supervisor {
         }
     }
     pub fn tick(&mut self) {
+        self.tick_with_child(None);
+    }
+
+    pub fn tick_with_child(&mut self, external_child: Option<u32>) {
         let processes: Vec<_> = fs::read_dir("/proc")
             .into_iter()
             .flatten()
@@ -441,6 +448,7 @@ impl Supervisor {
             .services
             .iter()
             .filter_map(|s| s.child.as_ref().map(Child::id))
+            .chain(external_child)
             .collect();
         for process in processes
             .iter()
@@ -457,7 +465,7 @@ impl Supervisor {
         let mut logs = Vec::new();
         let mut truncated = false;
         match request {
-            Request::Status => (),
+            Request::Status | Request::DriverPreparation { .. } => (),
             Request::Logs { service, after } => {
                 truncated = after > 0
                     && self
@@ -541,6 +549,7 @@ impl Supervisor {
             logs,
             last_sequence: self.sequence,
             logs_truncated: truncated,
+            driver_preparation: None,
         }
     }
     pub fn stop_all(&mut self) {

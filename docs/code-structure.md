@@ -25,11 +25,26 @@ Existing large files should be evaluated when touched, rather than forcing unrel
 | --- | --- |
 | `agx-core` | `models.rs` owns snapshots and counters; `parsers.rs` owns pure counter parsing; `sampler.rs` owns Linux collection; `vnc.rs` observes VNC TCP sockets and GUI resident memory without connecting or controlling services. |
 | `agx-net` | `protocol.rs` owns wire models, `client.rs` owns socket requests, `ssid.rs` owns byte encoding and scan parsing, `credentials.rs` owns validation and PSK derivation, `service.rs` owns the network service, and `service/clock.rs` saves network-synchronized time to the hardware clock. `setup/` owns the USB-only first-boot listener, its HTTP transport and the claim workflow. |
-| `agx-gui` (standalone) | `graphics/detection.rs` discovers connected HDMI outputs at startup and rejects kernel-forced connections without monitor EDID; `graphics.rs` resolves automatic or explicit renderer selection before threads start. `graphics/kms_input.rs` batches consecutive LinuxKMS mouse motion for the next frame, preserves pointer ordering around discrete input, and forwards native scroll and physical Super keys to the current login or desktop window. `graphics/virtual_display.rs` owns the optional resizable VNC-only software platform and its event loop. `remote/` owns optional VNC access: `rfb.rs` is the pure wire protocol, `resize.rs` validates single-screen resize requests and encodes layout replies, `frame.rs` captured pixels and change detection, `input.rs` key/pointer translation into Slint events, `server.rs` shared state, listeners and client lifecycle, `server/session.rs` established sessions, framebuffer streaming and message dispatch, `server/tests.rs` live socket and request scheduling tests, `handoff.rs` passing the listener and viewers from the login screen to the desktop across the exec, `mod.rs` configuration, UI-thread capture and resize callbacks. `wm.rs` and `login.rs` retain their existing composition and authentication responsibilities. |
+| `agx-gui` (standalone) | `graphics/detection.rs` discovers connected physical outputs at startup and rejects kernel-forced connections without monitor EDID. `graphics/pacing.rs` applies only benchmarked, device-specific GPU floors from the privileged KMS greeter; `graphics.rs` resolves automatic or explicit renderer selection before threads start. `graphics/kms_input.rs` batches consecutive LinuxKMS mouse motion for the next frame, preserves pointer ordering around discrete input, and forwards native scroll and physical Super keys to the current login or desktop window. `graphics/virtual_display.rs` owns the optional resizable VNC-only software platform and its event loop. `remote/` owns optional VNC access: `rfb.rs` is the pure wire protocol, `resize.rs` validates single-screen resize requests and encodes layout replies, `frame.rs` captured pixels and change detection, `input.rs` key/pointer translation into Slint events, `server.rs` shared state, listeners and client lifecycle, `server/session.rs` established sessions, framebuffer streaming and message dispatch, `server/tests.rs` live socket and request scheduling tests, `handoff.rs` passing the listener and viewers from the login screen to the desktop across the exec, `mod.rs` configuration, UI-thread capture and resize callbacks. `wm.rs` and `login.rs` retain their existing composition and authentication responsibilities. |
 | `agx-security` | `protocol.rs` owns the wire models, `policy.rs` the per-link SSH policy and its persistence, `paths.rs` file locations, `links.rs` interface discovery, `identity.rs` the device's public keys, `fingerprint.rs` SHA-256 fingerprints and `client.rs` the socket client. The `agx-securityd` binary owns `server.rs` (control socket and authorization), `gate.rs` (per-interface SSH listeners and relay) and `peer.rs` (reading and pinning the connected computer's host key). `vnc.rs` edits the `AGX_GUI_VNC` line of `gui.env`. In the desktop, `security/suggest.rs` writes the "How to connect" sentences. The desktop's `security/` module mirrors its state into Settings and first-boot setup. |
 | `agx-tui` | `app/mod.rs` owns state/navigation; `app/render.rs` owns chrome/composition; `app/screens.rs` owns built-in read-only screens; `runtime.rs` owns the event loop; `terminal.rs` owns terminal cleanup/signals and suspend/resume; `shell.rs` owns foreground process groups, shell/tmux launch and restoring terminal ownership/modes; `app/shell.rs` renders the Terminal launch screen; `worker.rs` owns sampling; `palette.rs` owns shared styling; `remote_access.rs` composes the shared VNC status panel on Network and Services. Feature screens retain their own modules. |
 
-The desktop greeter uses `ui/login.slint` for sign-in and `ui/first-boot.slint` for first-run setup. `login/setup.rs` gates setup on the administrator account and completion marker, and `login/setup/wifi.rs` waits for the system Wi-Fi service off the UI thread. The greeter and desktop Settings share the Bluetooth page and socket client. The profile service records the completion marker when it creates an administrator, so the desktop, USB browser and TUI can all finish account setup.
+The desktop greeter uses `ui/login.slint` for sign-in and `ui/first-boot.slint` for first-run setup. `login/setup.rs` gates setup on the administrator account and completion marker, and `login/setup/wifi.rs` waits for the system Wi-Fi service off the UI thread. `drivers/inventory.rs` supplies hardware and kernel driver inventory to both Settings and setup. `drivers/provision/mod.rs` prepares local drivers and reports readiness, `catalog.rs` verifies and selects online bundles, and `files.rs` validates and installs the payload. `scripts/build-driver-feed.py` packages those bundles and signs the catalog for a release kernel. `scripts/check-driver-feed.py` verifies the hosted catalog and every payload against the staged release. The x86 coldplug script loads kernel aliases before the network and desktop start. `graphics/provisioned.rs` probes the optional downloaded graphics libraries for the x86 bootstrap build. The greeter and desktop Settings share the Bluetooth page and socket client. The profile service records the completion marker when it creates an administrator, so the desktop, USB browser and TUI can all finish account setup.
+
+`drivers/retry.rs` connects the signed-in Drivers page to the administrator
+control socket. `agx-init/src/driver_setup.rs` runs the fixed installer command
+and owns its result. The supervisor excludes that child from orphan reaping
+until the installer result is available.
+
+The generic x86 image uses `buildroot/board/agx/uefi/wired-network` for
+Ethernet DHCP discovery. `direct-ethernet` is its DHCP event hook for a direct
+cable with no lease. `scripts/stage-x86-media-drivers.py` stages the standard
+audio and USB Bluetooth driver bundles. The feed builder derives their
+selectors from the compiled kernel modules.
+
+On provisioned-graphics builds, `post-build.sh` puts the WebKit software
+Mesa libraries in a private browser directory. `browser/engine.rs` selects
+that directory for the Web subprocess until the system GPU runtime is present.
 
 The sign-in form and keyboard-accessible session selector live in
 `agx-gui/ui/login.slint`. `agx-gui/src/graphics.rs` checks the available display,
@@ -108,6 +123,8 @@ boot files and the shared desktop binary packed into the root filesystem.
 record from validated Buildroot output. `scripts/ssh_provisioning.py` owns
 workstation identity selection and creation, plus offline SSH key installation
 and verification for both SD and ISO provisioning.
+
+`agx-init/src/boot_ssh.rs` verifies the Dropbear endpoint configured by the supervisor. The first-boot check works while the public SSH gate is closed.
 
 `agx-init/src/device_events.rs` owns desktop device permissions and the kernel-to-libudev-zero input lifecycle relay. Its `bin/agx-display-devices.rs` entry point only starts that service. The existing supervised `agx-display-access` wrapper executes it when installed, retaining the permission-only fallback for older images. Device arrival notifications are forwarded after group access is ready; keystroke data never enters this relay.
 
@@ -269,3 +286,12 @@ per account. The editor owns recording, conflicts, and confirmation, while its
 pointer bridge routes mapped clicks from KMS and VNC into the existing desktop
 input engine. `ui/settings-key-bindings.slint` owns search and the keyboard and
 mouse lists. `ui/key-binding-dialog.slint` owns the focused input recorder.
+
+Settings → Drivers lives in `agx-gui/ui/settings-drivers.slint`. The worker in
+`agx-gui/src/drivers/mod.rs` publishes the local scan and optional online results
+independently. `drivers/inventory.rs` gathers Linux class endpoints, bus IDs,
+Device Tree bindings and aliases from the running kernel's module metadata.
+`drivers/online.rs` owns bounded HTTPS lookups by public device ID and reads
+the upstream kernel source for supported Device Tree driver families. The
+existing Slint OpenGL notifier records the desktop's actual renderer for the
+page, independently of the GPU's kernel binding.

@@ -17,17 +17,60 @@ if [ -L "$dropbear_dir" ]; then
 fi
 install -d -m 0700 "$dropbear_dir"
 # Remove keys left in staging if an existing build is repurposed for a public ISO.
+rm -f "$TARGET_DIR/usr/libexec/agx-wired-network" \
+    "$TARGET_DIR/usr/share/udhcpc/default.script.d/50-agx-direct-ethernet"
 if [ -n "${BASE_DIR:-}" ] && [ -f "$BASE_DIR/.generic-iso" ]; then
     install -d -m 0700 "$TARGET_DIR/root/.ssh"
     rm -f -- "$TARGET_DIR/root/.ssh/authorized_keys" "$dropbear_dir"/dropbear_*_host_key
     sed -i 's/^root:[^:]*:/root:!:/' "$TARGET_DIR/etc/shadow"
     install -m 0600 /dev/null "$TARGET_DIR/etc/agx/setup-enabled"
-    rm -f -- "$TARGET_DIR/etc/init.d/S50avahi-daemon" "$TARGET_DIR/etc/agx/setup-claimed"
+    rm -f -- "$TARGET_DIR/etc/init.d/S50avahi-daemon" "$TARGET_DIR/etc/agx/setup-claimed" "$TARGET_DIR/etc/agx/setup-driver-resume"
+    if { [ "${BOARD:-}" = x86-desktop ] || [ "${BOARD:-}" = x86-amd ]; }; then
+        cat > "$TARGET_DIR/etc/network/interfaces" <<'EOF'
+auto lo
+iface lo inet loopback
+EOF
+        board_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+        install -D -m 0755 "$board_dir/uefi/wired-network" "$TARGET_DIR/usr/libexec/agx-wired-network"
+        install -D -m 0755 "$board_dir/uefi/direct-ethernet" \
+            "$TARGET_DIR/usr/share/udhcpc/default.script.d/50-agx-direct-ethernet"
+    fi
 else
     rm -f -- "$TARGET_DIR/etc/agx/setup-enabled"
     if [ -f "$TARGET_DIR/root/.ssh/authorized_keys" ]; then
         chmod 0600 "$TARGET_DIR/root/.ssh/authorized_keys"
     fi
+fi
+
+# The kernel build retains these modules for the matching release bundles.
+# Keep the generic firmware framebuffer and shared DRM helpers on the media.
+if [ -n "${BASE_DIR:-}" ] &&
+    grep -qx 'BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y' "$BASE_DIR/.config"; then
+    # Web's CPU fallback lives outside the paths used by provisioned GPU drivers.
+    lib="$TARGET_DIR/usr/lib"
+    mesa="$lib/agx-web-mesa"
+    for path in "$lib"/libEGL.so* "$lib"/libGLESv*.so* "$lib"/libgbm.so* "$lib"/libgallium* "$lib/dri" "$lib/gbm"; do
+        [ -f "$path" ] || [ -d "$path" ] || [ -L "$path" ] || continue
+        install -d -m 0755 "$mesa"
+        rm -rf -- "$mesa/${path##*/}"
+        mv -- "$path" "$mesa/"
+    done
+    for module_tree in "$TARGET_DIR"/lib/modules/*; do
+        [ -d "$module_tree" ] || continue
+        drivers="$module_tree/kernel/drivers"
+        sound="$module_tree/kernel/sound"
+        rm -rf -- "$drivers/gpu/drm/i915" "$drivers/gpu/drm/amd" "$drivers/gpu/drm/xe" \
+            "$drivers/bluetooth" "$sound/pci/hda" "$sound/usb"
+        "$HOST_DIR/sbin/depmod" -a -b "$TARGET_DIR" "${module_tree##*/}"
+    done
+fi
+
+# Release assembly provides the feed address and public signing key.
+if [ -n "${AGX_DRIVER_FEED_DIR:-}" ]; then
+    install -m 0600 "$AGX_DRIVER_FEED_DIR/driver-catalog.json" "$TARGET_DIR/etc/agx/driver-catalog.json"
+    install -m 0600 "$AGX_DRIVER_FEED_DIR/driver-signers" "$TARGET_DIR/etc/agx/driver-signers"
+else
+    rm -f "$TARGET_DIR/etc/agx/driver-catalog.json" "$TARGET_DIR/etc/agx/driver-signers"
 fi
 
 install -D -m 0644 "$BR2_EXTERNAL_AGX_PATH/../brand/logo-ascii.md" "$TARGET_DIR/usr/share/agx/logo.ascii"

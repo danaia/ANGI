@@ -13,7 +13,31 @@ fn forced_output(command_line: &str, output: &str) -> bool {
     })
 }
 
-/// Select deterministically across either HDMI port, independent of DRM card numbering.
+fn physical_connector(name: &str) -> bool {
+    let Some((kind, number)) = name.rsplit_once('-') else {
+        return false;
+    };
+    !number.is_empty()
+        && number.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(
+            kind,
+            "HDMI-A"
+                | "HDMI-B"
+                | "DP"
+                | "eDP"
+                | "DVI-I"
+                | "DVI-D"
+                | "DVI-A"
+                | "VGA"
+                | "LVDS"
+                | "DSI"
+                | "DPI"
+                | "USB"
+                | "SPI"
+        )
+}
+
+/// Select a connected physical output, independent of DRM card numbering.
 /// A forced `video=...D` reports connected without a cable, so do not trust it alone.
 pub(super) fn connected_output(
     directory: &Path,
@@ -35,7 +59,7 @@ pub(super) fn connected_output(
         };
         if !card.strip_prefix("card").is_some_and(|number| {
             !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
-        }) || !output.starts_with("HDMI-A-")
+        }) || !physical_connector(output)
             || requested.is_some_and(|selected| selected != output)
         {
             continue;
@@ -55,7 +79,18 @@ pub(super) fn connected_output(
         }
         outputs.push(output.to_owned());
     }
-    outputs.sort();
+    // Prefer an internal display on laptops. Otherwise keep the existing HDMI
+    // choice when a desktop has both HDMI and another external connector.
+    outputs.sort_by_key(|output| {
+        let priority = if output.starts_with("eDP-") || output.starts_with("LVDS-") {
+            0
+        } else if output.starts_with("HDMI-") {
+            1
+        } else {
+            2
+        };
+        (priority, output.clone())
+    });
     Ok(outputs.into_iter().next())
 }
 
@@ -142,6 +177,19 @@ mod tests {
                 .as_deref(),
             Some("HDMI-A-1")
         );
+    }
+    #[test]
+    fn supports_displayport_and_internal_panels_without_selecting_virtual_outputs() {
+        let displays = Displays::new();
+        displays.add("card0-Virtual-1", "connected", &[]);
+        displays.add("card1-Writeback-1", "connected", &[]);
+        displays.add("card2-DP-3", "connected", &[]);
+        assert_eq!(displays.output("", None).as_deref(), Some("DP-3"));
+        displays.add("card2-HDMI-A-1", "connected", &[]);
+        assert_eq!(displays.output("", None).as_deref(), Some("HDMI-A-1"));
+        displays.add("card2-eDP-1", "connected", &[]);
+        assert_eq!(displays.output("", None).as_deref(), Some("eDP-1"));
+        assert_eq!(displays.output("", Some("DP-3")).as_deref(), Some("DP-3"));
     }
     #[test]
     fn no_connectors_selects_no_physical_output() {

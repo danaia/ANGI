@@ -234,7 +234,10 @@ pub fn install_preview(ui: &AppWindow) {
     let weak = ui.as_weak();
     let mut pass: Option<Pass> = None;
     let result = ui.window().set_rendering_notifier(move |event, api| match event {
-        RenderingState::RenderingSetup => pass = setup(&weak, api),
+        RenderingState::RenderingSetup => {
+            crate::drivers::record_renderer(&weak, api);
+            pass = setup(&weak, api);
+        }
         RenderingState::AfterRendering => {
             if let Some(pass) = &pass {
                 unsafe { pass.draw() };

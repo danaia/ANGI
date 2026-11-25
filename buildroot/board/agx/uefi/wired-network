@@ -1,0 +1,25 @@
+#!/bin/sh
+# Generate DHCP entries for the physical wired adapters present at boot.
+mkdir -p /run/network
+config=/run/network/agx-wired-interfaces
+
+case "${1:-}" in
+    start)
+        cat /etc/network/interfaces > "$config" || exit 1
+        for device in /sys/class/net/*; do
+            [ -e "$device/device" ] && [ ! -e "$device/phy80211" ] && [ ! -d "$device/wireless" ] || continue
+            [ "$(cat "$device/type")" = 1 ] || continue
+            name=${device##*/}
+            case "$name" in ''|*[!a-zA-Z0-9_.-]*) continue ;; esac
+            if ! awk -v name="$name" '$1 == "iface" && $2 == name { found = 1 } END { exit !found }' "$config"; then
+                printf '\nauto %s\niface %s inet dhcp\n    udhcpc_opts -b\n' "$name" "$name" >> "$config"
+            fi
+        done
+        ifup -i "$config" -a
+        ;;
+    stop) [ ! -f "$config" ] || ifdown -i "$config" -a ;;
+    restart|reload) "$0" stop; "$0" start ;;
+    *) exit 1 ;;
+esac
+# Disconnected interfaces must never prevent the provisioning screen from starting.
+exit 0

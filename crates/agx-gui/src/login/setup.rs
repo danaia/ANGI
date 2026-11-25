@@ -1,4 +1,5 @@
 //! First-run setup in the greeter, before the first administrator signs in.
+use crate::drivers::provision as drivers;
 mod wifi;
 
 use crate::{GreeterSetup, LoginWindow, WifiChoice};
@@ -7,6 +8,8 @@ use agx_profile::{Save, service};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 use std::time::Duration;
 use zeroize::Zeroizing;
+
+const RESUME_DRIVERS: &str = "/etc/agx/setup-driver-resume";
 
 pub(super) fn install(ui: &LoginWindow) -> Timer {
     let page = ui.global::<GreeterSetup>();
@@ -82,14 +85,60 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
                     page.set_status("".into());
                     match outcome {
                         Ok(network) => {
-                            page.set_ready(true);
-                            page.set_status(format!("Connected to {network}.").into());
+                            begin_drivers(&ui, format!("Connected to {network}."), false);
                         }
                         Err(error) => page.set_error(error.into()),
                     }
                 });
             });
         }
+    });
+
+    let weak = ui.as_weak();
+    page.on_prepare_drivers(move || {
+        if let Some(ui) = weak.upgrade() {
+            begin_drivers(&ui, String::new(), false);
+        }
+    });
+
+    let weak = ui.as_weak();
+    page.on_restart_drivers(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let page = ui.global::<GreeterSetup>();
+        if !page.get_restart_required() || !start(&ui, 2, "Restarting ANGI…") {
+            return;
+        }
+        let weak = ui.as_weak();
+        std::thread::spawn(move || {
+            let restarted = std::fs::write(RESUME_DRIVERS, b"").is_ok()
+                && std::process::Command::new("/usr/bin/agx")
+                    .args(["reboot", "--yes"])
+                    .status()
+                    .is_ok_and(|status| status.success());
+            if !restarted {
+                let _ = std::fs::remove_file(RESUME_DRIVERS);
+                let _ = weak.upgrade_in_event_loop(|ui| {
+                    let page = ui.global::<GreeterSetup>();
+                    page.set_busy(false);
+                    page.set_status("".into());
+                    page.set_error(
+                        "Could not restart. Try again or restart the computer manually.".into(),
+                    );
+                });
+            }
+        });
+    });
+
+    let weak = ui.as_weak();
+    page.on_continue_setup(move |defer| {
+        let Some(ui) = weak.upgrade() else { return };
+        let page = ui.global::<GreeterSetup>();
+        if page.get_busy() || page.get_step() != 2 || (!defer && !page.get_ready()) {
+            return;
+        }
+        page.set_status("".into());
+        page.set_error("".into());
+        page.set_step(3);
     });
 
     let weak = ui.as_weak();
@@ -102,7 +151,7 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
     let weak = ui.as_weak();
     page.on_create_account(move |name, hostname, username, password| {
         let Some(ui) = weak.upgrade() else { return };
-        if start(&ui, 2, "Creating your administrator account…") {
+        if start(&ui, 3, "Creating your administrator account…") {
             let save = Save {
                 name: name.to_string(),
                 hostname: hostname.to_string(),
@@ -119,11 +168,11 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
                     page.set_busy(false);
                     page.set_status("".into());
                     match outcome {
-                        // Security is the last step (3); the account exists, so the greeter stays
+                        // Security is the last step (4); the account exists, so the greeter stays
                         // on it instead of jumping to sign-in.
                         Ok(_) => {
                             page.set_created_user(username.into());
-                            page.set_step(3);
+                            page.set_step(4);
                         }
                         Err(error) => page.set_error(error.to_string().into()),
                     }
@@ -138,8 +187,8 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
     timer.start(TimerMode::Repeated, Duration::from_secs(1), move || {
         let Some(ui) = weak.upgrade() else { return };
         let page = ui.global::<GreeterSetup>();
-        // Step 3 (Security) follows the account; the sign-in screen waits for Finish.
-        if page.get_step() == 0 || page.get_step() == 3 || page.get_busy() {
+        // Step 4 (Security) follows the account; the sign-in screen waits for Finish.
+        if page.get_step() == 0 || page.get_step() == 4 || page.get_busy() {
             return;
         }
         if service::setup_claimed().unwrap_or(false) && page.get_step() < 0 {
@@ -162,6 +211,9 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
                         page.set_hostname(status.hostname.into());
                     }
                     page.set_step(1);
+                    if std::fs::remove_file(RESUME_DRIVERS).is_ok() {
+                        begin_drivers(&ui, String::new(), true);
+                    }
                 }
             }
             Err(_) if page.get_step() < 0 => {
@@ -186,4 +238,34 @@ fn start(ui: &LoginWindow, step: i32, message: &str) -> bool {
     page.set_status(message.into());
     page.set_error("".into());
     true
+}
+
+fn begin_drivers(ui: &LoginWindow, mut connection: String, reconnect: bool) {
+    let page = ui.global::<GreeterSetup>();
+    if page.get_busy() || !matches!(page.get_step(), 1 | 2) {
+        return;
+    }
+    page.set_step(2);
+    page.set_ready(false);
+    page.set_restart_required(false);
+    page.set_driver_rows(ModelRc::default());
+    if !start(ui, 2, "Preparing drivers for this computer…") {
+        return;
+    }
+    let weak = ui.as_weak();
+    std::thread::spawn(move || {
+        if reconnect && let Some(network) = wifi::reconnect() {
+            connection = format!("Connected to {network}.");
+        }
+        let outcome = drivers::prepare();
+        let _ = weak.upgrade_in_event_loop(move |ui| {
+            let page = ui.global::<GreeterSetup>();
+            page.set_driver_rows(model(outcome.rows.into_iter().map(SharedString::from)));
+            page.set_ready(outcome.ready);
+            page.set_restart_required(outcome.restart);
+            page.set_error(outcome.error.unwrap_or_default().into());
+            page.set_status(connection.into());
+            page.set_busy(false);
+        });
+    });
 }

@@ -33,13 +33,17 @@ fi
 [[ "$ACTION" == prepare ]] && exit 0
 build_options=()
 if [[ ${AGX_GENERIC_ISO:-0} == 1 || -f "$OUTPUT/.generic-iso" ]]; then
-    [[ $BOARD == rpi4 && -n ${AGX_BUILD_OUTPUT:-} ]] || {
-        echo "Set AGX_BUILD_OUTPUT to a separate Pi 4 / 400 build directory for the generic ISO." >&2
+    [[ ( $BOARD == rpi4 || $BOARD == x86-desktop || $BOARD == x86-amd ) && -n ${AGX_BUILD_OUTPUT:-} ]] || {
+        echo "Set AGX_BUILD_OUTPUT to a separate Pi 4 / 400 or x86-64 build directory for the generic ISO." >&2
         exit 1
     }
     mkdir -p -- "$OUTPUT"
     touch -- "$OUTPUT/.generic-iso"
-    build_options+=("BR2_ROOTFS_OVERLAY=$ROOT/buildroot/board/agx/rootfs-overlay $FIRMWARE_DIR/rootfs-overlay")
+    overlays="$ROOT/buildroot/board/agx/rootfs-overlay"
+    if [[ -d $FIRMWARE_DIR/rootfs-overlay ]]; then
+        overlays+=" $FIRMWARE_DIR/rootfs-overlay"
+    fi
+    build_options+=("BR2_ROOTFS_OVERLAY=$overlays")
 else
     # Keep workstation-specific public keys out of the tracked board overlay.
     PUBLIC_KEY=${SSH_PUBLIC_KEY:-$(python3 "$ROOT/scripts/ssh_provisioning.py")}

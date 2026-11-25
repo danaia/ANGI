@@ -90,7 +90,7 @@ def make_bootstrap(board, public_key, directory):
         (directory / "cmdline.txt").write_text(
             f"angi.netinstall=1 console={serial},115200 console=tty1\n")
     else:
-        platform = "x86_64-efi" if board == "x86-desktop" else "arm64-efi"
+        platform = "x86_64-efi" if config["arch"] == "x86_64" else "arm64-efi"
         modules, = output.glob(f"build/grub2-*/build-{platform}/grub-core")
         grub = directory / "bootstrap.cfg"
         grub.write_text(

@@ -48,6 +48,22 @@ pub struct Engine {
     tx: SyncSender<(u8, Vec<u8>)>,
     pub updates: Arc<Mutex<Updates>>,
 }
+
+fn configure_graphics(command: &mut Command) {
+    let fallback = std::path::Path::new("/usr/lib/agx-web-mesa");
+    if fallback.join("libEGL.so.1").is_file()
+        && !["libEGL.so.1", "libGLESv2.so.2", "libgbm.so.1"]
+            .into_iter()
+            .all(|name| std::path::Path::new("/usr/lib").join(name).is_file())
+    {
+        command
+            .env("LD_LIBRARY_PATH", fallback)
+            .env("GBM_BACKENDS_PATH", fallback.join("gbm"))
+            .env("LIBGL_DRIVERS_PATH", fallback.join("dri"))
+            .env("LIBGL_ALWAYS_SOFTWARE", "1");
+    }
+}
+
 impl Engine {
     pub fn start(ui: &crate::AppWindow) -> io::Result<Self> {
         Self::start_host(ui, false)
@@ -61,6 +77,12 @@ impl Engine {
         if unsafe { libc::geteuid() } == 0 {
             return Err(io::Error::other("Open Web from a signed-in user session."));
         }
+        const WEB_HOST: &str = "/usr/libexec/agx-web";
+        let executable = match std::env::var_os("AGX_WEB_HOST") {
+            Some(path) => path,
+            None if std::path::Path::new(WEB_HOST).is_file() => WEB_HOST.into(),
+            None => return Err(io::Error::other("This image needs the ANGI WebKit runtime.")),
+        };
         let (control, peer) = UnixStream::pair()?;
         // Both descriptors stay close-on-exec everywhere except the embedding helper.
         let fd = unsafe {
@@ -90,9 +112,8 @@ impl Engine {
             None
         };
         let socket = peer.as_raw_fd();
-        let executable =
-            std::env::var_os("AGX_WEB_HOST").unwrap_or_else(|| "/usr/libexec/agx-web".into());
         let mut command = Command::new(executable);
+        configure_graphics(&mut command);
         super::storage::configure_child(&mut command);
         command
             .args([

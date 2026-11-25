@@ -55,7 +55,7 @@ def check(images, expected_board=None):
     require(board in BY_ID, f"Unknown board stamp: {board}")
     require(expected_board is None or board == expected_board,
             f"Image is for {board}, expected {expected_board}")
-    if board in ("arm-desktop", "x86-desktop"):
+    if board in ("arm-desktop", "x86-desktop", "x86-amd"):
         check_uefi(images, BY_ID[board])
         return
     profile = PROFILES[board]

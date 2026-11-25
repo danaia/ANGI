@@ -1,6 +1,6 @@
 import { Theme } from "data.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Button, ButtonVariant, Select, TextField } from "pebble/pebble.slint";
+import { Button, ButtonVariant, Heading2, Hint, Label, Select, TextField } from "pebble/pebble.slint";
 import { SecurityBody, SecuritySettings } from "security.slint";
 
 export struct WifiChoice { id: string, security: int }
@@ -9,6 +9,7 @@ export global GreeterSetup {
     in-out property <int> step: 0;
     in-out property <bool> busy;
     in-out property <bool> ready;
+    in-out property <bool> restart-required;
     in-out property <string> status;
     in-out property <string> error;
     in-out property <[string]> networks;
@@ -16,8 +17,12 @@ export global GreeterSetup {
     in-out property <string> hostname: "angi";
     callback scan(string);
     callback connect(string, int, string, int, string, bool);
+    in-out property <[string]> driver-rows;
+    callback prepare-drivers();
+    callback restart-drivers();
+    callback continue-setup(bool);
     callback create-account(string, string, string, string);
-    // The account created in step 2; Finish signs in to it.
+    // The account created in step 3; Finish signs in to it.
     in-out property <string> created-user;
     callback finish(string);
 }
@@ -116,7 +121,7 @@ component AccountStep inherits VerticalLayout {
 }
 
 export component FirstBootPanel inherits Rectangle {
-    changed step => { SecuritySettings.active = self.step == 3; }
+    changed step => { SecuritySettings.active = self.step == 4; }
     property <int> step: GreeterSetup.step;
     Rectangle {
         width: min(660px, parent.width - 32px);
@@ -128,17 +133,15 @@ export component FirstBootPanel inherits Rectangle {
         border-color: Theme.line;
         border-radius: Theme.radius-xl;
         VerticalLayout {
-            padding: Theme.space-10;
+            padding: parent.width < 500px ? Theme.space-4 : Theme.space-10;
             spacing: Theme.space-3;
             HorizontalLayout {
                 alignment: space-between;
-                Text {
-                    text: GreeterSetup.step == 1 ? "Connect to Wi-Fi" : GreeterSetup.step == 2 ? "Create your administrator account"
-                        : GreeterSetup.step == 3 ? "Secure this computer" : "Checking this installation";
-                    color: Theme.ink;
-                    font-size: Theme.text-heading-2;
-                    font-weight: 500;
-                    vertical-alignment: center;
+                Heading2 {
+                    text: GreeterSetup.step == 1 ? "Connect to Wi-Fi" : GreeterSetup.step == 2 ? "Prepare drivers"
+                        : GreeterSetup.step == 3 ? "Create your administrator account"
+                        : GreeterSetup.step == 4 ? "Secure this computer" : "Checking this installation";
+                    wrap: word-wrap;
                 }
                 Image {
                     width: 90px;
@@ -155,8 +158,17 @@ export component FirstBootPanel inherits Rectangle {
                     alignment: start;
                     spacing: 8px;
                     if GreeterSetup.step == 1: WifiStep {}
-                    if GreeterSetup.step == 2: AccountStep {}
-                    if GreeterSetup.step == 3: SecurityBody { setup: true; compact: true; }
+                    if GreeterSetup.step == 2: VerticalLayout {
+                        spacing: Theme.space-2;
+                        Hint { text: "ANGI checks graphics, sound, Wi-Fi and Bluetooth before you create your account."; wrap: word-wrap; }
+                        for row in GreeterSetup.driver-rows: Label { text: row; wrap: word-wrap; }
+                        if !GreeterSetup.busy && !GreeterSetup.ready && !GreeterSetup.restart-required: Hint {
+                            text: "You can finish setup, sign in as the administrator, and install drivers from Settings → Drivers.";
+                            wrap: word-wrap;
+                        }
+                    }
+                    if GreeterSetup.step == 3: AccountStep {}
+                    if GreeterSetup.step == 4: SecurityBody { setup: true; compact: true; }
                     if GreeterSetup.status != "": Text {
                         text: GreeterSetup.status; color: Theme.ink; wrap: word-wrap;
                     }
@@ -165,28 +177,58 @@ export component FirstBootPanel inherits Rectangle {
                     }
                 }
             }
-            if GreeterSetup.step >= 1: HorizontalLayout {
-                alignment: end;
-                spacing: 8px;
-                // The account exists once step 3 begins, so there is nothing to go back to.
-                if GreeterSetup.step == 2: Button {
-                    text: "Back";
-                    enabled: !GreeterSetup.busy;
-                    clicked => { GreeterSetup.error = ""; GreeterSetup.step -= 1; }
-                }
-                if GreeterSetup.step == 1: Button {
-                    text: GreeterSetup.step == 1 && !GreeterSetup.ready ? "Set up Wi-Fi later" : "Continue";
-                    enabled: !GreeterSetup.busy;
-                    clicked => {
-                        GreeterSetup.error = "";
-                        GreeterSetup.step += 1;
+            if GreeterSetup.step >= 1: VerticalLayout {
+                spacing: Theme.space-2;
+                if GreeterSetup.step == 2 && !GreeterSetup.ready: HorizontalLayout {
+                    alignment: end;
+                    Button {
+                        text: GreeterSetup.restart-required ? "Continue without restarting" : "Install drivers later";
+                        enabled: !GreeterSetup.busy;
+                        clicked => { GreeterSetup.continue-setup(true); }
                     }
                 }
-                if GreeterSetup.step == 3: Button {
-                    text: "Finish";
-                    variant: ButtonVariant.primary;
-                    enabled: !SecuritySettings.busy;
-                    clicked => { GreeterSetup.finish(GreeterSetup.created-user); }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: Theme.space-2;
+                    if GreeterSetup.step == 2 || GreeterSetup.step == 3: Button {
+                        text: "Back";
+                        enabled: !GreeterSetup.busy;
+                        clicked => {
+                            GreeterSetup.error = "";
+                            GreeterSetup.status = "";
+                            GreeterSetup.step -= 1;
+                        }
+                    }
+                    if GreeterSetup.step == 1: Button {
+                        text: "Use Ethernet or continue offline";
+                        enabled: !GreeterSetup.busy;
+                        clicked => { GreeterSetup.prepare-drivers(); }
+                    }
+                    if GreeterSetup.step == 2 && !GreeterSetup.ready && !GreeterSetup.restart-required: Button {
+                        text: "Retry";
+                        enabled: !GreeterSetup.busy;
+                        clicked => { GreeterSetup.prepare-drivers(); }
+                    }
+                    if GreeterSetup.step == 2 && GreeterSetup.restart-required: Button {
+                        text: "Restart and check drivers";
+                        variant: ButtonVariant.primary;
+                        enabled: !GreeterSetup.busy;
+                        init => { self.focus(); }
+                        clicked => { GreeterSetup.restart-drivers(); }
+                    }
+                    if GreeterSetup.step == 2 && GreeterSetup.ready: Button {
+                        text: "Continue";
+                        variant: ButtonVariant.primary;
+                        enabled: !GreeterSetup.busy;
+                        init => { self.focus(); }
+                        clicked => { GreeterSetup.continue-setup(false); }
+                    }
+                    if GreeterSetup.step == 4: Button {
+                        text: "Finish";
+                        variant: ButtonVariant.primary;
+                        enabled: !SecuritySettings.busy;
+                        clicked => { GreeterSetup.finish(GreeterSetup.created-user); }
+                    }
                 }
             }
         }

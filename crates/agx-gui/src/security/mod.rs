@@ -24,6 +24,8 @@ type Outcome = Result<Reply, String>;
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct Summary {
     pub ethernet_connected: bool,
+    pub ethernet_address: String,
+    pub ethernet_listening: bool,
     pub usb_connected: bool,
     /// The computer on the Ethernet cable, once the neighbor table knows it.
     pub peer: String,
@@ -31,8 +33,13 @@ pub(crate) struct Summary {
 
 pub(crate) fn summarize(status: &Status) -> Summary {
     let wired = |kind| status.links.iter().filter(move |link| link.kind == kind && link.connected);
+    let addressed = wired(Kind::Ethernet)
+        .filter(|link| !link.address.is_empty())
+        .max_by_key(|link| link.open);
     Summary {
         ethernet_connected: wired(Kind::Ethernet).next().is_some(),
+        ethernet_address: addressed.map(|link| link.address.clone()).unwrap_or_default(),
+        ethernet_listening: addressed.is_some_and(|link| link.open),
         usb_connected: wired(Kind::Usb).next().is_some(),
         peer: wired(Kind::Ethernet)
             .map(|link| link.peer.clone())
@@ -68,6 +75,8 @@ fn show(page: SecuritySettings<'_>, outcome: Outcome) {
     page.set_ethernet_open(status.ethernet_open);
     page.set_usb_open(status.usb_open);
     page.set_ethernet_connected(summary.ethernet_connected);
+    page.set_ethernet_address(summary.ethernet_address.into());
+    page.set_ethernet_listening(summary.ethernet_listening);
     page.set_usb_connected(summary.usb_connected);
     // Once any account exists the administrator's password is what authorizes opening a link.
     page.set_password_required(agx_profile::service::setup_claimed().unwrap_or(true));

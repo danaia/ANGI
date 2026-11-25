@@ -13,6 +13,7 @@ HOST_KEY = "/etc/dropbear/dropbear_ed25519_host_key"
 # A card prepared with the person's own workstation key and a pinned host key has already been
 # authorized for wired SSH; an unprovisioned image starts with Ethernet and USB closed.
 SECURITY_POLICY = "/etc/agx/security.conf"
+WIRED_ONLY_MARKER = "/etc/agx/wired-ssh-only"
 PROVISIONED_POLICY = b"ethernet=open\nusb=open\n"
 
 
@@ -73,7 +74,7 @@ def workstation_public_key():
     raise ValueError("Could not select a workstation SSH key pair. Supply the public key for an existing identity.")
 
 
-def personalize_rootfs(work, public_key, dropbearkey):
+def personalize_rootfs(work, public_key, dropbearkey, *, wired_only=False):
     login_key = work / "login.pub"
     login_key.write_bytes(public_key)
     host_key = work / "device.key"
@@ -85,23 +86,27 @@ def personalize_rootfs(work, public_key, dropbearkey):
         raise ValueError("Dropbear did not report the generated public host key")
     host_public_key = b" ".join(key_line.split()[:2]) + b"\n"
     policy = work / "security.conf"
-    policy.write_bytes(PROVISIONED_POLICY)
+    policy.write_bytes(b"ethernet=closed\nusb=closed\n" if wired_only else PROVISIONED_POLICY)
     commands = [f"rm {LOGIN_KEY}", "mkdir /etc/agx", f"rm {SECURITY_POLICY}"]
-    for source, destination, mode in ((login_key, LOGIN_KEY, "0100600"), (host_key, HOST_KEY, "0100600"),
-                                      (policy, SECURITY_POLICY, "0100644")):
+    files = [(login_key, LOGIN_KEY, "0600"), (host_key, HOST_KEY, "0600"),
+             (policy, SECURITY_POLICY, "0644")]
+    if wired_only:
+        marker = work / "wired-only"
+        marker.write_text("1\n")
+        files.append((marker, WIRED_ONLY_MARKER, "0600"))
+    for source, destination, mode in files:
         commands.extend([
             f"write {source.name} {destination}",
             f"set_inode_field {destination} uid 0",
             f"set_inode_field {destination} gid 0",
-            f"set_inode_field {destination} mode {mode}",
+            f"set_inode_field {destination} mode 010{mode}",
         ])
     rootfs = work / "rootfs"
     subprocess.run(["debugfs", "-w", "-f", "/dev/stdin", str(rootfs)], cwd=work,
                    input="\n".join(commands) + "\n", text=True, capture_output=True, check=True)
 
     # debugfs may print file-level errors without returning a failing status.
-    for source, destination, mode in ((login_key, LOGIN_KEY, "0600"), (host_key, HOST_KEY, "0600"),
-                                      (policy, SECURITY_POLICY, "0644")):
+    for source, destination, mode in files:
         content = subprocess.check_output(["debugfs", "-R", f"cat {destination}", str(rootfs)],
                                           stderr=subprocess.DEVNULL)
         metadata = subprocess.check_output(["debugfs", "-R", f"stat {destination}", str(rootfs)],

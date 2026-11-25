@@ -249,12 +249,6 @@
         "ssh_host_alias": "agx_x86",
         "choices": [
           {
-            "id": "amd",
-            "name": "AMD x86-64 computer",
-            "short": "AMD",
-            "cpu_vendor": "AuthenticAMD"
-          },
-          {
             "id": "intel",
             "name": "Intel x86-64 computer",
             "short": "Intel",
@@ -267,6 +261,53 @@
       "firmware_dir": "buildroot/board/agx/uefi",
       "image": "disk.img",
       "note": "Source configuration available. Physical boot, networking, and USB-reader verification are pending."
+    },
+    {
+      "id": "x86-amd",
+      "name": "AMD x86-64 desktop or laptop (UEFI)",
+      "arch": "x86_64",
+      "status": "experimental",
+      "medium": "USB stick or SD card in a USB reader",
+      "dt_model": "",
+      "usb_boot_ids": [],
+      "links": {
+        "ethernet": {
+          "pi": "10.78.0.2",
+          "host": "10.78.0.1",
+          "profile": "agx-ethernet"
+        }
+      },
+      "how_to_tell": "A 64-bit UEFI computer with an AMD processor, such as AMD Ryzen.",
+      "marketing": {
+        "short": "AMD computer",
+        "tagline": "An AMD x86-64 desktop or laptop.",
+        "media": "SD card or USB drive",
+        "card": "An SD card or USB drive of 16 GB or more. Your agent formats it for you; everything on it is erased.",
+        "reader": "Plug the drive or card reader into the computer you are working on, not the one ANGI is going on.",
+        "connect": "Your agent tells you when to plug the finished drive into your AMD computer and start it from that drive."
+      },
+      "install": {
+        "media": [
+          "usb",
+          "ethernet"
+        ],
+        "first_boot": "docs/install-prompts/pc-uefi.md",
+        "connection": "Power the target normally and choose the USB stick or USB SD card reader in its 64-bit UEFI boot menu.",
+        "ssh_host_alias": "agx_x86_amd",
+        "choices": [
+          {
+            "id": "amd",
+            "name": "AMD x86-64 computer",
+            "short": "AMD",
+            "cpu_vendor": "AuthenticAMD"
+          }
+        ]
+      },
+      "defconfig": "agx_x86_amd_defconfig",
+      "output": "output-x86-amd",
+      "firmware_dir": "buildroot/board/agx/uefi",
+      "image": "disk.img",
+      "note": "AMD UEFI bootstrap image. Physical boot and driver provisioning verification are pending."
     }
   ]
 }

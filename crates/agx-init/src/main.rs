@@ -1,7 +1,10 @@
 //! Rust PID 1, with BusyBox init retained as the boot-error recovery path.
+mod boot_ssh;
+mod driver_setup;
+
 use agx_init::{
     Request,
-    supervisor::{Supervisor, definitions},
+    supervisor::{SECURITY, Supervisor, definitions, ssh_listen_address},
 };
 use std::{
     fs::{self, OpenOptions},
@@ -66,13 +69,19 @@ fn bootstrap() -> io::Result<()> {
         }
     }
     command("/bin/hostname", &["-F", "/etc/hostname"])?;
+    let network = "/usr/libexec/agx-wired-network";
+    let network = if std::path::Path::new(network).is_file() { network } else { "/etc/init.d/S40network" };
     // Keep the known board initialization and USB configuration. Long-running services are Rust-owned.
     for script in [
         "/etc/init.d/S01seedrng",
         "/etc/init.d/S02sysctl",
+        "/etc/init.d/S10agx-hardware",
         "/etc/init.d/S11modules",
-        "/etc/init.d/S40network",
+        network,
     ] {
+        if script == "/etc/init.d/S10agx-hardware" && !std::path::Path::new(script).exists() {
+            continue;
+        }
         command(script, &["start"])?;
     }
     // Optional data storage must not prevent recovery if its drive is absent.
@@ -80,20 +89,6 @@ fn bootstrap() -> io::Result<()> {
         let _ = command("/etc/init.d/S12agx-data", &["start"]);
     }
     Ok(())
-}
-fn ssh_listening() -> bool {
-    ["/proc/net/tcp", "/proc/net/tcp6"].iter().any(|path| {
-        fs::read_to_string(path)
-            .unwrap_or_default()
-            .lines()
-            .any(|line| {
-                let columns: Vec<_> = line.split_whitespace().collect();
-                columns
-                    .get(1)
-                    .is_some_and(|address| address.ends_with(":0016"))
-                    && columns.get(3) == Some(&"0A")
-            })
-    })
 }
 fn run(pid1: bool) -> io::Result<()> {
     if unsafe { libc::geteuid() } != 0 {
@@ -136,19 +131,24 @@ fn run(pid1: bool) -> io::Result<()> {
         signal_hook::flag::register(signal, Arc::clone(&poweroff))?;
     }
     let mut manager = Supervisor::new(definitions(pid1), pid1);
+    let mut driver_setup = driver_setup::DriverSetup::new(pid1);
     manager.tick();
     if pid1 {
         let _ = command("/etc/init.d/S51agx-boot-metrics", &["start"]);
     }
     let boot_started = Instant::now();
+    let ssh_address = ssh_listen_address(std::path::Path::new(SECURITY).is_file());
     let mut recovery_verified = false;
     loop {
-        manager.tick();
+        driver_setup.refresh();
+        manager.tick_with_child(driver_setup.pid());
         if pid1 && !recovery_verified && boot_started.elapsed() > Duration::from_secs(15) {
-            if !ssh_listening() {
-                return Err(io::Error::other(
-                    "SSH recovery listener unavailable; falling back to BusyBox",
-                ));
+            // The public SSH gate can be closed throughout first-run setup.
+            // Check Dropbear's configured endpoint without opening a network link.
+            if !boot_ssh::listening(ssh_address) {
+                return Err(io::Error::other(format!(
+                    "SSH recovery listener unavailable at {ssh_address}; falling back to BusyBox"
+                )));
             }
             recovery_verified = true;
         }
@@ -172,7 +172,14 @@ fn run(pid1: bool) -> io::Result<()> {
                         return Err(io::Error::other("Request too large"));
                     }
                     let request: Request = serde_json::from_slice(&bytes)?;
-                    let reply = manager.handle(request);
+                    let preparation = match &request {
+                        Request::DriverPreparation { start } => {
+                            driver_setup.status(*start && manager.power.is_none())
+                        }
+                        _ => None,
+                    };
+                    let mut reply = manager.handle(request);
+                    reply.driver_preparation = preparation;
                     serde_json::to_writer(&mut socket, &reply)?;
                     socket.write_all(b"\n")
                 })();
@@ -188,7 +195,8 @@ fn run(pid1: bool) -> io::Result<()> {
     manager.stop_all();
     let deadline = Instant::now() + Duration::from_secs(7);
     while !manager.all_stopped() && Instant::now() < deadline {
-        manager.tick();
+        driver_setup.refresh();
+        manager.tick_with_child(driver_setup.pid());
         std::thread::sleep(Duration::from_millis(50));
     }
     let reboot =

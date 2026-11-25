@@ -31,6 +31,7 @@ pub(super) fn install(ui: &crate::AppWindow, app: &std::rc::Rc<std::cell::RefCel
         .window()
         .set_rendering_notifier(move |event, api| match event {
             RenderingState::RenderingSetup => {
+                crate::drivers::record_renderer(&weak, api);
                 night_light = crate::night_light::gl::setup(&weak, api);
                 match unsafe { renderer::Renderer::new(api) } {
                     Ok(gpu) => {

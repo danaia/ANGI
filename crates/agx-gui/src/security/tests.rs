@@ -48,6 +48,9 @@ fn an_open_cable_gets_a_ready_to_paste_ssh_command() {
         ..Status::default()
     };
     let lines = suggestions(&status, "dana");
+    let summary = summarize(&status);
+    assert_eq!(summary.ethernet_address, "10.78.0.2");
+    assert!(summary.ethernet_listening);
     assert_eq!(lines, ["From the computer on the Ethernet cable: ssh dana@10.78.0.2"]);
 }
 

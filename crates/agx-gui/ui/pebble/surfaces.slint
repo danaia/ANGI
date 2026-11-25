@@ -105,6 +105,7 @@ export component NavItem inherits Rectangle {
     in property <bool> current;
     // Icon-only for narrow windows; `text` is still the accessible name.
     in property <bool> compact;
+    out property <bool> has-hover: touch.has-hover;
     callback clicked();
     callback pointer-moved(length, length);
     accessible-role: tab;

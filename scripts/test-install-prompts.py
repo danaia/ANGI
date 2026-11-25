@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from detect_board_registry import BY_ID, ROOT
+from detect_board_registry import ROOT, published_boards
 from iso_media import sha256_file
 
 
@@ -40,7 +40,8 @@ console.log(JSON.stringify(outputs));
         prompts = json.loads(output)
         self.assertEqual(set(prompts), {"rpizero2w", "rpi4", "rpi5", "arm-desktop", "amd", "intel"})
         pin = (ROOT / "website/source-commit.txt").read_text().strip()
-        for board, config in BY_ID.items():
+        for config in published_boards(pin):
+            board = config["id"]
             for choice in config["install"]["choices"]:
                 selected = prompts[choice["id"]]
                 self.assertEqual(set(selected), set(config["install"]["media"]))

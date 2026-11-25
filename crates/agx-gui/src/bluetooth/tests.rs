@@ -207,14 +207,14 @@ pub(crate) fn drive(
                 file.write_all(&[p.r, p.g, p.b]).unwrap();
             }
         }
-        // Restore the tile and click into the panel so it has the keyboard again.
+        // Restore the tile and give Settings the keyboard without selecting another category.
         let tile = settings_app.borrow().desk.rect_of(Kind::Settings).unwrap();
         click(tile.right() - 46., tile.y + 14.);
         render();
-        let tile = settings_app.borrow().desk.rect_of(Kind::Settings).unwrap();
-        click(tile.x + 30., tile.y + 400.);
+        ui.invoke_focus_settings();
         press(slint::platform::Key::PageUp);
         render();
+        assert_eq!(ui.global::<crate::MouseSettings>().get_page(), 0);
         assert!(!page.get_active(), "leaving the page stops polling");
     }
     // The real wiring end to end: a stand-in daemon answers on a private socket, so the worker

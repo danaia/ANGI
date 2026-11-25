@@ -1,0 +1,137 @@
+import { Theme, Heading2, Label, Hint, Title, Button, ButtonVariant, Badge, Tone, Divider, Well } from "pebble/pebble.slint";
+import { ScrollView } from "std-widgets.slint";
+
+export struct DriverRow {
+    name: string,
+    status: string,
+    details: string,
+    reference: string,
+    level: int,
+}
+
+export global DriversSettings {
+    in-out property <string> machine;
+    in-out property <string> kernel;
+    in-out property <string> backend;
+    in-out property <string> renderer;
+    in-out property <string> render-status: "Renderer unverified";
+    in-out property <int> render-level;
+    in-out property <string> online-note;
+    in-out property <string> prepare-note;
+    in-out property <bool> prepare-available;
+    in-out property <bool> busy;
+    in-out property <[DriverRow]> graphics;
+    in-out property <[DriverRow]> sound;
+    in-out property <[DriverRow]> wifi;
+    in-out property <[DriverRow]> bluetooth;
+    callback open();
+    callback check();
+    callback prepare();
+}
+
+component DriverStatus inherits Badge {
+    in property <int> level;
+    tone: root.level == 1 ? Tone.success : root.level == 2 ? Tone.warning : Tone.neutral;
+    dot: true;
+}
+
+component DriverGroup inherits VerticalLayout {
+    in property <string> title;
+    in property <[DriverRow]> rows;
+    spacing: Theme.space-2;
+    Divider { }
+    Title { text: root.title; }
+    if root.rows.length == 0: Hint {
+        text: DriversSettings.machine == "" ? "Reading hardware…" : "No device detected";
+        wrap: word-wrap;
+    }
+    for row in root.rows: VerticalLayout {
+        spacing: Theme.space-1;
+        Label { text: row.name; wrap: word-wrap; }
+        HorizontalLayout {
+            alignment: start;
+            DriverStatus { text: row.status; level: row.level; }
+        }
+        if row.details != "": Hint { text: row.details; wrap: word-wrap; }
+        if row.reference != "": Hint { text: row.reference; wrap: word-wrap; }
+    }
+}
+
+export component DriversPage inherits Rectangle {
+    in property <bool> compact;
+    callback pointer-moved(length, length);
+    public function focus-check() {
+        check-button.focus();
+    }
+    ScrollView {
+        width: parent.width;
+        height: parent.height;
+        content-width: self.width;
+        VerticalLayout {
+            padding-left: root.compact ? Theme.space-4 : Theme.space-8;
+            padding-right: self.padding-left;
+            padding-top: root.compact ? Theme.space-4 : Theme.space-6;
+            padding-bottom: Theme.space-6;
+            spacing: Theme.space-4;
+            VerticalLayout {
+                spacing: Theme.space-1;
+                Heading2 { text: "Drivers"; }
+                if DriversSettings.machine != "": Label { text: DriversSettings.machine; wrap: word-wrap; }
+                if DriversSettings.kernel != "": Hint { text: "Linux " + DriversSettings.kernel; wrap: word-wrap; }
+            }
+            Well {
+                VerticalLayout {
+                    padding: Theme.space-4;
+                    spacing: Theme.space-2;
+                    Label { text: "Desktop renderer"; wrap: word-wrap; }
+                    HorizontalLayout {
+                        alignment: start;
+                        DriverStatus { text: DriversSettings.render-status; level: DriversSettings.render-level; }
+                    }
+                    if DriversSettings.renderer != "": Hint { text: DriversSettings.renderer; wrap: word-wrap; }
+                    if DriversSettings.backend != "": Hint { text: "Slint backend: " + DriversSettings.backend; wrap: word-wrap; }
+                }
+            }
+            if DriversSettings.prepare-available: VerticalLayout {
+                spacing: Theme.space-2;
+                HorizontalLayout {
+                    alignment: start;
+                    Button {
+                        text: "Install drivers";
+                        variant: ButtonVariant.primary;
+                        enabled: !DriversSettings.busy;
+                        clicked => { DriversSettings.prepare(); }
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    }
+                }
+                Hint {
+                    text: DriversSettings.prepare-note == "" ? "Downloads signed ANGI drivers for this computer." : DriversSettings.prepare-note;
+                    wrap: word-wrap;
+                }
+            }
+            VerticalLayout {
+                spacing: Theme.space-2;
+                HorizontalLayout {
+                    alignment: start;
+                    check-button := Button {
+                        text: "Check online";
+                        variant: DriversSettings.prepare-available ? ButtonVariant.secondary : ButtonVariant.primary;
+                        enabled: !DriversSettings.busy;
+                        clicked => { DriversSettings.check(); }
+                        pointer-moved(x, y) => { root.pointer-moved(x, y); }
+                    }
+                }
+                Hint {
+                    text: DriversSettings.online-note == ""
+                        ? "Looks up public hardware IDs in Linux Hardware and upstream Linux."
+                        : DriversSettings.online-note;
+                    wrap: word-wrap;
+                }
+            }
+            DriverGroup { title: "Graphics"; rows: DriversSettings.graphics; }
+            DriverGroup { title: "Sound"; rows: DriversSettings.sound; }
+            DriverGroup { title: "Wi-Fi"; rows: DriversSettings.wifi; }
+            DriverGroup { title: "Bluetooth"; rows: DriversSettings.bluetooth; }
+        }
+    }
+}

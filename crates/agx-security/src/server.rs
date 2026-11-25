@@ -98,7 +98,11 @@ pub fn run() -> io::Result<()> {
 impl Service {
     fn sync(&self) {
         Policy::adopt(&self.paths);
-        self.gate.sync(Policy::load(&self.paths), &interfaces());
+        let mut links = interfaces();
+        if self.paths.image_policy.with_file_name("wired-ssh-only").is_file() {
+            links.retain(|link| link.kind.gated());
+        }
+        self.gate.sync(Policy::load(&self.paths), &links);
     }
 
     fn status(&self) -> Status {

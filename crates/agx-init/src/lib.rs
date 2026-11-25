@@ -32,6 +32,18 @@ pub enum Request {
     Shutdown {
         confirmed: bool,
     },
+    DriverPreparation {
+        start: bool,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum DriverPreparation {
+    Available,
+    Working,
+    Ready,
+    RestartRequired,
+    Incomplete(String),
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Service {
@@ -58,6 +70,8 @@ pub struct Reply {
     pub logs: Vec<Log>,
     pub last_sequence: u64,
     pub logs_truncated: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_preparation: Option<DriverPreparation>,
 }
 pub fn request(request: &Request) -> io::Result<Reply> {
     let mut socket = UnixStream::connect(SOCKET)

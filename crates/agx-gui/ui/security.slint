@@ -14,6 +14,8 @@ export global SecuritySettings {
     in-out property <bool> ethernet-open;
     in-out property <bool> usb-open;
     in-out property <bool> ethernet-connected;
+    in-out property <string> ethernet-address;
+    in-out property <bool> ethernet-listening;
     in-out property <bool> usb-connected;
     // The computer on the other end of the Ethernet cable, when it is known.
     in-out property <string> peer-address;
@@ -229,9 +231,11 @@ export component SecurityBody inherits VerticalLayout {
         open: SecuritySettings.ethernet-open;
         connected: SecuritySettings.ethernet-connected;
         asking <=> root.asking;
-        detail: SecuritySettings.ethernet-connected
-            ? (SecuritySettings.peer-address != "" ? "Cable connected to " + SecuritySettings.peer-address + "." : "Cable connected.")
-            : "No cable connected.";
+        detail: !SecuritySettings.ethernet-connected ? "No cable connected."
+            : SecuritySettings.ethernet-listening ? "SSH is listening at " + SecuritySettings.ethernet-address + "."
+            : SecuritySettings.ethernet-address == "" ? "Cable connected. Waiting for a network address."
+            : SecuritySettings.ethernet-open ? "Cable connected at " + SecuritySettings.ethernet-address + ". Waiting for SSH."
+            : "Cable connected at " + SecuritySettings.ethernet-address + ".";
         pointer-moved(x, y) => { root.pointer-moved(x, y); }
     }
     LinkRow {

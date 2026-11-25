@@ -2,7 +2,8 @@ config BR2_PACKAGE_AGX_GUI
 	bool "ANGI desktop"
 	depends on BR2_PACKAGE_AGX
 	depends on BR2_PACKAGE_FONTCONFIG
-	depends on BR2_PACKAGE_AGX_GUI_HEADLESS || (BR2_PACKAGE_LIBINPUT && BR2_PACKAGE_LIBXKBCOMMON && BR2_PACKAGE_MESA3D_GBM && BR2_PACKAGE_HAS_LIBEGL && BR2_PACKAGE_HAS_LIBGLES)
+	depends on BR2_PACKAGE_AGX_GUI_HEADLESS || (BR2_PACKAGE_LIBINPUT && BR2_PACKAGE_LIBXKBCOMMON && BR2_PACKAGE_LIBDRM && (BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS || (BR2_PACKAGE_MESA3D_GBM && BR2_PACKAGE_HAS_LIBEGL && BR2_PACKAGE_HAS_LIBGLES)))
+	depends on BR2_PACKAGE_AGX_GUI_HEADLESS || BR2_PACKAGE_XKEYBOARD_CONFIG
 	help
 	  ANGI desktop with HDMI graphics and a headless VNC display.
 
@@ -11,3 +12,11 @@ config BR2_PACKAGE_AGX_GUI_HEADLESS
 	depends on BR2_PACKAGE_AGX
 	help
 	  Build the desktop without HDMI graphics libraries for small headless devices.
+
+
+config BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS
+	bool "Download graphics drivers during ANGI setup"
+	depends on BR2_x86_64 && BR2_PACKAGE_AGX && !BR2_PACKAGE_AGX_GUI_HEADLESS
+	help
+	  Start the desktop with a framebuffer and load hardware graphics
+	  libraries only after the signed driver bundle is installed.

@@ -5,10 +5,23 @@ choose the device in the firmware's one-time external boot menu. If the loader
 is rejected by the firmware policy, stop and tell the customer which setting
 or hardware is blocking boot. Keep the installed internal system intact.
 
-After moving the prepared media, connect the target's Ethernet port to a
+For the shared Intel and AMD x86-64 image, use the on-screen setup. Connect to Wi-Fi
+or connect Ethernet to the router, then follow **Prepare drivers** before
+creating the administrator account. Choose **Restart and check drivers**
+when setup installs a bundle. If a display driver prevents the desktop from
+starting, select **ANGI (graphics recovery)** in the boot menu.
+
+For private workstation-assisted media, follow the direct SSH procedure
+below. After moving the prepared media, connect the target's Ethernet port to a
 dedicated workstation Ethernet interface and ask the customer to say
 **Continue**. Configure that interface as `10.78.0.1/24` with no gateway or
 default route. ANGI listens at `10.78.0.2`. Leave the existing internet route alone.
+
+A private copy prepared from the generic x86 image still starts with on-screen
+setup and wired SSH closed. It carries the workstation's public key and its
+own host key. Choose **Open Ethernet** on the Security screen. Use the copy's
+`known_hosts` file on the workstation to connect with the pinned key. Inbound
+SSH on this private copy is limited to the wired links you open.
 
 Connect as root using the workstation identity and the private install
 directory's `known_hosts`. Use `IdentitiesOnly=yes`, `StrictHostKeyChecking=yes`

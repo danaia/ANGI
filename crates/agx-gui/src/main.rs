@@ -37,6 +37,7 @@ mod agent_voice;
 mod app;
 mod build_notice;
 mod cpu_temperature;
+mod drivers;
 mod network_safety;
 mod night_light;
 #[cfg(test)]
@@ -101,6 +102,9 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         };
+    }
+    if std::env::args().nth(1).as_deref() == Some("--prepare-drivers") {
+        return drivers::provision::run_for_settings();
     }
     prepare_display();
     if let Err(error) = graphics::initialize() {

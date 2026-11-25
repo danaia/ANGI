@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a private ANGI Pi SD image and its matching SSH trust file."""
+"""Prepare private ANGI boot media and its matching SSH trust file."""
 
 import argparse
 import hmac
@@ -63,7 +63,7 @@ def verify_bundle(directory, expected=None):
 
 
 def root_region(image, board):
-    if board.endswith("-desktop"):
+    if BY_ID[board]["image"] == "disk.img":
         root = partitions(image)[1]
         return root["start"] * 512, root["size"] * 512
     with image.open("rb") as disk:
@@ -90,7 +90,8 @@ def pack_root(image, rootfs, board):
 
 def personalize_boot_reference(image, board, host, staging):
     """Give this install a root partition identity distinct from other copies."""
-    if board.endswith("-desktop"):
+    uefi = BY_ID[board]["image"] == "disk.img"
+    if uefi:
         boot, root = partitions(image)
         offset = boot["start"] * 512
         filename = "EFI/BOOT/grub.cfg"
@@ -108,7 +109,7 @@ def personalize_boot_reference(image, board, host, staging):
 
     fat = f"{image}@@{offset}"
     original = subprocess.check_output([host / "bin/mtype", "-i", fat, f"::{filename}"], text=True)
-    if not board.endswith("-desktop") and "root=/dev/mmcblk0p2" in original.split():
+    if not uefi and "root=/dev/mmcblk0p2" in original.split():
         # Earlier Pi SD artifacts used their fixed onboard partition path.
         return
     root_argument = "root=PARTUUID=" + current
@@ -121,7 +122,7 @@ def personalize_boot_reference(image, board, host, staging):
     packed = subprocess.check_output([host / "bin/mtype", "-i", fat, f"::{filename}"], text=True)
     if packed != rendered:
         raise ValueError("The packed boot configuration did not match the personalized one")
-    if board.endswith("-desktop"):
+    if uefi:
         subprocess.run(["sfdisk", "--part-uuid", image, "2", replacement], check=True,
                        stdout=subprocess.DEVNULL)
         if partitions(image)[1]["uuid"].lower() != replacement:
@@ -148,7 +149,9 @@ def provision(images, output_parent, public_key, dropbearkey):
     with tempfile.TemporaryDirectory(dir=output_parent, prefix=f".angi-{board}-provision-") as temp:
         staging = Path(temp)
         shutil.copyfile(images / "rootfs.ext4", staging / "rootfs")
-        host_key = personalize_rootfs(staging, checked_public_key(public_key), str(Path(keygen).resolve()))
+        wired_only = board in ("x86-desktop", "x86-amd") and (images.parent / ".generic-iso").is_file()
+        host_key = personalize_rootfs(staging, checked_public_key(public_key), str(Path(keygen).resolve()),
+                                      wired_only=wired_only)
         image = staging / name
         shutil.copyfile(source_image, image)
         pack_root(image, staging / "rootfs", board)

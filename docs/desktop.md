@@ -197,6 +197,18 @@ Blender launcher uses that bundled Vulkan driver for its window and viewport.
 
 Open the top-right power menu and choose **Settings**, or search for Settings in Apps. Settings opens as a normal desktop tile alongside your other windows. It supports tiling, floating, resizing, fullscreen and workspace moves; opening it again focuses the existing tile. The Mouse & pointer panel offers pointer speed, adaptive acceleration, left/right primary button, natural scrolling and scroll speed. Changes apply immediately to connected native pointing devices and are reapplied when a mouse reconnects. The test area lets you try movement and clicks; **Restore defaults** resets this collection of preferences. Close it with the title-bar close button or the normal desktop shortcut; Escape leaves the tile open. The category column collapses to a narrow icon rail in small tiles, and controls stack below their descriptions. **Refresh desktop…** now lives in the Overview footer, to the left of **Clear cache…**. It asks for confirmation, saves pending preferences, closes the desktop’s terminal and browser sessions, and starts the latest installed GUI as the same signed-in account. It does not reboot the Pi; VNC viewers may need to reconnect.
 
+In **Settings → Drivers**, Graphics, Sound, Wi-Fi and Bluetooth show the hardware
+Linux sees, its bound driver, and endpoints such as a DRM card or Wi-Fi radio.
+A device with a matching installed module and no active binding is marked
+**Installed, inactive**. The desktop renderer panel reports the current Slint
+backend and the renderer reported by its OpenGL context. On AMD Ryzen graphics,
+`amdgpu` is the kernel driver and RadeonSI is the Mesa OpenGL driver. A software
+renderer such as LLVMpipe can draw the desktop even when `amdgpu` is bound.
+**Check online** rescans and queries the public PCI, USB or SDIO IDs against
+Linux Hardware. For supported Raspberry Pi Device Tree drivers, it checks
+upstream Linux source. The check reports matches and leaves driver installation
+to the system image or an authorized system update. [Mesa drivers](https://docs.mesa3d.org/sourcetree.html)
+
 Preferences belong to the signed-in account and are saved atomically in `$XDG_CONFIG_HOME/agx/mouse.conf` (normally `~/.config/agx/mouse.conf`). The greeter keeps its own defaults. Weston applies the saved pointer speed, acceleration profile, button handedness and natural scrolling to supported devices after the preference saves and when a device connects. VNC movement remains controlled by the viewer. Desktop previews show the controls without changing the workstation's mouse settings.
 
 On Pi 5 HDMI, Weston moves the cursor on the DRM hardware plane when the
@@ -206,7 +218,21 @@ still update the affected content.
 
 ## Rendering and performance
 
-Both appliance and preview builds include FemtoVG and software rendering. The default on the Pi is `auto`: a connected HDMI monitor selects `linuxkms-femtovg`; otherwise it selects the resizable `vnc-software` display, which requires VNC to be enabled. Previews default to `winit-femtovg`. Mesa provides V3D, VC4, EGL, GLES and GBM; the kernel's `v3d` and `vc4` modules provide rendering and HDMI respectively. No X11 or Wayland server is needed on the Pi. Renderer selection is explicit: initialization failures are reported rather than silently producing software-renderer benchmark results. Slint draws the normal GPU pointer. LinuxKMS maps built-in resize shapes to its default arrow, so AGX overlays directional move/resize images and hides the native pointer while those shapes are active. The software renderer uses the same images in its cursor overlay. Cursor strokes use rounded tips and switch between pearl/dark-halo and slate/white-halo variants according to the current background palette. Run `scripts/cargo.sh run --manifest-path crates/agx-gui/Cargo.toml -- --cursor-preview` for the live dark/light comparison at 1× and 3× scale.
+When an image includes hardware graphics, ANGI automatically uses the connected
+physical DRM output for native FemtoVG rendering. This includes HDMI,
+DisplayPort and built-in panels. An explicit `SLINT_DRM_OUTPUT` selection
+takes precedence. Headless images and intentionally selected software modes
+keep their existing rendering paths. Settings → Drivers shows the actual
+OpenGL renderer and whether it is hardware accelerated.
+
+The KMS greeter applies a 400 MHz minimum GPU clock on the benchmarked Beelink
+Mini S with Jasper Lake UHD Graphics and an active local display. It preserves
+the CPU policy, the GPU maximum and a custom GPU minimum. Set
+`AGX_GPU_PACING=off` in `/etc/agx/gui.env` to skip the adjustment on future
+greeter launches. Other boards use the kernel driver's normal clock policy
+until measured on their hardware. [Workspace 2 benchmark](workspace-2-graphics-performance.md)
+
+Both appliance and preview builds include FemtoVG and software rendering. The default on the Pi is `auto`: a connected physical display selects `linuxkms-femtovg`; otherwise it selects the resizable `vnc-software` display, which requires VNC to be enabled. Previews default to `winit-femtovg`. Mesa provides V3D, VC4, EGL, GLES and GBM; the kernel's `v3d` and `vc4` modules provide rendering and HDMI respectively. No X11 or Wayland server is needed on the Pi. Renderer selection is explicit: initialization failures are reported rather than silently producing software-renderer benchmark results. Slint draws the normal GPU pointer. LinuxKMS maps built-in resize shapes to its default arrow, so AGX overlays directional move/resize images and hides the native pointer while those shapes are active. The software renderer uses the same images in its cursor overlay. Cursor strokes use rounded tips and switch between pearl/dark-halo and slate/white-halo variants according to the current background palette. Run `scripts/cargo.sh run --manifest-path crates/agx-gui/Cargo.toml -- --cursor-preview` for the live dark/light comparison at 1× and 3× scale.
 
 Slint 1.19 aligns FemtoVG's rounded clip layers to the device pixel grid. Pebble Line uses these layers for window tiles. Fractional tile positions previously caused FemtoVG to resample the whole layer, softening text and icons inside the tile. [Slint 1.19 release notes](https://github.com/slint-ui/slint/blob/v1.19.0/CHANGELOG.md#1190---2026-11-16)
 
@@ -225,6 +251,8 @@ SLINT_BACKEND=linuxkms-femtovg
 # Optional: select the connected output and its listed 1080p/60 mode index.
 # SLINT_DRM_OUTPUT=HDMI-A-1
 # SLINT_DRM_MODE=4
+# Optional opt-out from the benchmarked GPU floor.
+# AGX_GPU_PACING=off
 # Remote desktop over VNC; see "Remote access (VNC)" below.
 # AGX_GUI_VNC=on
 ```
@@ -558,3 +586,130 @@ with the Pi 5 defconfig first. When enabling the BlueZ audio plugin in an
 existing build, clean that package with `bluez5_utils-dirclean` before rebuilding.
 Deploy the current init and desktop as well the first time. Init starts the new
 Sound service at the next boot.
+
+### Drivers during first boot
+
+On an unclaimed ANGI system, the graphical greeter opens **Prepare drivers**
+after Wi-Fi obtains an address. **Use Ethernet or continue offline** runs the
+same hardware check. The greeter reports graphics, sound, Wi-Fi and Bluetooth
+and offers a restart when it installs driver files. After restarting, the
+greeter checks the hardware again before account creation. If a download is
+unavailable, choose **Install drivers later** and finish setup. Then sign in as
+the local administrator and choose **Settings → Drivers → Install drivers** to
+retry the same signed installer. For feeds that refuse anonymous access, ANGI
+asks you to check registration with the feed provider. Registration requirements
+depend on the selected provider.
+
+The shared `x86-desktop` image targets Intel and AMD x86-64 UEFI PCs.
+Setup matches each installed component independently of the CPU model.
+The same image can select Intel, Radeon or NVIDIA graphics and Wi-Fi, sound
+and Bluetooth adapters from different vendors. Actual device coverage
+depends on the bundles available for the image’s kernel.
+It includes common Wi-Fi and wired network drivers and a framebuffer for
+the setup screen. UEFI boot requests 1920 × 1080 and uses the firmware’s
+current mode if 1080p is unavailable. The installer fetches the
+matching accelerated graphics stack, audio drivers and Bluetooth drivers
+after the network is available.
+Wired setup tries DHCP on the discovered Ethernet adapters. With a direct
+cable and no DHCP server, one connected adapter gets the maintenance address
+`10.78.0.2/24` without a default route. Use `10.78.0.1/24` on the workstation.
+Open Ethernet in Security when you want to allow inbound SSH over that cable.
+Private test media can carry the workstation's SSH public key and its own
+pre-pinned host key. Security shows the address once the cable has an IP and
+shows when SSH is listening.
+If the installed GPU driver prevents the desktop from starting, select
+**ANGI (graphics recovery)** in the generic x86-64 boot menu.
+The x86 Web panel uses sandboxed WPE WebKit. It uses the provisioned graphics
+libraries when available and has a private Mesa software runtime for opening
+websites before the GPU bundle is installed.
+
+#### Configure the release driver feed
+
+Stage each driver bundle in a directory with `modules/`, `firmware/`, or
+`graphics/` files. Describe the devices that need each bundle in a manifest.
+Payload directories are relative to the manifest.
+For common USB audio, Bluetooth or PCI audio drivers, set `alias_modules`
+to the matching `.ko` filenames in the bundle's `modules/` directory. The
+publisher reads the module's PCI and USB aliases with `modinfo`. This lets
+one signed bundle support matching devices across vendors. Use a new feed URL
+when introducing alias selectors so older images keep their existing catalog.
+`scripts/stage-x86-media-drivers.py` prepares those three bundles and a manifest
+from the exact x86 kernel build directory and unpacked linux-firmware source.
+
+```json
+{
+  "bundles": [
+    {
+      "payload": "intel-jasper-lake",
+      "devices": [{"bus": "pci", "vendor": 32902, "product": 20053}]
+    }
+  ]
+}
+```
+
+Prepare the signed feed from the same kernel build the image will boot.
+
+```sh
+scripts/build-driver-feed.py --kernel-build /path/to/build/linux-6.12.47 \
+  --arch x86_64 --manifest /path/to/manifest.json --signing-key /path/to/release-key \
+  --url https://drivers.example.org/angi/x86-release --output /path/to/driver-release
+```
+
+Publish `driver-release/feed/` at that HTTPS directory. Pass the absolute
+path to `driver-release/image-config/` as `AGX_DRIVER_FEED_DIR` when packaging
+the image. The build copies the two configuration files to `/etc/agx/`.
+Setup looks up the detected hardware after Wi-Fi connects or the user chooses
+Ethernet. It verifies the feed before saving the selected files on the writable
+boot filesystem.
+
+For GitHub Releases or another host with flat asset names, add
+`--asset-layout release` and set `--url` to the release's download directory.
+Upload each file from `feed/` as an asset. Setup follows HTTPS redirects to
+download those files. Use a versioned URL tied to the kernel build and verify
+the hosted feed from an internet connection before distributing the image.
+
+```sh
+scripts/check-driver-feed.py /path/to/driver-release
+```
+
+```sh
+BOARD=x86-desktop AGX_GENERIC_ISO=1 AGX_BUILD_OUTPUT=/path/to/x86-output \
+  AGX_DRIVER_FEED_DIR=/path/to/driver-release/image-config scripts/build.sh build
+```
+
+- `driver-catalog.json` contains `url`, the HTTPS directory holding the
+  catalog, and `kernel_build`, the lowercase SHA-256 of `/sys/kernel/notes`
+  on the booted release kernel. Its `asset_layout` selects directory or flat
+  release assets. Existing configurations without this setting use directories.
+- `driver-signers` is an OpenSSH allowed-signers file with principal
+  `angi-drivers` followed by the release public key.
+
+The HTTPS directory serves `index.json`, its signature `index.json.sig`, and
+blobs at `files/<sha256>` or `driver-<sha256>` for flat releases. Keep the
+signing key outside the image.
+
+The index contains `version: 1` and a `bundles` array. Each bundle has
+`arch` (for example `x86_64` or `aarch64`), `kernel` (the exact
+`uname -r`), `kernel_build`, `devices` and `files`. Each device selector
+uses `bus` with `pci`, `usb` or `sdio` and numeric `vendor` and
+`product` IDs, `devicetree` with a `compatible` string, or `modalias` with
+a PCI or USB kernel alias glob in `pattern`. A PCI selector
+can also include a `subsystem` object with numeric `vendor` and `product` IDs
+for firmware or drivers specific to a board variant. Each file entry contains `path`, `size` in bytes, and its lowercase `sha256`.
+
+- `firmware/<path>` installs under `/lib/firmware/`.
+- `modules/<path>.ko` installs under `/lib/modules/<kernel>/updates/angi/`.
+- `graphics/<file>` accepts GBM, EGL, GLVND and their graphics dependencies,
+  Mesa DRI modules under `graphics/dri/`, and NVIDIA vendor libraries and
+  loader registrations. Supply the complete userspace dependency set for
+  the image, including the runtime library names expected by the loader.
+- Build the kernel modules against the exact release kernel. The x86 build
+  retains the compiled graphics, Bluetooth and audio modules in the kernel
+  build directory for bundle assembly. It omits those driver modules from
+  the published bootstrap filesystem. Include any module dependencies
+  omitted from the image, along with their device firmware.
+
+Publish bundles tested with the specific release kernel and userspace.
+Verify cold boot, the reported OpenGL renderer and frame pacing on a physical
+display. NVIDIA requires a bundle produced for ANGI. A build with no feed
+configuration checks its built-in drivers and reports missing hardware support.

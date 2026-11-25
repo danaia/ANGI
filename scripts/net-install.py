@@ -13,7 +13,7 @@ import sys
 from detect_board_registry import BY_ID, ROOT
 from net_bootstrap import CLIENT, HOST, make_bootstrap
 
-BOARDS = ("rpi4", "rpi5", "arm-desktop", "x86-desktop")
+BOARDS = ("rpi4", "rpi5", "arm-desktop", "x86-desktop", "x86-amd")
 
 
 def command(*args, **kwargs):

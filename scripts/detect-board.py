@@ -36,10 +36,17 @@ def cmd_list(_):
 
 def cmd_host(_):
     machine = platform.machine()
+    target = "unknown"
+    if machine == "x86_64":
+        cpuinfo = Path("/proc/cpuinfo")
+        cpu_text = cpuinfo.read_text() if cpuinfo.is_file() else ""
+        vendor = re.search(r"^vendor_id\s*:\s*(\w+)", cpu_text, re.MULTILINE)
+        target = "x86-amd" if vendor and vendor.group(1) == "AuthenticAMD" else "x86-desktop"
+    elif machine in ("aarch64", "arm64"):
+        target = "arm-desktop"
     info = {"arch": machine, "os": platform.platform(),
             "efi": Path("/sys/firmware/efi").exists(),
-            "target_if_this_is_the_target": "x86-desktop" if machine == "x86_64" else
-                                            "arm-desktop" if machine in ("aarch64", "arm64") else "unknown"}
+            "target_if_this_is_the_target": target}
     print(json.dumps(info, indent=2))
 
 

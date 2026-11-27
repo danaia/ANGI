@@ -5,6 +5,7 @@
 use std::collections::{HashMap, HashSet};
 
 mod scene;
+#[cfg(any(feature = "wayland", test))]
 mod native;
 mod preview;
 mod startup;
@@ -105,6 +106,8 @@ pub enum Kind {
     AgentAngi,
     Files,
     TerminalWindow(u32),
+    // Shared scene code can display native windows, but only Wayland creates them.
+    #[cfg_attr(not(any(feature = "wayland", test)), expect(dead_code))]
     Native(u32),
 }
 impl Kind {

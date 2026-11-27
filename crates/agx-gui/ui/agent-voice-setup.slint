@@ -109,7 +109,7 @@ export component VoiceSetupForm inherits VerticalLayout {
                 Flickable {
                     content-height: AgentVoice.choices.length * 93px;
                     init => {
-                        self.viewport-y = -min(max(0px, (root.shown-index - 1) * 93px), max(0px, self.content-height - self.height));
+                        self.content-y = -min(max(0px, (root.shown-index - 1) * 93px), max(0px, self.content-height - self.height));
                     }
                     rows := VerticalLayout {
                         for choice[index] in AgentVoice.choices: VerticalLayout {

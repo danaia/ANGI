@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generate DHCP entries for the physical wired adapters present at boot.
+# Generate DHCP entries for hardware-backed wired adapters, including VM NICs.
 mkdir -p /run/network
 config=/run/network/agx-wired-interfaces
 

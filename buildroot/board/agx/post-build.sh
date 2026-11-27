@@ -16,16 +16,25 @@ if [ -L "$dropbear_dir" ]; then
     exit 1
 fi
 install -d -m 0700 "$dropbear_dir"
-# Remove keys left in staging if an existing build is repurposed for a public ISO.
+# Clear wired setup scripts left by a previous x86 build.
 rm -f "$TARGET_DIR/usr/libexec/agx-wired-network" \
     "$TARGET_DIR/usr/share/udhcpc/default.script.d/50-agx-direct-ethernet"
 if [ -n "${BASE_DIR:-}" ] && [ -f "$BASE_DIR/.generic-iso" ]; then
+    # Strip private SSH provisioning when staging public media.
     install -d -m 0700 "$TARGET_DIR/root/.ssh"
     rm -f -- "$TARGET_DIR/root/.ssh/authorized_keys" "$dropbear_dir"/dropbear_*_host_key
     sed -i 's/^root:[^:]*:/root:!:/' "$TARGET_DIR/etc/shadow"
     install -m 0600 /dev/null "$TARGET_DIR/etc/agx/setup-enabled"
     rm -f -- "$TARGET_DIR/etc/init.d/S50avahi-daemon" "$TARGET_DIR/etc/agx/setup-claimed" "$TARGET_DIR/etc/agx/setup-driver-resume"
-    if { [ "${BOARD:-}" = x86-desktop ] || [ "${BOARD:-}" = x86-amd ]; }; then
+else
+    rm -f -- "$TARGET_DIR/etc/agx/setup-enabled"
+    if [ -f "$TARGET_DIR/root/.ssh/authorized_keys" ]; then
+        chmod 0600 "$TARGET_DIR/root/.ssh/authorized_keys"
+    fi
+fi
+
+case "${BOARD:-}" in
+    x86-desktop|x86-amd)
         cat > "$TARGET_DIR/etc/network/interfaces" <<'EOF'
 auto lo
 iface lo inet loopback
@@ -34,13 +43,8 @@ EOF
         install -D -m 0755 "$board_dir/uefi/wired-network" "$TARGET_DIR/usr/libexec/agx-wired-network"
         install -D -m 0755 "$board_dir/uefi/direct-ethernet" \
             "$TARGET_DIR/usr/share/udhcpc/default.script.d/50-agx-direct-ethernet"
-    fi
-else
-    rm -f -- "$TARGET_DIR/etc/agx/setup-enabled"
-    if [ -f "$TARGET_DIR/root/.ssh/authorized_keys" ]; then
-        chmod 0600 "$TARGET_DIR/root/.ssh/authorized_keys"
-    fi
-fi
+        ;;
+esac
 
 # Match the Pi desktop default. The VNC listener remains bound to loopback.
 if [ -n "${BASE_DIR:-}" ] && grep -qx 'BR2_x86_64=y' "$BASE_DIR/.config" &&

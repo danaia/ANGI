@@ -1,5 +1,21 @@
-//! Startup display discovery. Kernel-forced connectors need real monitor EDID evidence.
+//! Startup discovery of connected physical and virtual displays.
 use std::{fs, io, path::Path};
+
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct Output {
+    pub name: String,
+    pub virtual_display: bool,
+}
+
+fn virtual_driver(card: &Path) -> bool {
+    // VirtIO GPU can register its DRM card on the parent transport device.
+    fs::read_link(card.join("device/driver")).is_ok_and(|driver| {
+        matches!(
+            driver.file_name().and_then(|name| name.to_str()),
+            Some("virtio-pci" | "virtio_gpu" | "bochs-drm")
+        )
+    })
+}
 
 fn forced_output(command_line: &str, output: &str) -> bool {
     command_line.split_whitespace().any(|argument| {
@@ -37,13 +53,13 @@ fn physical_connector(name: &str) -> bool {
         )
 }
 
-/// Select a connected physical output, independent of DRM card numbering.
+/// Prefer a connected physical output, then a display driven by an emulated GPU.
 /// A forced `video=...D` reports connected without a cable, so do not trust it alone.
 pub(super) fn connected_output(
     directory: &Path,
     command_line: &str,
     requested: Option<&str>,
-) -> io::Result<Option<String>> {
+) -> io::Result<Option<Output>> {
     let entries = match fs::read_dir(directory) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
@@ -59,9 +75,14 @@ pub(super) fn connected_output(
         };
         if !card.strip_prefix("card").is_some_and(|number| {
             !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
-        }) || !physical_connector(output)
-            || requested.is_some_and(|selected| selected != output)
+        }) || requested.is_some_and(|selected| selected != output)
         {
+            continue;
+        }
+        let virtual_display = output.strip_prefix("Virtual-").is_some_and(|number| {
+            !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit())
+        }) && virtual_driver(&directory.join(card));
+        if !virtual_display && !physical_connector(output) {
             continue;
         }
         if fs::read_to_string(entry.path().join("status"))
@@ -77,25 +98,28 @@ pub(super) fn connected_output(
         {
             continue;
         }
-        outputs.push(output.to_owned());
+        outputs.push(Output {
+            name: output.to_owned(),
+            virtual_display,
+        });
     }
     // Prefer an internal display on laptops. Otherwise keep the existing HDMI
     // choice when a desktop has both HDMI and another external connector.
     outputs.sort_by_key(|output| {
-        let priority = if output.starts_with("eDP-") || output.starts_with("LVDS-") {
+        let priority = if output.name.starts_with("eDP-") || output.name.starts_with("LVDS-") {
             0
-        } else if output.starts_with("HDMI-") {
+        } else if output.name.starts_with("HDMI-") {
             1
         } else {
             2
         };
-        (priority, output.clone())
+        (output.virtual_display, priority, output.name.clone())
     });
     Ok(outputs.into_iter().next())
 }
 
 #[cfg(feature = "kms")]
-pub(super) fn at_startup() -> io::Result<Option<String>> {
+pub(super) fn at_startup() -> io::Result<Option<Output>> {
     use std::time::{Duration, Instant};
     let command_line = fs::read_to_string("/proc/cmdline")?;
     let requested = std::env::var("SLINT_DRM_OUTPUT").ok();
@@ -136,7 +160,9 @@ mod tests {
             fs::write(path.join("edid"), edid).unwrap();
         }
         fn output(&self, command_line: &str, requested: Option<&str>) -> Option<String> {
-            connected_output(&self.0, command_line, requested).unwrap()
+            connected_output(&self.0, command_line, requested)
+                .unwrap()
+                .map(|output| output.name)
         }
     }
     impl Drop for Displays {
@@ -195,5 +221,36 @@ mod tests {
     fn no_connectors_selects_no_physical_output() {
         let displays = Displays::new();
         assert_eq!(displays.output("", None), None);
+    }
+
+    #[test]
+    fn connected_vm_outputs_are_local_displays_with_physical_passthrough_preferred() {
+        for driver in ["virtio-pci", "virtio_gpu", "bochs-drm"] {
+            let displays = Displays::new();
+            let device = displays.0.join("card0/device");
+            fs::create_dir_all(&device).unwrap();
+            std::os::unix::fs::symlink(
+                format!("/sys/bus/pci/drivers/{driver}"),
+                device.join("driver"),
+            )
+            .unwrap();
+            displays.add("card0-Virtual-1", "disconnected", &[]);
+            assert_eq!(displays.output("", None), None);
+            displays.add("card0-Virtual-1", "connected", &[]);
+            let expected = Output {
+                name: "Virtual-1".into(),
+                virtual_display: true,
+            };
+            assert_eq!(
+                connected_output(&displays.0, "", None).unwrap(),
+                Some(expected)
+            );
+            displays.add("card1-DP-1", "connected", &[]);
+            assert_eq!(displays.output("", None).as_deref(), Some("DP-1"));
+            assert_eq!(
+                displays.output("", Some("Virtual-1")).as_deref(),
+                Some("Virtual-1")
+            );
+        }
     }
 }

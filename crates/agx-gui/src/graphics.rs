@@ -76,20 +76,22 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
             let needs_runtime = !provisioned::runtime_available();
             #[cfg(not(feature = "kms-provision-graphics"))]
             let needs_runtime = false;
-            let selected = if (recovery || needs_runtime) && (output.is_some() || setup_framebuffer)
-            {
-                eprintln!("agx-gui: using the local software renderer");
-                "linuxkms-software"
-            } else if let Some(output) = output {
-                eprintln!(
-                    "agx-gui: auto display: {output} connected; using GPU desktop with VNC mirroring when enabled"
-                );
+            let selected = if let Some(output) = output {
                 // Resolve once before threads start. The login exec inherits the
                 // concrete backend/output so signing in cannot change display modes.
                 unsafe {
-                    std::env::set_var("SLINT_DRM_OUTPUT", output);
+                    std::env::set_var("SLINT_DRM_OUTPUT", &output.name);
                 }
-                "linuxkms-femtovg"
+                if output.virtual_display || recovery || needs_runtime {
+                    eprintln!(
+                        "agx-gui: {} connected; using the local software renderer",
+                        output.name
+                    );
+                    "linuxkms-software"
+                } else {
+                    eprintln!("agx-gui: {} connected; using the GPU renderer", output.name);
+                    "linuxkms-femtovg"
+                }
             } else if setup_framebuffer {
                 eprintln!("agx-gui: using the setup framebuffer until a GPU display is available");
                 "linuxkms-software"

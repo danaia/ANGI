@@ -1,9 +1,14 @@
 //! Run the system Wi-Fi service's asynchronous scan and connect operations.
 use agx_net::{AccessPoint, Reply, Request, Security, Status};
 use std::{
-    thread,
+    fs, thread,
     time::{Duration, Instant},
 };
+
+pub(super) fn adapter_available() -> bool {
+    // A registered wiphy is present before association and while the radio is blocked.
+    fs::read_dir("/sys/class/ieee80211").is_ok_and(|mut devices| devices.any(|entry| entry.is_ok()))
+}
 
 pub(super) fn security(index: i32) -> Security {
     match index {

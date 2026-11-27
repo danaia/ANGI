@@ -34,30 +34,6 @@ component AppIcon inherits Rectangle {
     }
 }
 
-component LauncherTab inherits Rectangle {
-    in property <string> label;
-    in property <bool> active;
-    callback chosen();
-    height: 32px;
-    width: 112px;
-    border-radius: self.height / 2;
-    background: active ? Theme.surface-muted : touch.has-hover ? Theme.surface-hover : transparent;
-    Text {
-        text: root.label;
-        color: root.active || touch.has-hover ? Theme.ink : Theme.ink-muted;
-        font-size: Theme.text-body-sm;
-        font-weight: 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-    touch := TouchArea {
-        mouse-cursor: pointer;
-        accessible-role: button;
-        accessible-label: root.label;
-        clicked => { root.chosen(); }
-    }
-}
-
 export component AppLauncher inherits Rectangle {
     in property <[MenuRow]> rows;
     in-out property <int> selected: 0;

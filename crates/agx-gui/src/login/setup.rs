@@ -14,10 +14,13 @@ const RESUME_DRIVERS: &str = "/etc/agx/setup-driver-resume";
 pub(super) fn install(ui: &LoginWindow) -> Timer {
     let page = ui.global::<GreeterSetup>();
     page.set_step(-1);
+    page.set_wifi_available(wifi::adapter_available());
     let weak = ui.as_weak();
     page.on_scan(move |country| {
         let Some(ui) = weak.upgrade() else { return };
-        if start(&ui, 1, "Scanning for Wi-Fi networks…") {
+        if ui.global::<GreeterSetup>().get_wifi_available()
+            && start(&ui, 1, "Scanning for Wi-Fi networks…")
+        {
             let country = country.to_string();
             let page = ui.global::<GreeterSetup>();
             page.set_networks(ModelRc::default());
@@ -59,10 +62,13 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
     let weak = ui.as_weak();
     page.on_connect(move |country, picked, ssid, security, password, hidden| {
         let Some(ui) = weak.upgrade() else { return };
+        let page = ui.global::<GreeterSetup>();
+        if !page.get_wifi_available() {
+            return;
+        }
         let (ssid_hex, security) = if picked < 0 {
             (agx_net::hex(ssid.as_bytes()), wifi::security(security))
         } else {
-            let page = ui.global::<GreeterSetup>();
             let Some(point) = page.get_wifi_choices().row_data(picked as usize) else {
                 return;
             };
@@ -190,6 +196,13 @@ pub(super) fn install(ui: &LoginWindow) -> Timer {
         // Step 4 (Security) follows the account; the sign-in screen waits for Finish.
         if page.get_step() == 0 || page.get_step() == 4 || page.get_busy() {
             return;
+        }
+        if page.get_step() <= 1 {
+            let available = wifi::adapter_available();
+            if page.get_wifi_available() != available {
+                page.set_error("".into());
+                page.set_wifi_available(available);
+            }
         }
         if service::setup_claimed().unwrap_or(false) && page.get_step() < 0 {
             ui.invoke_show_login("".into());

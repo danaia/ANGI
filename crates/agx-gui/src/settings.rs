@@ -191,7 +191,8 @@ pub(super) fn flush() -> io::Result<()> {
     MOUSE.with(|mouse| save(&path, &mouse.borrow()))
 }
 
-pub fn scroll_factor() -> f64 {
+#[cfg(any(feature = "kms", test))]
+pub(crate) fn scroll_factor() -> f64 {
     MOUSE.with(|mouse| mouse.borrow().scroll as f64 / 100.)
 }
 

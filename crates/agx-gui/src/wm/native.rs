@@ -2,6 +2,7 @@
 use super::{Desktop, Kind, Mode, Rect};
 
 impl Desktop {
+    #[cfg(feature = "wayland")]
     pub(crate) fn workspace_of(&self, kind: Kind) -> Option<usize> {
         self.ws.iter().position(|workspace| workspace.z.contains(&kind))
     }
@@ -58,6 +59,7 @@ impl Desktop {
         }))
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) fn native_float_rect(&self, kind: Kind) -> Option<Rect> {
         let ws = self.workspace_of(kind)?;
         (self.ws[ws].mode == super::Mode::Floating || self.ws[ws].floats.contains(&kind))
@@ -65,6 +67,7 @@ impl Desktop {
             .flatten()
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) fn native_tile_extent(&self, kind: Kind) -> Option<(f32, f32)> {
         let workspace = &self.ws[self.workspace_of(kind)?];
         if workspace.mode != Mode::Tiled || workspace.floats.contains(&kind) {
@@ -74,6 +77,7 @@ impl Desktop {
         Some((rect.w / self.usable.w.max(1.0), rect.h / self.usable.h.max(1.0)))
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) fn restore_native_extent(&mut self, kind: Kind, (width, height): (f32, f32)) {
         if !(0.0..=1.0).contains(&width) || !(0.0..=1.0).contains(&height) {
             return;
@@ -91,6 +95,7 @@ impl Desktop {
         self.ws[workspace].mode
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) fn forget_native(&mut self, kind: Kind) {
         self.close(kind);
         self.float_rect.remove(&kind);

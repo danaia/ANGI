@@ -86,8 +86,11 @@ def check_uefi(images, board):
 
     generic = board["arch"] == "x86_64" and (images.parent / ".generic-iso").is_file()
     files = ["usr/sbin/agx-init", "usr/bin/agx", "usr/sbin/agx-netd"]
+    if board["arch"] == "x86_64":
+        files.append("usr/bin/agx-gui")
+        check_wired_network(read_root)
     if generic:
-        files.extend(("usr/bin/agx-gui", "etc/init.d/S10agx-hardware"))
+        files.append("etc/init.d/S10agx-hardware")
         build_config = images.parent / ".config"
         options = build_config.read_text().splitlines() if build_config.is_file() else []
         provisioned = "BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y" in options
@@ -150,6 +153,13 @@ def check_included_bluetooth(read_root):
             raise ValueError(f"The x86 desktop image is missing {directory} Bluetooth firmware")
 
 
+def check_wired_network(read_root):
+    wired = read_root("usr/libexec/agx-wired-network")
+    direct = read_root("usr/share/udhcpc/default.script.d/50-agx-direct-ethernet")
+    if b"inet dhcp" not in wired or b"10.78.0.2/24" not in direct:
+        raise ValueError("The x86 image needs wired DHCP discovery and the direct-cable fallback")
+
+
 def check_public_setup(read_root, grub_config, *, provisioned_graphics=True):
     marker = read_root("etc/agx/setup-enabled", "stat")
     if b"Type: regular" not in marker or not re.search(rb"\bMode:\s+0600\b", marker):
@@ -165,10 +175,6 @@ def check_public_setup(read_root, grub_config, *, provisioned_graphics=True):
             raise ValueError(f"The public image contains provisioned SSH files in /{directory}")
     if not any(line.startswith(b"root:!:") for line in read_root("etc/shadow").splitlines()):
         raise ValueError("The public image must lock the root password")
-    wired = read_root("usr/libexec/agx-wired-network")
-    direct = read_root("usr/share/udhcpc/default.script.d/50-agx-direct-ethernet")
-    if b"inet dhcp" not in wired or b"10.78.0.2/24" not in direct:
-        raise ValueError("The public image needs wired DHCP discovery and the direct-cable fallback")
     for path in ("usr/lib/libsbc.so.1", "usr/lib/pulseaudio/modules/module-bluez5-discover.so"):
         if b"Inode:" not in read_root(path, "stat"):
             raise ValueError(f"The public image is missing Bluetooth audio support: /{path}")

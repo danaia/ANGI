@@ -29,7 +29,7 @@ Scans run off the UI thread every minute after completion, limited to 500,000 en
 
 On Workspace 1, **Clear cache…** next to **Refresh files** checks the signed-in user's OpenCode npm download cache and previews the verified file count and disk space before asking for confirmation. It only selects single-link regular files whose SHA-512 contents match their npm cache path and whose last modification was at least an hour ago. Files changed after the preview are kept. Projects, sessions, settings, installed tools, cache indexes and other cache directories are kept. Packages may need to be downloaded again after cleanup.
 
-Run a preview window on a desktop: `scripts/cargo.sh run --manifest-path crates/agx-gui/Cargo.toml`.
+Run `./scripts/run-vm.sh` to open the native, resizable desktop preview on your workstation.
 
 In **Files**, right-click one folder and choose **Start Python server** to serve its contents and open it immediately in **Web**. Right-click empty space and choose **Start Python server here** to serve the folder being viewed. This uses Python 3's static HTTP server on a free loopback port (`127.0.0.1`), under the signed-in account. The Files status bar shows the URL or a startup error. Repeating the action for the same folder reuses its server. Servers stay running when Web closes and stop when the desktop session ends or refreshes.
 
@@ -589,9 +589,11 @@ Sound service at the next boot.
 
 ### Drivers during first boot
 
-On an unclaimed ANGI system, the graphical greeter opens **Prepare drivers**
-after Wi-Fi obtains an address. **Use Ethernet or continue offline** runs the
-same hardware check. The greeter reports graphics, sound, Wi-Fi and Bluetooth
+On an unclaimed ANGI system, the graphical greeter offers Wi-Fi when an adapter
+is available. It opens **Prepare drivers** after Wi-Fi obtains an address.
+**Use Ethernet or continue offline** runs the same hardware check. Without a
+Wi-Fi adapter, setup offers Ethernet or offline setup with a **Continue**
+button. The greeter reports graphics, sound, Wi-Fi and Bluetooth
 and offers a restart when it installs driver files. After restarting, the
 greeter checks the hardware again before account creation. If a download is
 unavailable, choose **Install drivers later** and finish setup. Then sign in as
@@ -623,6 +625,32 @@ shows when SSH is listening.
 If the installed GPU driver prevents the desktop from starting, select
 **ANGI (graphics recovery)** in the generic x86-64 boot menu.
 The x86 Web panel uses sandboxed WPE WebKit with the image's Mesa libraries.
+
+#### Test first boot in QEMU/KVM
+
+Boot the `x86-desktop` disk image with x86-64 UEFI firmware (OVMF). The
+greeter uses the VM window for setup and sign-in with VirtIO VGA or QEMU
+standard VGA. The guest renders locally in software, so host GPU acceleration
+is optional. QEMU user networking shares the host's internet connection over
+virtual Ethernet, including when the host uses Wi-Fi. The guest gets its
+network settings through DHCP. Choose **Continue** on the network screen to
+proceed to drivers and administrator setup.
+
+From the repository root, run:
+
+```sh
+./scripts/run-vm.sh --vm
+```
+
+On first run, the launcher uses the built `x86-desktop` image or a local
+preview image if one is available. It stores the writable disk and UEFI
+variables in `.cache/angi-vm/desktop`. Pass an image and a new state
+directory to start a separate guest. On Arch Linux, install
+`qemu-desktop` and `edk2-ovmf`. Set `OVMF_DIR` if your firmware lives in a
+different directory.
+
+#### AMD bootstrap image
+
 The `x86-amd` configuration still downloads its graphics bundle during setup
 (`BR2_PACKAGE_AGX_GUI_PROVISION_GRAPHICS=y`) and keeps a private Mesa software
 runtime for Web; the universal `x86-desktop` image covers its AMD graphics.

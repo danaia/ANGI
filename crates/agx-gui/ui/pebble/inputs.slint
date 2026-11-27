@@ -53,6 +53,7 @@ export component TextField inherits Rectangle {
         text: root.placeholder-text; font-size: root.font-size; color: Theme.ink-muted;
     }
     input := TextInput {
+        accessible-role: none;
         x: root.lead; width: parent.width - root.lead - Theme.space-4; height: parent.height;
         single-line: true; vertical-alignment: center;
         enabled: root.enabled; read-only: root.read-only; input-type: root.input-type;
